@@ -1,0 +1,1 @@
+- Store passwords in a secure way (using a SHA2 digest and a salt).
