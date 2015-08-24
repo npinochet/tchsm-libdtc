@@ -16,6 +16,8 @@ void logger_init_stream(FILE *stream) {
 }
 
 void logger_log(const char *format, ...) {
+    if(!output)
+        output = stderr;
     char buff[50];
     size_t writed_bytes = 0;
     va_list args;
