@@ -12,15 +12,17 @@
 
 // TODO(fmontoto) Helper method to check valid versions.
 
-
+// struct store_key_pub utilities
 static struct json_object *serialize_store_key_pub(
         const union command_args *args_u, uint16_t version){
 
     const struct store_key_pub *store_key_pub = &args_u->store_key_pub;
-    struct json_object *ret = json_object_new_object();
+    struct json_object *ret;
 
     if(version != 1)
         return NULL;
+
+    ret = json_object_new_object();
 
     json_object_object_add(ret, "server_id",
                             json_object_new_string(store_key_pub->server_id));
@@ -29,11 +31,15 @@ static struct json_object *serialize_store_key_pub(
     return ret;
 }
 
-static union command_args *unserialize_store_key_pub(struct json_object *in){
+static union command_args *unserialize_store_key_pub(struct json_object *in,
+                                                     uint16_t version) {
     struct json_object *temp;
     union command_args *ret_union =
         (union command_args *) malloc(sizeof(union command_args));
     struct store_key_pub *ret = &ret_union->store_key_pub;
+
+    if(version != 1)
+        goto err_exit;
 
     if(!json_object_object_get_ex(in, "server_id", &temp)){
         LOG(LOG_LVL_CRT, "Key \"server_id\" does not exists.");
@@ -62,18 +68,74 @@ int delete_store_key_pub(union command_args *data) {
     return 0;
 }
 
+// struct store_key_req
+static struct json_object *serialize_store_key_req(
+        const union command_args *args_u, uint16_t version) {
+    const struct store_key_req *store_key_req = &args_u->store_key_req;
+    struct hson_object *ret;
 
+    if(version != 1)
+        return NULL;
+
+    ret = json_object_new_object();
+    json_object_object_add(
+            ret, "server_id_accepted",
+            json_object_new_int(store_key_req->server_id_accepted));
+
+    return ret;
+}
+
+static union command_args *unserialize_store_key_req(struct json_object *in,
+                                                     uint16_t version) {
+    struct json_object *temp;
+    union command_args *ret_union =
+        (union command_args *) malloc(sizeof(union command_args));
+    struct store_key_req *ret = &ret_union->store_key_req;
+
+    if(version != 1)
+        goto err_exit;
+
+    if(!json_object_object_get_ex(in, "server_id_accepted", &temp)) {
+        LOG(LOG_LVL_CRT, "Key \"server_id_accepted\" does not exists.");
+        goto err_exit;
+    }
+
+    ret->server_id_accepted = (uint8_t) json_object_get_int(temp);
+
+    return ret_union;
+
+err_exit:
+    free(ret_union);
+    return NULL;
+}
+
+int delete_store_key_req(union command_args *data) {
+    free(data);
+    return 0;
+}
+
+// struct store_key_res
+static struct json_object *serialize_store_key_res(
+        const union command_args *args_u, uint16_t version) {
+    if(version != 1)
+        return NULL;
+
+    // TODO(fmontoto)
+    return NULL;
+}
+
+// Arrays with functions to do the serialization/unserialization and deletion.
 static struct json_object *(
         *const serialize_funcs[OP_MAX])(const union command_args *data,
                                         uint16_t version) =
-    {serialize_store_key_pub, NULL, NULL};
+    {serialize_store_key_pub, serialize_store_key_req, NULL};
 
 static union command_args *(*const unserialize_funcs[OP_MAX])(
-        struct json_object *in) =
-    {unserialize_store_key_pub, NULL, NULL};
+        struct json_object *in, uint16_t version) =
+    {unserialize_store_key_pub, unserialize_store_key_req, NULL};
 
 static int (*delete_funcs[OP_MAX])(union command_args *data) =
-    {delete_store_key_pub, NULL, NULL};
+    {delete_store_key_pub, delete_store_key_req, NULL};
 
 // *************************************************************
 // ***********************Public API****************************
@@ -110,9 +172,11 @@ size_t serialize_op_req(const struct op_req *operation_request, char **output){
     temp_char_ptr =
         json_object_to_json_string_ext(json_ret, JSON_C_TO_STRING_PRETTY);
 
+    // TODO(fmontoto) strdup?
     ret = strlen(temp_char_ptr);
     *output = (char *) malloc(ret * sizeof(char));
     memcpy(*output, temp_char_ptr, ret);
+    json_object_put(json_ret);
 
     return ret;
 
@@ -164,10 +228,12 @@ struct op_req *unserialize_op_req(const char *operation_request, size_t size){
         LOG(LOG_LVL_CRT, "Key \"args\" does not exists.");
         goto err_exit;
     }
-    temp_args = (unserialize_funcs[ret->op])(temp_json);
+    temp_args = (unserialize_funcs[ret->op])(temp_json, ret->version);
     if(!temp_args)
         goto err_exit;
     ret->args = temp_args;
+
+    json_object_put(parsed_json);
 
     return ret;
 
@@ -239,7 +305,7 @@ START_TEST(unserialize_store_key_pub_simple) {
     json_object_object_add(input, "key_id",
                            json_object_new_string(TEST_KEY_ID));
 
-    obtained = unserialize_store_key_pub(input);
+    obtained = unserialize_store_key_pub(input, 1);
     ck_assert_str_eq(TEST_SERVER_ID, obtained->store_key_pub.server_id);
     ck_assert_str_eq(TEST_KEY_ID, obtained->store_key_pub.key_id);
 
@@ -256,7 +322,7 @@ START_TEST(unserialize_store_key_pub_wrong_input) {
 
     json_object_object_add(input, "server",
                            json_object_new_string(TEST_SERVER_ID));
-    obtained = unserialize_store_key_pub(input);
+    obtained = unserialize_store_key_pub(input, 1);
     ck_assert_ptr_eq(NULL, obtained);
     json_object_put(input);
 }
@@ -272,7 +338,7 @@ START_TEST(serialize_unserialize_store_key_pub) {
 
 
     json_obj = serialize_store_key_pub(&store_key_pub, 1);
-    obtained_store_key_pub = unserialize_store_key_pub(json_obj);
+    obtained_store_key_pub = unserialize_store_key_pub(json_obj, 1);
 
     ck_assert_str_eq(store_key_pub.store_key_pub.server_id,
                      obtained_store_key_pub->store_key_pub.server_id);
@@ -282,6 +348,27 @@ START_TEST(serialize_unserialize_store_key_pub) {
 
     json_object_put(json_obj);
     delete_store_key_pub(obtained_store_key_pub);
+}
+END_TEST
+
+START_TEST(serialize_unserialize_store_key_req) {
+    union command_args store_key_req;
+    union command_args *obtained_store_key_req;
+    json_object *json_obj;
+    const uint8_t server_id_accepted = 2;
+
+    store_key_req.store_key_req.server_id_accepted = server_id_accepted;
+
+    json_obj = serialize_store_key_req(&store_key_req, 1);
+    obtained_store_key_req = unserialize_store_key_req(json_obj, 1);
+
+    ck_assert(server_id_accepted ==
+              obtained_store_key_req->store_key_req.server_id_accepted);
+
+    json_object_put(json_obj);
+    delete_store_key_req(obtained_store_key_req);
+
+
 }
 END_TEST
 
@@ -319,9 +406,6 @@ START_TEST(serialize_op_req_store_key_pub_wrong_version) {
 
     ret = serialize_op_req(&operation_request, &output);
     ck_assert(ret == 0);
-
-    free(output);
-
 }
 END_TEST
 
@@ -352,6 +436,7 @@ START_TEST(serialize_unserialize_op_req) {
                      com_args.store_key_pub.key_id);
 
     free(output);
+    delete_op_req(unserialized_op_req);
 
 }
 END_TEST
@@ -367,6 +452,8 @@ TCase* get_dt_tclib_messages_c_test_case(){
 
     tcase_add_test(test_case, serialize_unserialize_store_key_pub);
     tcase_add_test(test_case, serialize_op_req_store_key_pub_simple);
+
+    tcase_add_test(test_case, serialize_unserialize_store_key_req);
 
     tcase_add_test(test_case, serialize_op_req_store_key_pub_wrong_version);
     tcase_add_test(test_case, serialize_unserialize_op_req);
