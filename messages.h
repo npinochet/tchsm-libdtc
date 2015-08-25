@@ -1,5 +1,5 @@
-#ifndef DT_TCLIB_H_
-#define DT_TCLIB_H_
+#ifndef DT_TCLIB_MESSAGES_H_
+#define DT_TCLIB_MESSAGES_H_
 #include <stdint.h>
 
 enum OP {
@@ -24,7 +24,7 @@ struct store_key_req {
 struct store_key_res {
     void *key_share;
     void *meta_info;
-    void *key_id;
+    char *key_id;
 };
 
 union command_args {
