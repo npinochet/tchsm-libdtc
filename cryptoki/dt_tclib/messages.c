@@ -62,8 +62,8 @@ err_exit:
 
 int delete_store_key_pub(union command_args *data) {
     struct store_key_pub *store_key_pub = &data->store_key_pub;
-    free(store_key_pub->server_id);
-    free(store_key_pub->key_id);
+    free((void *)store_key_pub->server_id);
+    free((void *)store_key_pub->key_id);
     free(data);
     return 0;
 }
@@ -72,7 +72,7 @@ int delete_store_key_pub(union command_args *data) {
 static struct json_object *serialize_store_key_req(
         const union command_args *args_u, uint16_t version) {
     const struct store_key_req *store_key_req = &args_u->store_key_req;
-    struct hson_object *ret;
+    struct json_object *ret;
 
     if(version != 1)
         return NULL;
@@ -115,14 +115,7 @@ int delete_store_key_req(union command_args *data) {
 }
 
 // struct store_key_res
-static struct json_object *serialize_store_key_res(
-        const union command_args *args_u, uint16_t version) {
-    if(version != 1)
-        return NULL;
-
-    // TODO(fmontoto)
-    return NULL;
-}
+//static struct json_object *serialize_store_key_res
 
 // Arrays with functions to do the serialization/unserialization and deletion.
 static struct json_object *(

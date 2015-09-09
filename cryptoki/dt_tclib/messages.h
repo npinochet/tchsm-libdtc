@@ -12,8 +12,8 @@ enum OP {
 };
 
 struct store_key_pub{
-    char *server_id;
-    char *key_id;
+    const char *server_id;
+    const char *key_id;
 };
 
 struct store_key_req {
@@ -50,8 +50,8 @@ struct op_req{
  *
  * Returns:
  *  Size of the operation_request's serialization. It's safe to read at most
- *  this value from *output. If it returns 0, the operation failed and output
- *  isn't modified.
+ *  this value bytes from *output. If it returns 0, the operation failed and
+ *  output isn't modified.
  **/
 size_t serialize_op_req(const struct op_req *operation_request, char **output);
 

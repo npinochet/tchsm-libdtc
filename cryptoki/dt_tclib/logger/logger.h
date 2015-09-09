@@ -61,6 +61,12 @@ enum {
         logger_log(format, ## __VA_ARGS__); \
     } while(0);
 
+#define PERROR_LOG(level, msg, format,...) \
+    do { \
+        LOG(level, "%s:%s", msg, strerror(errno)) \
+        LOG(level, format, ## __VA_ARGS__); \
+    } while(0);
+
 /**
  * Log a perror-like message. And returns val.
  *
