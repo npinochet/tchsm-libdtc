@@ -1,4 +1,4 @@
-
+#define _POSIX_C_SOURCE 200809L
 #include <getopt.h>
 #include <inttypes.h>
 #include <stdint.h>
@@ -75,6 +75,7 @@ static struct communication_objects *create_and_bind_sockets(
         const struct flags *conf);
 static int node_loop();
 static int set_server_socket_security(void *socket, char *server_secret_key);
+static void zap_handler (void *handler);
 
 int main(int argc, char **argv){
     int ret_val = 0;
@@ -285,7 +286,7 @@ static struct communication_objects *create_and_bind_sockets(
     void *sub_socket = NULL, *dealer_socket = NULL;
     int ret_value = 0;
     ret_val->classifier_socket_address = "inproc://classifier";
-
+    // TODO check this exit on false.
     EXIT_ON_FALSE(ret_val, "No memory for communication_objects.");
 
     ret_val->ctx = zmq_ctx_new();
@@ -301,6 +302,16 @@ static struct communication_objects *create_and_bind_sockets(
                          ret_val->classifier_socket_address);
     EXIT_ON_FALSE(!ret_value, "Bind failed at: %s.",
                   ret_val->classifier_socket_address);
+
+    void *handler = zmq_socket (ret_val->ctx, ZMQ_REP);
+    EXIT_ON_FALSE(handler, "ZAP_HANDLER socket error.")
+    ret_value = zmq_bind (handler, "inproc://zeromq.zap.01");
+    EXIT_ON_FALSE(!ret_value, "ZQA_HANDLER bind error.");
+    /*void *zap_thread =*/ zmq_threadstart (&zap_handler, handler);
+
+
+
+
 
     ret_val->sub_socket = zmq_socket(ret_val->ctx, ZMQ_SUB);
     sub_socket = ret_val->sub_socket;
@@ -410,84 +421,88 @@ static int node_loop(struct communication_objects *communication_objs){
     return 0;
 }
 
-/*
-static char * store_key(const key_share_t * key_share,
-                        const key_meta_info_t * meta_info) {
-
-    uuid_t uuid;
-    char * key_name = malloc(37);
-    uuid_generate(uuid);
-    uuid_unparse_upper(uuid, key_name);
-
-    store_key_share(key_name, key_share);
-    store_meta_info(key_name, meta_info);
-
-    return key_name;
+//  Receive 0MQ string from socket and convert into C string
+//
+//  Caller must free returned string. Returns NULL if the context
+//  is being terminated.
+char *s_recv (void *socket) {
+    char buffer [256];
+    int size = zmq_recv(socket, buffer, 255, 0);
+    if (size == -1)
+        return NULL;
+    if (size > 255)
+        size = 255;
+    buffer [size] = 0;
+    return strdup (buffer);
 }
 
-// TODO: exploitable function...
-static void delete_key(const char * key_name) {
-    delete_key_share(key_name);
-    delete_meta_info(key_name);
+//  Convert C string to 0MQ string and send to socket
+int s_send(void *socket, const char *string) {
+    int size = zmq_send(socket, string, strlen(string), 0);
+    return size;
 }
 
-static signature_share_t * node_sign(const bytes_t * doc, const char * key_name) {
-    key_meta_info_t * mi = get_meta_info(key_name);
-    key_share_t * ks = get_key_share(key_name);
-
-    signature_share_t * ss = tc_node_sign(ks, doc, mi);
-
-    tc_clear_key_share(ks);
-    tc_clear_key_meta_info(mi);
-
-    return ss;
+//  Sends string as 0MQ string, as multipart non-terminal
+int s_sendmore(void *socket, const char *string) {
+    int size = zmq_send (socket, string, strlen(string), ZMQ_SNDMORE);
+    return size;
 }
 
-void node_job(struct node_info * info) {
-    int working = 1;
+static void zap_handler (void *handler)
+{
+    char *client_public = "E!okhRB>r7!&T(ORk#(tncmcW-gJzA4y4G[=lm9o";
+    //  Process ZAP requests forever
+    while (1) {
+        char *version = s_recv (handler);
+        if (!version)
+            break;          //  Terminating
 
-    char id[2]; snprintf(id, sizeof(id), "%d", info->id);
+        char *sequence = s_recv (handler);
+        char *domain = s_recv (handler);
+        char *address = s_recv (handler);
+        char *identity = s_recv (handler);
+        char *mechanism = s_recv (handler);
+        uint8_t client_key [32];
+        int size = zmq_recv (handler, client_key, 32, 0);
+        printf("size:%d\n", size);
+        //assert (size == 32);
 
-    node_cmd_t * node_cmd;
-    master_cmd_t * master_cmd;
-    while(working) {
-        node_cmd = node_receive_command(info);
-        master_cmd = create_master_cmd();
-        master_cmd->node_id = info->id;
-        master_cmd->cmd = node_cmd->cmd;
+        char client_key_text [41];
+        zmq_z85_encode (client_key_text, client_key, 32);
 
-        switch(node_cmd->cmd) {
-            case NODE_CMD_STORE_KEY:
-                master_cmd->store_key_id = store_key(node_cmd->store_key_share, node_cmd->store_meta_info);
-                logger_log(id, "M", "Key stored");
-                break;
-            case NODE_CMD_DELETE_KEY:
-                delete_key(node_cmd->delete_key_name);
-                break;
-            case NODE_CMD_SIGN_DOC:
-                master_cmd->sign_signature_share = node_sign(node_cmd->sign_doc, node_cmd->sign_key_name);
-                logger_log(id, "M", "Document signed");
-                break;
-            case NODE_CMD_STOP:
-                working = 0;
-                break;
+        printf("%s\n%s\n%s\n%s\n%s\n", sequence, domain, address, identity,
+               mechanism);
+
+        printf("%.*s\n", 32, client_key_text);
+
+        //assert (streq (version, "1.0"));
+        //assert (streq (mechanism, "CURVE"));
+        //assert (streq (identity, "IDENT"));
+
+        s_sendmore (handler, version);
+        s_sendmore (handler, sequence);
+
+        if (!strcmp(client_key_text, client_public)) {
+            s_sendmore (handler, "200");
+            s_sendmore (handler, "OK");
+            s_sendmore (handler, "anonymous");
+            s_send     (handler, "");
         }
-
-        node_send_response(info, master_cmd);
-        node_cmd_dispose(node_cmd);
+        else {
+            s_sendmore (handler, "400");
+            s_sendmore (handler, "Invalid client public key");
+            s_sendmore (handler, "");
+            s_send     (handler, "");
+        }
+        free (version);
+        free (sequence);
+        free (domain);
+        free (address);
+        free (identity);
+        free (mechanism);
     }
+    zmq_close (handler);
 }
 
-void node_info_init(node_info_t * info, int id, master_info_t * minfo) {
-    info->master_queue = minfo->queue;
-    info->master_semaphore = &minfo->semaphore;
-    info->id = id;
-    sem_init(&info->semaphore, 0, 0);
-    info->queue = create_llqueue();
-}
 
-void node_info_dispose(struct node_info * info) {
-    llqueue_dispose(info->queue, (dispose_fn) master_cmd_dispose);
-    sem_destroy(&info->semaphore);
-}
-*/
+
