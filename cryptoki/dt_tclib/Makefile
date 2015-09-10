@@ -36,7 +36,7 @@ all: $(EXE)
 logger.o: logger/logger.c logger/logger.h
 	$(CC) $(CFLAGS) -c logger/logger.c
 
-database.o: database.c database.h logger.h
+database.o: database.c database.h
 	$(CC) $(CFLAGS) -c database.c
 
 messages.o: messages.c messages.h logger.o
