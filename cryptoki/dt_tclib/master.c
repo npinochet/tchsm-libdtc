@@ -199,11 +199,11 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err) {
 
     printf("%s\n", configuration_to_string(&conf));
 
-    *err = create_connect_sockets(&conf, ret);
+    *err = get_unique_id(&ret->server_id);
     if(*err != DTC_ERR_NONE)
         goto err_exit;
 
-    *err = get_unique_id(&ret->server_id);
+    *err = create_connect_sockets(&conf, ret);
     if(*err != DTC_ERR_NONE)
         goto err_exit;
 
@@ -314,6 +314,12 @@ static int create_connect_sockets(const struct configuration *conf,
     if(ret)
         goto err_exit;
 
+    ret_val = zmq_setsockopt(router_socket, ZMQ_IDENTITY, ctx->server_id,
+                             strlen(ctx->server_id));
+    if(ret_val != 0) {
+        ret = DTC_ERR_ZMQ_CURVE;
+        goto err_exit;
+    }
 
     for(i = 0; i < conf->cant_nodes; i++) {
         ret_val = snprintf(&buff[0], BUFF_SIZE, "%s://%s:%" PRIu16,
