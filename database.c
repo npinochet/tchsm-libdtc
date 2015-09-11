@@ -83,6 +83,18 @@ static int create_tables(database_t *db) {
 
 char *testing_dir = "/tmp/"
 
+static char *get_file_name(char *directory, char *file) {
+
+    size_t total_size = strlen(directory) + strlen(file);
+
+
+
 START_TEST(test_create_tables) {
+    char *this_name = "test_create_tables";
+    char *database_file = get_file_name(testing_dir, this_name);
+
+
 
 }
+
+#endif
