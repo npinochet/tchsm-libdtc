@@ -2,6 +2,7 @@
 
 //#include <Token.h>
 //#include "CryptoObject.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include "database.h"
 #include "logger/logger.h"
@@ -83,18 +84,29 @@ static int create_tables(database_t *db) {
 
 char *testing_dir = "/tmp/"
 
-static char *get_file_name(char *directory, char *file) {
+static char *concatenate(char *directory, char *file) {
 
-    size_t total_size = strlen(directory) + strlen(file);
-
-
+    size_t total_size = strlen(directory) + strlen(file) + 1;
+    size_t printed;
+    char *ret = (char *) malloc(sizeof(char) * total_size);
+    if(!ret)
+        return ret;
+    printed = snprintf(ret, total_size, "%s%s", directory, file);
+    if(printed >= total_size){
+        free(ret);
+        return NULL;
+    }
+    return ret;
+}
 
 START_TEST(test_create_tables) {
     char *this_name = "test_create_tables";
-    char *database_file = get_file_name(testing_dir, this_name);
+    char *database_file = concatenate(testing_dir, this_name);
 
+    database_t *conn = db_init_connection(database_file);
+    db_close_and_free_connection(conn);
 
-
+    free(database_file);
 }
 
 #endif
