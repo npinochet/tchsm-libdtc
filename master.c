@@ -262,6 +262,12 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
     key_shares = tc_generate_keys(&key_metainfo, bit_size, threshold,
                                   cant_nodes);
 
+    zmq_msg_init(msg);
+    ret = zmq_msg_recv(msg, ctx->router_socket, 0);
+
+    printf("%.*s\n", ret, zmq_msg_data(msg));
+    zmq_msg_close(msg);
+
     return DTC_ERR_NONE;
 
 err_exit:
@@ -314,8 +320,8 @@ static int create_connect_sockets(const struct configuration *conf,
     if(ret)
         goto err_exit;
 
-    ret_val = zmq_setsockopt(router_socket, ZMQ_IDENTITY, ctx->server_id,
-                             strlen(ctx->server_id));
+    ret_val = zmq_setsockopt(router_socket, ZMQ_IDENTITY, "soy_server",
+                             10);
     if(ret_val != 0) {
         ret = DTC_ERR_ZMQ_CURVE;
         goto err_exit;
