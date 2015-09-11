@@ -285,13 +285,13 @@ static struct communication_objects *create_and_bind_sockets(
                 sizeof(struct communication_objects));
     void *sub_socket = NULL, *dealer_socket = NULL;
     int ret_value = 0;
+    void *zap_handler_sock;
     ret_val->classifier_socket_address = "inproc://classifier";
-    // TODO check this exit on false.
-    EXIT_ON_FALSE(ret_val, "No memory for communication_objects.");
 
     ret_val->ctx = zmq_ctx_new();
     EXIT_ON_FALSE(ret_val->ctx, "Context initialization error.");
 
+    // Socket to send received messages for classification.
     ret_val->classifier_main_thread_socket = zmq_socket(ret_val->ctx,
                                                         ZMQ_PAIR);
     PERROR_AND_EXIT_ON_FALSE(ret_val->classifier_main_thread_socket,
@@ -303,28 +303,37 @@ static struct communication_objects *create_and_bind_sockets(
     EXIT_ON_FALSE(!ret_value, "Bind failed at: %s.",
                   ret_val->classifier_socket_address);
 
-    void *handler = zmq_socket (ret_val->ctx, ZMQ_REP);
-    EXIT_ON_FALSE(handler, "ZAP_HANDLER socket error.")
-    ret_value = zmq_bind (handler, "inproc://zeromq.zap.01");
-    EXIT_ON_FALSE(!ret_value, "ZQA_HANDLER bind error.");
-    /*void *zap_thread =*/ zmq_threadstart (&zap_handler, handler);
-
-
-
-
+    zap_handler_sock = zmq_socket (ret_val->ctx, ZMQ_REP);
+    EXIT_ON_FALSE(zap_handler_sock, "ZAP_HANDLER socket error.")
+    ret_value = zmq_bind (zap_handler_sock, "inproc://zeromq.zap.01");
+    EXIT_ON_FALSE(ret_value == 0, "ZQA_HANDLER bind error.");
+    /*void *zap_thread =*/ zmq_threadstart (&zap_handler, zap_handler_sock);
 
     ret_val->sub_socket = zmq_socket(ret_val->ctx, ZMQ_SUB);
     sub_socket = ret_val->sub_socket;
     PERROR_AND_EXIT_ON_FALSE(sub_socket, "zmq_socket:",
                              "Unable to create sub socket.");
 
-    ret_val->dealer_socket = zmq_socket(ret_val->ctx, ZMQ_DEALER);
+    ret_value = zmq_setsockopt(sub_socket, ZMQ_ZAP_DOMAIN, "SUB_SOCKET", 10);
+    PERROR_AND_EXIT_ON_FALSE(ret_value == 0, "zmq_setsockopt",
+                             "ZMQ_ZAP_DOMAIN failed.");
+
+    ret_val->dealer_socket = zmq_socket(ret_val->ctx, ZMQ_ROUTER);
     dealer_socket = ret_val->dealer_socket;
     PERROR_AND_EXIT_ON_FALSE(dealer_socket, "zmq_socket:",
                              "Unable to create socket.");
+    ret_value = zmq_setsockopt(dealer_socket, ZMQ_ZAP_DOMAIN, "ROUTER_SOCKET",
+                               13);
+    PERROR_AND_EXIT_ON_FALSE(ret_value == 0, "zmq_setsockopt",
+                             "ZMQ_ZAP_DOMAIN failed for router socket.");
 
     char *server_secret_key = "kS=N$zQ%^yv8lp6J%e]z&Eqzkje+Hh(2pD1dffMb";
-    //char *server_public_key = "}L#cv]<CVY@.h3}-G(<4pky><w1]H$V?c^R*91VK";
+    char *server_public_key = "}L#cv]<CVY@.h3}-G(<4pky><w1]H$V?c^R*91VK";
+
+    ret_value = zmq_setsockopt(dealer_socket, ZMQ_IDENTITY, server_public_key,
+                               strlen(server_public_key));
+    PERROR_AND_EXIT_ON_FALSE(ret_value == 0, "zmq_setsockopt",
+                             "ZMQ_IDENTITY failed for router socket.");
 
     if(set_server_socket_security(sub_socket, server_secret_key) ||
         set_server_socket_security(dealer_socket, server_secret_key))
@@ -408,6 +417,7 @@ static int node_loop(struct communication_objects *communication_objs){
             continue;
         }
 
+        printf("holi:%.*s\n", rc, zmq_msg_data(rcvd_msg));
         rc = zmq_msg_send(rcvd_msg,
                           communication_objs->classifier_main_thread_socket, 0);
         if(rc == -1) {
@@ -448,6 +458,7 @@ int s_sendmore(void *socket, const char *string) {
     return size;
 }
 
+
 static void zap_handler (void *handler)
 {
     char *client_public = "E!okhRB>r7!&T(ORk#(tncmcW-gJzA4y4G[=lm9o";
@@ -470,10 +481,10 @@ static void zap_handler (void *handler)
         char client_key_text [41];
         zmq_z85_encode (client_key_text, client_key, 32);
 
-        printf("%s\n%s\n%s\n%s\n%s\n", sequence, domain, address, identity,
-               mechanism);
+        //printf("%s\n%s\n%s\n%s\n%s\n", sequence, domain, address, identity,
+        //       mechanism);
 
-        printf("%.*s\n", 32, client_key_text);
+        //printf("%.*s\n", 32, client_key_text);
 
         //assert (streq (version, "1.0"));
         //assert (streq (mechanism, "CURVE"));
@@ -485,7 +496,7 @@ static void zap_handler (void *handler)
         if (!strcmp(client_key_text, client_public)) {
             s_sendmore (handler, "200");
             s_sendmore (handler, "OK");
-            s_sendmore (handler, "anonymous");
+            s_sendmore (handler, "this is your id");
             s_send     (handler, "");
         }
         else {
