@@ -10,6 +10,7 @@ enum {
     DTC_ERR_CONNECTION,
     DTC_ERR_COMMUNICATION,
     DTC_ERR_SERIALIZATION,
+    DTC_ERR_DATABASE,
     DTC_ERR_INTERN,
 
     DTC_ERR_MAX_ // Keep at the end!!
@@ -23,8 +24,9 @@ const char *err_msgs[] = {
     "Error setting zmq curve security.",
     "Error in the socket connection.",
     "Communication error.",
-    "Intern library error.",
     "Error in the serialization.",
+    "Sqlite error.",
+    "Intern library error.",
 
     "Wrong errno.",  // Keep at the end.
 };
