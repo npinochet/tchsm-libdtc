@@ -5,10 +5,13 @@
 #include <check.h>
 #include <stdlib.h>
 
+#include "database.h"
 #include "messages.h"
 
 static void add_test_cases(Suite *s){
     suite_add_tcase(s, get_dt_tclib_messages_c_test_case());
+
+    suite_add_tcase(s, get_dt_tclib_database_c_test_case());
 }
 
 int main() {

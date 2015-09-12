@@ -20,7 +20,7 @@ CXX=clang++
 CFLAGS=-std=c11 -Werror -Wall -g
 EXTRACFLAGS=
 CXXFLAGS=-std=c++11 -Wall -Werror -g
-LDFLAGS=-lpthread -luuid -lmhash -lgmp -lcheck -lm -lrt
+LDFLAGS=-lpthread -luuid -lmhash -lgmp -lcheck -lm -lrt -lsqlite3
 CFLAGS += ${TCLIB_I}
 CFLAGS += ${LIBCONFIG_I}
 ifdef UNIT_TEST
@@ -39,7 +39,7 @@ all: $(EXE)
 logger.o: logger/logger.c logger/logger.h
 	$(CC) $(CFLAGS) -c logger/logger.c
 
-database.o: database.c database.h
+database.o: database.c err.h database.h
 	$(CC) $(CFLAGS) -c database.c
 
 messages.o: messages.c messages.h logger.o
@@ -57,8 +57,8 @@ node: logger.o messages.o node.o
 master: master.o logger.o messages.o
 	$(CXX) $(CXXFLAGS) $(ZMQ_I) $(LIBCONFIG_I) $(LIBCONFIG_L) $(TCLIB_L) $(LIBSODIUM_L) $(LDFLAGS) $(ZMQ_L) master.o messages.o logger.o -o master  -Wl,-Bstatic -ltc -lconfig -luuid -lzmq -lsodium  -Wl,-Bdynamic -lpthread
 
-unit_test: unit_test.c messages.o logger.o
-	$(CC) $(CFLAGS) messages.o logger.o unit_test.c $(LDFLAGS) -o unit_test
+unit_test: unit_test.c database.o messages.o logger.o
+	$(CC) $(CFLAGS) $(JSONC_L) database.o messages.o logger.o unit_test.c $(LDFLAGS) -Wl,-Bstatic -ljson-c -Wl,-Bdynamic -o unit_test
 
 check: unit_test
 	./unit_test
