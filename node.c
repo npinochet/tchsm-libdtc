@@ -6,14 +6,27 @@
 #include <pthread.h>
 #include <unistd.h>
 
+#include <libconfig.h>
 #include <zmq.h>
 
 #include "database.h"
+#include "err.h"
 #include "logger/logger.h"
 #include "messages.h"
+#include "utilities.h"
 
+struct master_info {
+    // master_id.
+    char *id;
 
-struct flags {
+    // master public key.
+    char *public_key;
+};
+
+struct configuration {
+
+    char *configuration_file;
+
     // Interface to open the connection.
     char *interface;
 
@@ -23,8 +36,16 @@ struct flags {
     // Port number to bind the SUB socket in.
     uint16_t sub_port;
 
-    // Port numbre to bind the DEALER socket in.
-    uint16_t dealer_port;
+    // Port number to bind the ROUTER socket in.
+    uint16_t router_port;
+
+    size_t cant_masters;
+
+    struct master_info *masters;
+
+    char *public_key;
+
+    char *private_key;
 };
 
 struct communication_objects {
@@ -64,7 +85,7 @@ int str_to_uint16(const char *str, uint16_t *res){
 }
 
 /* Return a human readable version of the configuration */
-static char* configuration_to_string(const struct flags *conf){
+static char* configuration_to_string(const struct configuration *conf){
     /* Be aware, this memory is shared among the aplication, this function
      * should be called just once or the memory of the previous calls might get
      * corrupted.
@@ -73,29 +94,40 @@ static char* configuration_to_string(const struct flags *conf){
 
     snprintf(buff, sizeof(buff),
              "\nInterface:\t%s\nSUB port:\t%" PRIu16 "\n"
-             "Dealer port:\t%" PRIu16,
-             conf->interface, conf->sub_port, conf->dealer_port);
+             "Router port:\t%" PRIu16,
+             conf->interface, conf->sub_port, conf->router_port);
     return &buff[0];
 }
 
 
 // Just declarations, see definitions for documentation.
-static int read_configuration(int argc, char *argv[], struct flags *conf);
-static struct communication_objects *init_node(const struct flags *conf);
+static int read_configuration(int argc, char *argv[], struct configuration *conf);
+static struct communication_objects *init_node(const struct configuration *conf);
 static struct communication_objects *create_and_bind_sockets(
-        const struct flags *conf);
+        const struct configuration *conf);
 static int node_loop();
 static int set_server_socket_security(void *socket, char *server_secret_key);
 static void zap_handler (void *handler);
 
+static void update_database(struct configuration *conf) {
+    unsigned i;
+    database_t *db_conn = db_init_connection(conf->database);
+    EXIT_ON_FALSE(db_conn, "Error trying to connect to the database.");
+
+    for(i = 0; i < conf->cant_masters; i++) {
+        if(db_add_new_server(db_conn, conf->masters[i].public_key,
+                             conf->masters[i].id))
+            LOG_EXIT("Error adding new server.");
+    }
+
+    EXIT_ON_FALSE(db_update_servers(db_conn) == 0, "Update servers failed.");
+}
 int main(int argc, char **argv){
     int ret_val = 0;
 
     // Default configuration.
-    static struct flags configuration = {.interface = "eth0",
-                                         .sub_port = 23194,
-                                         .dealer_port = 23195,
-                                         .database = "./servers_keys.db"};
+    static struct configuration configuration =
+            {.configuration_file = "./config"};
 
     logger_init_stream(stderr);
     LOG(LOG_LVL_NOTI, "Logger started for %s", argv[0]);
@@ -107,12 +139,88 @@ int main(int argc, char **argv){
     LOG(LOG_LVL_LOG, "Logger configuration:%s",
         configuration_to_string(&configuration));
 
-    struct communication_objects *communication_objs = init_node(&configuration);
+    update_database(&configuration);
+
+    struct communication_objects *communication_objs =
+            init_node(&configuration);
     if(!communication_objs)
         return 1;
 
     return node_loop(communication_objs);
 }
+
+
+/**
+ * Read the configuration file an load its definitions into conf.
+ *
+ * @param conf Configuration struct to load the data into.
+ *
+ * @return DTC_ERR_NONE on success, a proper error code on error.
+ *
+ **/
+static int read_configuration_file(struct configuration *conf) {
+    config_t cfg;
+    config_setting_t *root, *masters, *node, *element;
+    int cant_masters = 0, rc;
+    unsigned int i = 0;
+    int ret = DTC_ERR_CONFIG_FILE;
+
+    config_init(&cfg);
+
+    EXIT_ON_FALSE(CONFIG_TRUE == config_read_file(&cfg,
+                                                  conf->configuration_file),
+                  "%s:%d - %s\n", config_error_file(&cfg),
+                  config_error_line(&cfg), config_error_text(&cfg));
+
+    root = config_root_setting(&cfg);
+    node = config_setting_get_member(root, "node");
+    EXIT_ON_FALSE(node, "node was not found in the conf file %s",
+                  conf->configuration_file);
+
+    masters = config_setting_get_member(node, "masters");
+    EXIT_ON_FALSE(masters, "masters not specified in node configuration");
+
+    cant_masters = config_setting_length(masters);
+    EXIT_ON_FALSE(cant_masters, "0 masters specified for master");
+
+    conf->cant_masters = cant_masters;
+    conf->masters = (struct master_info *) malloc(
+            sizeof(struct master_info) * cant_masters);
+    EXIT_ON_FALSE(conf->masters, "Not memory to store the masters.");
+
+    ret = lookup_string_conf_element(node, "database", &conf->database);
+    EXIT_ON_FALSE(ret == DTC_ERR_NONE, "Database file not specified.");
+
+    ret = lookup_string_conf_element(node, "private_key", &conf->private_key);
+    EXIT_ON_FALSE(ret == DTC_ERR_NONE, "Unable to retrieve private key.");
+
+    ret = lookup_string_conf_element(node, "public_key", &conf->public_key);
+    EXIT_ON_FALSE(ret == DTC_ERR_NONE, "Unable to retrieve public key.");
+
+    ret = lookup_string_conf_element(node, "interface", &conf->interface);
+    EXIT_ON_FALSE(ret == DTC_ERR_NONE, "Unable to retrieve interface.");
+
+    rc = lookup_uint16_conf_element(node, "router_port", &conf->router_port);
+    EXIT_ON_FALSE(ret == DTC_ERR_NONE, "Unable to retrieve router_port.");
+
+    rc = lookup_uint16_conf_element(node, "sub_port", &conf->sub_port);
+    EXIT_ON_FALSE(ret == DTC_ERR_NONE, "Unable to retrieve sub_port.");
+
+    for(i = 0; i < cant_masters; i++) {
+        element = config_setting_get_elem(masters, i);
+        EXIT_ON_FALSE(element, "Error getting element %u from masters", i);
+
+        ret = lookup_string_conf_element(element, "public_key",
+                                         &conf->masters[i].public_key);
+        EXIT_ON_FALSE(ret == DTC_ERR_NONE, "Exit.");
+
+        ret = lookup_string_conf_element(element, "id", &conf->masters[i].id);
+        EXIT_ON_FALSE(ret == DTC_ERR_NONE, "Exit.");
+    }
+
+    return DTC_ERR_NONE;
+}
+
 
 /**
  * Read the command line configuration.
@@ -124,39 +232,20 @@ int main(int argc, char **argv){
  * Returns:
  *  1 on unrecoverable error, 0 otherwise.
  */
-static int read_configuration(int argc, char *argv[], struct flags *conf) {
+static int read_configuration(int argc, char *argv[],
+                               struct configuration *conf) {
     int option_index = 0;
     char c;
     static struct option long_options[] = {
-        {"database", required_argument, 0, 'l'},
-        {"dealer_port", required_argument, 0, 'd'},
-        {"interface", required_argument, 0, 'i'},
-        {"sub_port", required_argument, 0, 's'},
+        {"config", required_argument, 0, 'c'},
         {"verbose", no_argument, 0, 'v'},
         {0, 0, 0, 0}};
 
     while((c = getopt_long(argc, argv, ":d:i:s:l:v", long_options,
                            &option_index)) != -1) {
         switch(c) {
-        case 'd':
-            if (str_to_uint16(optarg, &conf->dealer_port)){
-                LOG(LOG_LVL_CRIT,
-                    "Dealer port should be an integer between 0 and 65535.")
-                return 1;
-            }
-            break;
-        case 'i':
-            conf->interface = optarg;
-            break;
-        case 'l':
-            conf->database = optarg;
-            break;
-        case 's':
-            if (str_to_uint16(optarg, &conf->sub_port)){
-                LOG(LOG_LVL_CRIT,
-                    "SUB port should be an integer between 0 and 65535.")
-                return 1;
-            }
+        case 'c':
+            conf->configuration_file = optarg;
             break;
         case 'v':
             LOG(LOG_LVL_CRIT, "Not implemented yet :(")
@@ -173,11 +262,12 @@ static int read_configuration(int argc, char *argv[], struct flags *conf) {
         default:
             break;
         }
-
     }
+    read_configuration_file(conf);
 
     return 0;
 }
+
 void handle_store_key_pub(struct op_req *op) {
     if(op->version != 1){
         LOG(LOG_LVL_ERRO, "version %" PRIu16 " not supported.");
@@ -274,7 +364,7 @@ static void create_worker_threads(void *zmq_ctx,
 }
 
 static struct communication_objects *init_node(
-        const struct flags *configuration) {
+        const struct configuration *configuration) {
     // TODO(fmontoto) Initialize the database.
 
     struct communication_objects *comm_objs;
@@ -307,7 +397,7 @@ static void set_zap_security(void *zmq_ctx, char *database) {
  * TODO
  **/
 static struct communication_objects *create_and_bind_sockets(
-        const struct flags *conf){
+        const struct configuration *conf){
 
     const size_t bind_buff_length = 200;
     char bind_buff[bind_buff_length];
@@ -383,7 +473,7 @@ static struct communication_objects *create_and_bind_sockets(
     EXIT_ON_FALSE(ret_value == 0, "ZMQ_SUBSCRIBE failed.");
 
     ret_value = snprintf(&bind_buff[0], bind_buff_length, "tcp://%s:%d",
-                         conf->interface, conf->dealer_port);
+                         conf->interface, conf->router_port);
     if(ret_value >= bind_buff_length){
         LOG(LOG_LVL_CRIT, "Bind buffer too small (%d), required: %d.",
             bind_buff_length, ret_value);
@@ -486,26 +576,32 @@ int s_sendmore(void *socket, const char *string) {
 }
 
 
+static int is_an_authorized_publisher(database_t *conn, const char *key) {
+    return db_is_an_authorized_key(conn, key) == 1;
+}
+
 static void zap_handler(void *zap_data_)
 {
 
     LOG(LOG_LVL_LOG, "ZAP thread just started.");
-    char *client_public = "E!okhRB>r7!&T(ORk#(tncmcW-gJzA4y4G[=lm9o";
-    //  Process ZAP requests forever
+    //`char *client_public = "E!okhRB>r7!&T(ORk#(tncmcW-gJzA4y4G[=lm9o";
+    uint8_t client_key [32];
+    char *aux_char;
+    int ret;
     struct zap_handler_data *zap_data = (struct zap_handler_data *) zap_data_;
     void *sock = zap_data->socket;
     database_t *db_conn = db_init_connection(zap_data->database);
     EXIT_ON_FALSE(db_conn, "Error trying to connect to the DB.");
 
+    //  Process ZAP requests forever
     while (1) {
-        uint8_t client_key [32];
-        char *version = s_recv (sock);
-        char *sequence = s_recv (sock);
-        char *domain = s_recv (sock);
-        char *address = s_recv (sock);
-        char *identity = s_recv (sock);
-        char *mechanism = s_recv (sock);
-        int size = zmq_recv (sock, client_key, 32, 0);
+        char *version = s_recv(sock);
+        char *sequence = s_recv(sock);
+        char *domain = s_recv(sock);
+        char *address = s_recv(sock);
+        char *identity = s_recv(sock);
+        char *mechanism = s_recv(sock);
+        int size = zmq_recv(sock, client_key, 32, 0);
 
         LOG(LOG_LVL_NOTI, "Message of size: %d, sequence number: %s,"
                           "domain: %s, address: %s, identity: %s, "
@@ -513,26 +609,41 @@ static void zap_handler(void *zap_data_)
                           address, identity, mechanism);
 
         char client_key_text [41];
-        zmq_z85_encode (client_key_text, client_key, 32);
+        zmq_z85_encode(client_key_text, client_key, 32);
 
         printf("%.*s\n", 32, client_key_text);
 
         s_sendmore(sock, version);
         s_sendmore(sock, sequence);
 
-
-        if (!strcmp(client_key_text, client_public)) {
+        if(strcmp("SUB_SOCKET",  domain) == 0 &&
+            is_an_authorized_publisher(db_conn, client_key_text)) {
             s_sendmore(sock, "200");
             s_sendmore(sock, "OK");
-            s_sendmore(sock, "this is your id");
-            s_send(sock, "");
+            s_sendmore(sock, client_key_text);
+        }
+        else if(strcmp("ROUTER_SOCKET", domain) == 0) {
+            ret = db_get_new_temp_token(db_conn, client_key_text, &aux_char);
+            if(ret == DTC_ERR_NONE) {
+                s_sendmore(sock, "200");
+                s_sendmore(sock, "OK");
+                s_sendmore(sock, aux_char);
+                free(aux_char);
+            }
+            else {
+                s_sendmore(sock, "400");
+                s_sendmore(sock, "Not an authorized master");
+                s_sendmore(sock, "");
+            }
         }
         else {
             s_sendmore(sock, "400");
             s_sendmore(sock, "Invalid client public key");
             s_sendmore(sock, "");
-            s_send(sock, "");
         }
+
+        s_send(sock, "");
+
         free(version);
         free(sequence);
         free(domain);
@@ -543,6 +654,3 @@ static void zap_handler(void *zap_data_)
     zmq_close(sock);
     db_close_and_free_connection(db_conn);
 }
-
-
-
