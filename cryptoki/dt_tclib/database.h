@@ -48,11 +48,12 @@ int db_is_an_authorized_key(database_t *db, const char *key);
  *      fails or -1 if the server is not stored in the database.
  */
 int db_get_new_temp_token(database_t *db, const char *server_public_key,
-                          const char **output);
+                          char **output);
 
 /**
  *  Retrieve from the database the current token for the server specified by
- * server_id.
+ * server_id. This value is undefined before a call to db_get_new_temp_token,
+ * since the token is generated there.
  *
  * @param db Active database connection.
  * @param server_id Id of the server.
@@ -64,6 +65,29 @@ int db_get_new_temp_token(database_t *db, const char *server_public_key,
  **/
 int get_current_token(database_t *db, const char *server_id, char **output);
 
+//TODO
+int get_server_id(database_t *db, const char *public_key, char **output);
+/**
+ * Add a new server to the DB, this is stored in a temporal table until
+ * db_update_servers is called and the old servers are replaced by the new
+ * ones. After a call to db_update_servers this method will fail.
+ *
+ * @param db Active database connection.
+ * @param id Server id.
+ * @param public_key Public key of the server.
+ *
+ * @return DTC_ERR_NONE on success, a proper error message otherwise.
+ */
+int db_add_new_server(database_t *db, const char *id, const char *public_key);
+
+/**
+ * Remove all the servers in the database that where not added with
+ * db_add_new_server, update the ones that existed and add the ones that where
+ * not present previously and where added by db_add_new_server.
+ *
+ * @return DTC_ERR_NONE on success, a proper error message otherwise.
+ */
+int db_update_servers(database_t *db);
 /**
  * Close and release the memory of a connection, after this call the connection
  * is closed and the behavior of using it is undefined.
