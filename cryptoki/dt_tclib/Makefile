@@ -1,6 +1,6 @@
 LIBSODIUM=/home/fmontoto/Resources/libsodium-1.0.3/install
 ZMQ=/home/fmontoto/Resources/zeromq-4.1.3/install
-TCLIB=/home/fmontoto/Resources/tclib/pre
+TCLIB=/home/fmontoto/Resources/tclib/install
 LIBCONFIG=/home/fmontoto/Resources/libconfig-1.5/install
 JSONC=/home/fmontoto/Resources/json-c/install
 
@@ -49,13 +49,13 @@ node.o: node.c logger/logger.c logger/logger.h
 	$(CC) $(CFLAGS) $(ZMQ_I) -c node.c
 
 master.o: master.c err.h
-	$(CC) $(CFLAGS) $(ZMQ_I) -c master.c
+	$(CC) $(CFLAGS) $(TCLIB_I) $(ZMQ_I) -c master.c
 
-node: logger.o messages.o node.o
-	$(CXX) $(LDFLAGS) $(CFLAGS) $(ZMQ_L) $(JSONC_L) $(LIBSODIUM_L) -L/usr/local/lib messages.o node.o logger.o -o node -Wl,-Bstatic -lzmq -lsodium -ljson-c -Wl,-Bdynamic -lpthread
+node: logger.o messages.o node.o database.o
+	$(CXX) $(LDFLAGS) $(CFLAGS) $(ZMQ_L) $(LIBSODIUM_L) $(JSONC_L) -L/usr/local/lib messages.o node.o database.o logger.o -o node -Wl,-Bstatic -lzmq -lsodium -ljson-c -Wl,-Bdynamic -lpthread
 
 master: master.o logger.o messages.o
-	$(CXX) $(CXXFLAGS) $(ZMQ_I) $(LIBCONFIG_I) $(LIBCONFIG_L) $(TCLIB_L) $(LIBSODIUM_L) $(LDFLAGS) $(ZMQ_L) master.o messages.o logger.o -o master  -Wl,-Bstatic -ltc -lconfig -luuid -lzmq -lsodium  -Wl,-Bdynamic -lpthread
+	$(CXX) $(CXXFLAGS) $(ZMQ_I) $(JSONC_L) $(LIBCONFIG_I) $(LIBCONFIG_L) $(TCLIB_L) $(LIBSODIUM_L) $(LDFLAGS) $(ZMQ_L) master.o messages.o logger.o -o master  -Wl,-Bstatic -ltc -lconfig -lzmq -lsodium -ljson-c -Wl,-Bdynamic -lpthread
 
 unit_test: unit_test.c database.o messages.o logger.o
 	$(CC) $(CFLAGS) $(JSONC_L) database.o messages.o logger.o unit_test.c $(LDFLAGS) -Wl,-Bstatic -ljson-c -Wl,-Bdynamic -o unit_test

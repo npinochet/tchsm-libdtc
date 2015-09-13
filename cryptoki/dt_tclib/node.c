@@ -8,6 +8,7 @@
 
 #include <zmq.h>
 
+#include "database.h"
 #include "logger/logger.h"
 #include "messages.h"
 
@@ -16,12 +17,14 @@ struct flags {
     // Interface to open the connection.
     char *interface;
 
+    // Path to the file with the database.
+    char *database;
+
     // Port number to bind the SUB socket in.
     uint16_t sub_port;
 
     // Port numbre to bind the DEALER socket in.
     uint16_t dealer_port;
-
 };
 
 struct communication_objects {
@@ -38,6 +41,14 @@ struct communication_objects {
 struct socket_descr {
     void *ctx;
     char *socket_address;
+};
+
+struct zap_handler_data {
+    // Inproc socket.
+    void *socket;
+
+    // Path to the database file.
+    char *database;
 };
 
 /* Utils */
@@ -83,7 +94,8 @@ int main(int argc, char **argv){
     // Default configuration.
     static struct flags configuration = {.interface = "eth0",
                                          .sub_port = 23194,
-                                         .dealer_port = 23195};
+                                         .dealer_port = 23195,
+                                         .database = "./servers_keys.db"};
 
     logger_init_stream(stderr);
     LOG(LOG_LVL_NOTI, "Logger started for %s", argv[0]);
@@ -116,13 +128,14 @@ static int read_configuration(int argc, char *argv[], struct flags *conf) {
     int option_index = 0;
     char c;
     static struct option long_options[] = {
+        {"database", required_argument, 0, 'l'},
         {"dealer_port", required_argument, 0, 'd'},
         {"interface", required_argument, 0, 'i'},
         {"sub_port", required_argument, 0, 's'},
         {"verbose", no_argument, 0, 'v'},
         {0, 0, 0, 0}};
 
-    while((c = getopt_long(argc, argv, ":d:i:s:v", long_options,
+    while((c = getopt_long(argc, argv, ":d:i:s:l:v", long_options,
                            &option_index)) != -1) {
         switch(c) {
         case 'd':
@@ -134,6 +147,9 @@ static int read_configuration(int argc, char *argv[], struct flags *conf) {
             break;
         case 'i':
             conf->interface = optarg;
+            break;
+        case 'l':
+            conf->database = optarg;
             break;
         case 's':
             if (str_to_uint16(optarg, &conf->sub_port)){
@@ -272,6 +288,21 @@ static struct communication_objects *init_node(
 
 // TODO --help should print usage
 
+static void set_zap_security(void *zmq_ctx, char *database) {
+
+    int ret_value;
+    struct zap_handler_data *zap_data =
+        (struct zap_handler_data *) malloc(sizeof(struct zap_handler_data));
+    EXIT_ON_FALSE(zap_data, "malloc failed for zap_handler_data.");
+
+    zap_data->database = database;
+    zap_data->socket = zmq_socket (zmq_ctx, ZMQ_REP);
+    EXIT_ON_FALSE(zap_data->socket, "ZAP_HANDLER socket error.")
+
+    ret_value = zmq_bind (zap_data->socket, "inproc://zeromq.zap.01");
+    EXIT_ON_FALSE(ret_value == 0, "ZQA_HANDLER bind error.")
+    zmq_threadstart (&zap_handler, zap_data);
+}
 /**
  * TODO
  **/
@@ -283,13 +314,15 @@ static struct communication_objects *create_and_bind_sockets(
     struct communication_objects *ret_val =
         (struct communication_objects *) malloc(
                 sizeof(struct communication_objects));
+
     void *sub_socket = NULL, *dealer_socket = NULL;
     int ret_value = 0;
-    void *zap_handler_sock;
     ret_val->classifier_socket_address = "inproc://classifier";
 
     ret_val->ctx = zmq_ctx_new();
     EXIT_ON_FALSE(ret_val->ctx, "Context initialization error.");
+
+    set_zap_security(ret_val->ctx, conf->database);
 
     // Socket to send received messages for classification.
     ret_val->classifier_main_thread_socket = zmq_socket(ret_val->ctx,
@@ -302,12 +335,6 @@ static struct communication_objects *create_and_bind_sockets(
                          ret_val->classifier_socket_address);
     EXIT_ON_FALSE(!ret_value, "Bind failed at: %s.",
                   ret_val->classifier_socket_address);
-
-    zap_handler_sock = zmq_socket (ret_val->ctx, ZMQ_REP);
-    EXIT_ON_FALSE(zap_handler_sock, "ZAP_HANDLER socket error.")
-    ret_value = zmq_bind (zap_handler_sock, "inproc://zeromq.zap.01");
-    EXIT_ON_FALSE(ret_value == 0, "ZQA_HANDLER bind error.");
-    /*void *zap_thread =*/ zmq_threadstart (&zap_handler, zap_handler_sock);
 
     ret_val->sub_socket = zmq_socket(ret_val->ctx, ZMQ_SUB);
     sub_socket = ret_val->sub_socket;
@@ -459,60 +486,62 @@ int s_sendmore(void *socket, const char *string) {
 }
 
 
-static void zap_handler (void *handler)
+static void zap_handler(void *zap_data_)
 {
+
+    LOG(LOG_LVL_LOG, "ZAP thread just started.");
     char *client_public = "E!okhRB>r7!&T(ORk#(tncmcW-gJzA4y4G[=lm9o";
     //  Process ZAP requests forever
-    while (1) {
-        char *version = s_recv (handler);
-        if (!version)
-            break;          //  Terminating
+    struct zap_handler_data *zap_data = (struct zap_handler_data *) zap_data_;
+    void *sock = zap_data->socket;
+    database_t *db_conn = db_init_connection(zap_data->database);
+    EXIT_ON_FALSE(db_conn, "Error trying to connect to the DB.");
 
-        char *sequence = s_recv (handler);
-        char *domain = s_recv (handler);
-        char *address = s_recv (handler);
-        char *identity = s_recv (handler);
-        char *mechanism = s_recv (handler);
+    while (1) {
         uint8_t client_key [32];
-        int size = zmq_recv (handler, client_key, 32, 0);
-        printf("size:%d\n", size);
-        //assert (size == 32);
+        char *version = s_recv (sock);
+        char *sequence = s_recv (sock);
+        char *domain = s_recv (sock);
+        char *address = s_recv (sock);
+        char *identity = s_recv (sock);
+        char *mechanism = s_recv (sock);
+        int size = zmq_recv (sock, client_key, 32, 0);
+
+        LOG(LOG_LVL_NOTI, "Message of size: %d, sequence number: %s,"
+                          "domain: %s, address: %s, identity: %s, "
+                          "mechanism: %s. received.",size, sequence, domain,
+                          address, identity, mechanism);
 
         char client_key_text [41];
         zmq_z85_encode (client_key_text, client_key, 32);
 
-        //printf("%s\n%s\n%s\n%s\n%s\n", sequence, domain, address, identity,
-        //       mechanism);
+        printf("%.*s\n", 32, client_key_text);
 
-        //printf("%.*s\n", 32, client_key_text);
+        s_sendmore(sock, version);
+        s_sendmore(sock, sequence);
 
-        //assert (streq (version, "1.0"));
-        //assert (streq (mechanism, "CURVE"));
-        //assert (streq (identity, "IDENT"));
-
-        s_sendmore (handler, version);
-        s_sendmore (handler, sequence);
 
         if (!strcmp(client_key_text, client_public)) {
-            s_sendmore (handler, "200");
-            s_sendmore (handler, "OK");
-            s_sendmore (handler, "this is your id");
-            s_send     (handler, "");
+            s_sendmore(sock, "200");
+            s_sendmore(sock, "OK");
+            s_sendmore(sock, "this is your id");
+            s_send(sock, "");
         }
         else {
-            s_sendmore (handler, "400");
-            s_sendmore (handler, "Invalid client public key");
-            s_sendmore (handler, "");
-            s_send     (handler, "");
+            s_sendmore(sock, "400");
+            s_sendmore(sock, "Invalid client public key");
+            s_sendmore(sock, "");
+            s_send(sock, "");
         }
-        free (version);
-        free (sequence);
-        free (domain);
-        free (address);
-        free (identity);
-        free (mechanism);
+        free(version);
+        free(sequence);
+        free(domain);
+        free(address);
+        free(identity);
+        free(mechanism);
     }
-    zmq_close (handler);
+    zmq_close(sock);
+    db_close_and_free_connection(db_conn);
 }
 
 
