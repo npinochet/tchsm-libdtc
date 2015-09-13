@@ -1,6 +1,8 @@
 #ifndef DT_TCLIB_DTC_H_
 #define DT_TCLIB_DTC_H_
 
+#include "err.h"
+
 struct dtc_ctx;
 typedef struct dtc_ctx dtc_ctx_t;
 
