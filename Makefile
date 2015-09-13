@@ -36,26 +36,32 @@ DEPS=%.h
 
 all: $(EXE)
 
+err.o: err.h err.c
+	$(CC) $(CFLAGS) -c err.c
+
 logger.o: logger/logger.c logger/logger.h
 	$(CC) $(CFLAGS) -c logger/logger.c
 
 database.o: database.c err.h database.h
 	$(CC) $(CFLAGS) -c database.c
 
-messages.o: messages.c messages.h logger.o
+messages.o: messages.c messages.h logger/logger.h
 	$(CC) $(CFLAGS) $(JSONC_I) -c messages.c
 
-node.o: node.c logger/logger.c logger/logger.h
+node.o: node.c logger/logger.h
 	$(CC) $(CFLAGS) $(ZMQ_I) -c node.c
 
 master.o: master.c err.h
 	$(CC) $(CFLAGS) $(TCLIB_I) $(ZMQ_I) -c master.c
 
-node: logger.o messages.o node.o database.o
-	$(CXX) $(LDFLAGS) $(CFLAGS) $(ZMQ_L) $(LIBSODIUM_L) $(JSONC_L) -L/usr/local/lib messages.o node.o database.o logger.o -o node -Wl,-Bstatic -lzmq -lsodium -ljson-c -Wl,-Bdynamic -lpthread
+utilities.o: utilities.h utilities.c logger/logger.h
+	$(CC) $(CFLAGS) $(LIBCONFIG_I) -c utilities.c
 
-master: master.o logger.o messages.o
-	$(CXX) $(CXXFLAGS) $(ZMQ_I) $(JSONC_L) $(LIBCONFIG_I) $(LIBCONFIG_L) $(TCLIB_L) $(LIBSODIUM_L) $(LDFLAGS) $(ZMQ_L) master.o messages.o logger.o -o master  -Wl,-Bstatic -ltc -lconfig -lzmq -lsodium -ljson-c -Wl,-Bdynamic -lpthread
+node: logger.o messages.o node.o err.o database.o utilities.o
+	$(CXX) $(LDFLAGS) $(CFLAGS) $(ZMQ_L) $(LIBCONFIG_L) $(LIBSODIUM_L) $(JSONC_L) -L/usr/local/lib messages.o utilities.o node.o err.o database.o logger.o -o node -Wl,-Bstatic -lconfig -lzmq -lsodium -ljson-c -Wl,-Bdynamic -lpthread
+
+master: master.o err.o logger.o messages.o utilities.o
+	$(CXX) $(CXXFLAGS) $(ZMQ_I) $(JSONC_L) $(LIBCONFIG_I) $(LIBCONFIG_L) $(TCLIB_L) $(LIBSODIUM_L) $(LDFLAGS) $(ZMQ_L) utilities.o err.o master.o messages.o logger.o -o master  -Wl,-Bstatic -ltc -lconfig -lzmq -lsodium -ljson-c -Wl,-Bdynamic -lpthread
 
 unit_test: unit_test.c database.o messages.o logger.o
 	$(CC) $(CFLAGS) $(JSONC_L) database.o messages.o logger.o unit_test.c $(LDFLAGS) -Wl,-Bstatic -ljson-c -Wl,-Bdynamic -o unit_test
