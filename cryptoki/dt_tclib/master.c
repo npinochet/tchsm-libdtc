@@ -4,7 +4,6 @@
 #include <inttypes.h>
 #include <string.h>
 #include <unistd.h> // TODO Just for the sleep, remove it.
-#include <uuid/uuid.h>
 
 #include <libconfig.h>
 #include <zmq.h>
@@ -24,6 +23,8 @@
         do {}while(0);
 #endif
 
+
+const uint16_t DEFAULT_TIMEOUT = 10;
 
 
 struct dtc_ctx {
@@ -59,6 +60,7 @@ struct configuration {
 
     char *public_key;
     char *private_key;
+    char *server_id;
 };
 
 struct communication_objects {
@@ -89,10 +91,9 @@ static void free_conf(struct configuration *conf) {
         memset(conf->private_key, '\0', strlen(conf->private_key));
         free(conf->private_key);
     }
-    //free(conf);
+    if(conf->server_id)
+        free(conf->server_id);
 }
-
-const uint16_t DEFAULT_TIMEOUT = 10;
 
 /* Return a human readable version of the configuration */
 static char* configuration_to_string(const struct configuration *conf){
@@ -107,8 +108,9 @@ static char* configuration_to_string(const struct configuration *conf){
 
     space_left -= snprintf(buff, space_left,
                            "Configuration File:\t%s\nTimeout:\t\t%" PRIu16 "\n"
-                           "Nodes:",
-                           conf->configuration_file, conf->timeout);
+                           "Server id:\t\t%s\nNodes:",
+                           conf->configuration_file, conf->timeout,
+                           conf->server_id);
 
     for(i = 0; i < conf->cant_nodes; i++) {
         space_left -= snprintf(buff + (BUFF_SIZE - space_left), space_left,
@@ -154,19 +156,6 @@ int main(int argc, char **argv){
     return 0;
 }
 
-int get_unique_id(char **out) {
-    uuid_t uuid;
-    // Unparse returns a 36-byte string.
-    char *ret = malloc(36 + 1);
-    if(!ret)
-        return DTC_ERR_NOMEM;
-    *out = ret;
-    uuid_generate(uuid);
-    uuid_unparse(uuid, *out);
-
-    return DTC_ERR_NONE;
-}
-
 dtc_ctx_t *dtc_init(const char *config_file, int *err) {
     struct configuration conf;
     int error;
@@ -181,6 +170,7 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err) {
     conf.nodes = NULL;
     conf.public_key = NULL;
     conf.private_key = NULL;
+    conf.server_id = NULL;
 
     if(!err)
         err = &error;
@@ -199,9 +189,8 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err) {
 
     printf("%s\n", configuration_to_string(&conf));
 
-    *err = get_unique_id(&ret->server_id);
-    if(*err != DTC_ERR_NONE)
-        goto err_exit;
+    ret->server_id = conf.server_id;
+    conf.server_id = NULL;
 
     *err = create_connect_sockets(&conf, ret);
     if(*err != DTC_ERR_NONE)
@@ -232,7 +221,6 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
 
     key_share_t **key_shares = NULL;
     key_metainfo_t *key_metainfo = NULL;
-
 
     operation.version = 1;
     operation.op = OP_STORE_KEY_PUB;
@@ -529,8 +517,11 @@ static int read_configuration_file(struct configuration *conf) {
     if(ret != DTC_ERR_NONE)
         goto err_exit;
 
-    ret = lookup_string_conf_element(master, "private_key",
-                                     &conf->private_key);
+    ret = lookup_string_conf_element(master, "private_key", &conf->private_key);
+    if(ret != DTC_ERR_NONE)
+        goto err_exit;
+
+    ret = lookup_string_conf_element(master, "server_id", &conf->server_id);
     if(ret != DTC_ERR_NONE)
         goto err_exit;
 
