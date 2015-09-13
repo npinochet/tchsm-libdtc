@@ -23,10 +23,21 @@ typedef struct database_conn database_t;
 database_t *db_init_connection(const char *path);
 
 /**
+ * Check if the key is a public key of an authorized master or not.
+ *
+ * @param db Active database connection.
+ * @param key Key to check in the databse.
+ *
+ * @return 1 if key is an authorized key, 0 if it is not and -1 on
+ *      error.
+ */
+int db_is_an_authorized_key(database_t *db, const char *key);
+
+/**
  *  Creates a new temporal token for the server with the public key provided if
  *  the key is already in the database.
  *
- *  @param db Database connection.
+ *  @param db Active database connection.
  *  @param server_public_key Public key of the server for the one we will
  *      a new token.
  *  @param output The token will be pointed by *output if the execution is
@@ -57,7 +68,7 @@ int get_current_token(database_t *db, const char *server_id, char **output);
  * Close and release the memory of a connection, after this call the connection
  * is closed and the behavior of using it is undefined.
  *
- * @param db Connection to close.
+ * @param db Active connection to close.
  */
 void db_close_and_free_connection(database_t *db);
 #endif // DT_TCLIB_DATABASE_H_
