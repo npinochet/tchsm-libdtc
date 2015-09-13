@@ -17,7 +17,7 @@ typedef struct database_conn database_t;
  *      store the databse if it does not exits.
  *
  * @return A connection to the database to be used in the next methods,
- *      to release the connectino and free the memory the user must call
+ *      to release the connection and free the memory the user must call
  *      db_close_and_free_connection. On error NULL is returned.
  */
 database_t *db_init_connection(const char *path);

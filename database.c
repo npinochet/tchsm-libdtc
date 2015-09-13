@@ -111,6 +111,13 @@ database_t *db_init_connection(const char *path){
         LOG(LOG_LVL_CRIT, "Unable to open the database:%s",
             sqlite3_errstr(rc));
         sqlite3_close(ret->ppDb);
+        free(ret);
+        return NULL;
+    }
+    if(create_tables(ret)) {
+        LOG(LOG_LVL_CRIT, "Error creating DB tables.");
+        sqlite3_close(ret->ppDb);
+        free(ret);
         return NULL;
     }
     return ret;
