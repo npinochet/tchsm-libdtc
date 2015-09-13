@@ -38,6 +38,229 @@ static char *generate_token(char *ret) {
     return ret;
 }
 
+// API
+database_t *db_init_connection(const char *path){
+    int rc;
+    database_t *ret = (database_t *) malloc(sizeof(database_t));
+    rc = sqlite3_open(path, &ret->ppDb);
+    if(rc != SQLITE_OK) {
+        LOG(LOG_LVL_CRIT, "Unable to open the database:%s",
+            sqlite3_errstr(rc));
+        sqlite3_close(ret->ppDb);
+        free(ret);
+        return NULL;
+    }
+    return ret;
+}
+
+void db_close_and_free_connection(database_t *db) {
+    sqlite3_close(db->ppDb);
+    free(db);
+}
+
+int get_current_token(database_t *db, const char *server_id, char **output) {
+    int rc, step;
+    sqlite3_stmt *stmt = NULL;
+    const char *token;
+    static const char *sql_query = "SELECT last_token\n"\
+                                   "FROM server\n"\
+                                   "WHERE server_id=?;";
+    rc = sqlite3_prepare_v2(db->ppDb, sql_query, -1, &stmt, 0);
+    if(rc != SQLITE_OK) {
+        LOG(LOG_LVL_ERRO, "sqlite3_prepare_v2: %s", sqlite3_errmsg(db->ppDb));
+        goto err_exit;
+    }
+
+    rc = sqlite3_bind_text(stmt, 1, server_id, -1, SQLITE_STATIC);
+    if(rc != SQLITE_OK) {
+        LOG(LOG_LVL_ERRO, "sqlite3_bind_text: %s", sqlite3_errmsg(db->ppDb));
+        goto err_exit;
+    }
+
+    step = sqlite3_step(stmt);
+    if(step == SQLITE_ROW) {
+        token = (const char *)sqlite3_column_text(stmt, 0);
+    }
+    else if(step == SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        return -1;
+    }
+    else{
+        LOG(LOG_LVL_ERRO, "sqlite3_step: %s", sqlite3_errmsg(db->ppDb));
+        goto err_exit;
+    }
+
+    *output = strdup((const char *)token);
+
+    rc = sqlite3_finalize(stmt);
+    if(rc != SQLITE_OK) {
+        LOG(LOG_LVL_ERRO, "sqlite3_finalize: %s", sqlite3_errmsg(db->ppDb));
+        free(*output);
+        goto err_exit;
+    }
+
+    return DTC_ERR_NONE;
+
+err_exit:
+    sqlite3_finalize(stmt);
+    return DTC_ERR_DATABASE;
+}
+
+int db_get_new_temp_token(database_t *db, const char *server_public_key,
+                          const char **output) {
+    int rc, step, affected_rows;
+    char token[37];
+    sqlite3_stmt *stmt = NULL;
+
+    static const char *sql_query = "UPDATE server\n"\
+                                   "SET last_token=?\n"\
+                                   "WHERE public_key=?";
+
+    rc = sqlite3_prepare_v2(db->ppDb, sql_query, -1, &stmt, 0);
+    if(rc != SQLITE_OK) {
+        LOG(LOG_LVL_ERRO, "Failed to prepare an statment: %s",
+            sqlite3_errmsg(db->ppDb));
+        goto err_exit;
+    }
+
+    rc = sqlite3_bind_text(stmt, 1, generate_token(&token[0]), -1,
+                           SQLITE_STATIC);
+    if(rc != SQLITE_OK) {
+        LOG(LOG_LVL_ERRO, "Failed binding the new token public key: %s",
+            sqlite3_errmsg(db->ppDb));
+        goto err_exit;
+    }
+
+    rc = sqlite3_bind_text(stmt, 2, server_public_key, -1, SQLITE_STATIC);
+    if(rc != SQLITE_OK) {
+        LOG(LOG_LVL_ERRO, "Failed binding the server public key: %s",
+            sqlite3_errmsg(db->ppDb));
+        goto err_exit;
+    }
+
+    step = sqlite3_step(stmt);
+    if(step != SQLITE_DONE) {
+        LOG(LOG_LVL_ERRO, "Step error:%s", sqlite3_errmsg(db->ppDb));
+        goto err_exit;
+    }
+
+    affected_rows = sqlite3_changes(db->ppDb);
+    if(affected_rows == 0) {
+        sqlite3_finalize(stmt);
+        return -1;
+    }
+
+    rc = sqlite3_finalize(stmt);
+    if( rc != SQLITE_OK) {
+        LOG(LOG_LVL_ERRO, "Failed finalizing the statment: %s",
+            sqlite3_errmsg(db->ppDb));
+        return DTC_ERR_DATABASE;
+    }
+
+    *output = strdup(&token[0]);
+
+    return DTC_ERR_NONE;
+
+err_exit:
+    sqlite3_finalize(stmt);
+    return DTC_ERR_DATABASE;
+}
+
+int db_is_an_authorized_key(database_t *db, const char *key) {
+    int rc, step;
+    sqlite3_stmt *stmt = NULL;
+    static const char *sql_query = "SELECT server_id\n"\
+                                   "FROM server\n"\
+                                   "WHERE public_key=?;";
+    rc = sqlite3_prepare_v2(db->ppDb, sql_query, -1, &stmt, 0);
+    if(rc != SQLITE_OK) {
+        LOG(LOG_LVL_ERRO, "sqlite3_prepare_v2: %s", sqlite3_errmsg(db->ppDb));
+        goto err_exit;
+    }
+
+    rc = sqlite3_bind_text(stmt, 1, key, -1, SQLITE_STATIC);
+    if(rc != SQLITE_OK) {
+        LOG(LOG_LVL_ERRO, "sqlite3_bind_text: %s", sqlite3_errmsg(db->ppDb));
+        goto err_exit;
+    }
+
+    step = sqlite3_step(stmt);
+    if(step == SQLITE_ROW) {
+        sqlite3_finalize(stmt);
+        return 1;
+    }
+    else if(step == SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        return 0;
+    }
+    else{
+        LOG(LOG_LVL_ERRO, "sqlite3_step: %s", sqlite3_errmsg(db->ppDb));
+        goto err_exit;
+    }
+
+err_exit:
+    sqlite3_finalize(stmt);
+    return -1;
+}
+
+#ifdef UNIT_TEST
+
+#include <unistd.h>
+
+// TODO IF a test fails the file might remain in the temp folder, we need to
+// change this kind of check or figure out some way to do a clean up.
+
+static char *get_filepath(const char *file) {
+
+    const char *testing_dir = "/tmp/";
+    size_t total_size = strlen(testing_dir) + strlen(file) + 1;
+    size_t printed;
+    char *ret = (char *) malloc(sizeof(char) * total_size);
+    if(!ret)
+        return ret;
+    printed = snprintf(ret, total_size, "%s%s", testing_dir, file);
+    if(printed >= total_size){
+        free(ret);
+        return NULL;
+    }
+    return ret;
+}
+
+static void close_and_remove_db(char *file, database_t *db) {
+    db_close_and_free_connection(db);
+    ck_assert_int_eq(0, remove(file));
+    free(file);
+}
+
+static int insert_server(sqlite3 *db, const char *server_key,
+                         const char *server_id, const char *token) {
+    char *err;
+    size_t ret;
+    int rc;
+    char *sql_template  = "INSERT INTO server (public_key, server_id, last_token)\n"\
+                          "    VALUES('%s', '%s', '%s');";
+    size_t len = strlen(sql_template) +
+                 strlen(server_key) +
+                 strlen(server_id) +
+                 strlen(token) + 1; // %s will be replaced, this isn't needed.
+    char *sql_query = (char *) malloc(sizeof(char) * len);
+    ret = snprintf(sql_query, len, sql_template, server_key, server_id, token);
+    ck_assert(ret < len);
+
+    rc = sqlite3_exec(db, sql_query, NULL, NULL, &err);
+    if(rc != SQLITE_OK) {
+        LOG(LOG_LVL_ERRO, "Error inserting server: %s\n%s", err, sql_query);
+        sqlite3_free(err);
+        free(sql_query);
+        return DTC_ERR_DATABASE;
+    }
+
+    free(sql_query);
+
+    return DTC_ERR_NONE;
+
+}
+
 static int create_tables(database_t *db) {
     unsigned int i;
     int rc;
@@ -102,198 +325,7 @@ static int create_tables(database_t *db) {
     return DTC_ERR_NONE;
 }
 
-// API
-database_t *db_init_connection(const char *path){
-    int rc;
-    database_t *ret = (database_t *) malloc(sizeof(database_t));
-    rc = sqlite3_open(path, &ret->ppDb);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_CRIT, "Unable to open the database:%s",
-            sqlite3_errstr(rc));
-        sqlite3_close(ret->ppDb);
-        free(ret);
-        return NULL;
-    }
-    if(create_tables(ret)) {
-        LOG(LOG_LVL_CRIT, "Error creating DB tables.");
-        sqlite3_close(ret->ppDb);
-        free(ret);
-        return NULL;
-    }
-    return ret;
-}
 
-void db_close_and_free_connection(database_t *db) {
-    sqlite3_close(db->ppDb);
-    free(db);
-}
-
-int get_current_token(database_t *db, const char *server_id, char **output) {
-    int rc, step;
-    sqlite3_stmt *stmt = NULL;
-    const char *token;
-    static const char *sql_query = "SELECT last_token\n"\
-                                   "FROM server\n"\
-                                   "WHERE server_id=?;";
-    rc = sqlite3_prepare_v2(db->ppDb, sql_query, -1, &stmt, 0);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "sqlite3_prepare_v2: %s", sqlite3_errmsg(db->ppDb));
-        goto err_exit;
-    }
-
-    rc = sqlite3_bind_text(stmt, 1, server_id, -1, SQLITE_STATIC);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "sqlite3_bind_text: %s", sqlite3_errmsg(db->ppDb));
-        goto err_exit;
-    }
-
-    step = sqlite3_step(stmt);
-    if(step == SQLITE_ROW) {
-        token = (const char *)sqlite3_column_text(stmt, 0);
-    }
-    else if(step == SQLITE_DONE) {
-        sqlite3_finalize(stmt);
-        return -1;
-    }
-    else{
-        LOG(LOG_LVL_ERRO, "sqlite3_step: %s", sqlite3_errmsg(db->ppDb));
-        goto err_exit;
-    }
-
-    *output = strdup((const char *)token);
-
-    rc = sqlite3_finalize(stmt);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "sqlite3_finalize: %s", sqlite3_errmsg(db->ppDb));
-        free(*output);
-        goto err_exit;
-    }
-
-    return DTC_ERR_NONE;
-
-err_exit:
-    sqlite3_finalize(stmt);
-    return DTC_ERR_DATABASE;
-
-
-}
-int db_get_new_temp_token(database_t *db, const char *server_public_key,
-                          const char **output) {
-    int rc, step, affected_rows;
-    char token[37];
-    sqlite3_stmt *stmt = NULL;
-
-    static const char *sql_query = "UPDATE server\n"\
-                                   "SET last_token=?\n"\
-                                   "WHERE public_key=?";
-
-    rc = sqlite3_prepare_v2(db->ppDb, sql_query, -1, &stmt, 0);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "Failed to prepare an statment: %s",
-            sqlite3_errmsg(db->ppDb));
-        goto err_exit;
-    }
-
-    rc = sqlite3_bind_text(stmt, 1, generate_token(&token[0]), -1,
-                           SQLITE_STATIC);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "Failed binding the new token public key: %s",
-            sqlite3_errmsg(db->ppDb));
-        goto err_exit;
-    }
-
-    rc = sqlite3_bind_text(stmt, 2, server_public_key, -1, SQLITE_STATIC);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "Failed binding the server public key: %s",
-            sqlite3_errmsg(db->ppDb));
-        goto err_exit;
-    }
-
-    step = sqlite3_step(stmt);
-    if(step != SQLITE_DONE) {
-        LOG(LOG_LVL_ERRO, "Step error:%s", sqlite3_errmsg(db->ppDb));
-        goto err_exit;
-    }
-
-    affected_rows = sqlite3_changes(db->ppDb);
-    if(affected_rows == 0) {
-        sqlite3_finalize(stmt);
-        return -1;
-    }
-
-    rc = sqlite3_finalize(stmt);
-    if( rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "Failed finalizing the statment: %s",
-            sqlite3_errmsg(db->ppDb));
-        return DTC_ERR_DATABASE;
-    }
-
-    *output = strdup(&token[0]);
-
-    return DTC_ERR_NONE;
-
-err_exit:
-    sqlite3_finalize(stmt);
-    return DTC_ERR_DATABASE;
-}
-
-#ifdef UNIT_TEST
-
-#include <unistd.h>
-
-// TODO IF a test fails the file might remain in the temp folder, we need to
-// change this kind of check or figure out some way to do a clean up.
-
-static char *get_filepath(const char *file) {
-
-    const char *testing_dir = "/tmp/";
-    size_t total_size = strlen(testing_dir) + strlen(file) + 1;
-    size_t printed;
-    char *ret = (char *) malloc(sizeof(char) * total_size);
-    if(!ret)
-        return ret;
-    printed = snprintf(ret, total_size, "%s%s", testing_dir, file);
-    if(printed >= total_size){
-        free(ret);
-        return NULL;
-    }
-    return ret;
-}
-
-static void close_and_remove_db(char *file, database_t *db) {
-    db_close_and_free_connection(db);
-    ck_assert_int_eq(0, remove(file));
-    free(file);
-}
-
-static int insert_server(sqlite3 *db, const char *server_key,
-                         const char *server_id, const char *token) {
-    char *err;
-    size_t ret;
-    int rc;
-    char *sql_template  = "INSERT INTO server (public_key, server_id, last_token)\n"\
-                          "    VALUES('%s', '%s', '%s');";
-    size_t len = strlen(sql_template) +
-                 strlen(server_key) +
-                 strlen(server_id) +
-                 strlen(token) + 1; // %s will be replaced, this isn't needed.
-    char *sql_query = (char *) malloc(sizeof(char) * len);
-    ret = snprintf(sql_query, len, sql_template, server_key, server_id, token);
-    ck_assert(ret < len);
-
-    rc = sqlite3_exec(db, sql_query, NULL, NULL, &err);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "Error inserting server: %s\n%s", err, sql_query);
-        sqlite3_free(err);
-        free(sql_query);
-        return DTC_ERR_DATABASE;
-    }
-
-    free(sql_query);
-
-    return DTC_ERR_NONE;
-
-}
 START_TEST(test_create_db) {
     char *database_file = get_filepath("test_create_db");
 
@@ -330,6 +362,7 @@ START_TEST(test_get_new_token_empty_db) {
     const char *result;
     const char *server_p_key = "a98478teqgdkg129*&&%^$%#$";
     char *database_file = get_filepath("test_get_new_token_empty_db");
+    ck_assert_int_eq(-1, access(database_file, F_OK));
 
     database_t *conn = db_init_connection(database_file);
     ck_assert(conn != NULL);
@@ -342,6 +375,8 @@ END_TEST
 
 START_TEST(test_get_new_token_server_not_found) {
     char *database_file = get_filepath("test_get_new_token_server_not_found");
+
+    ck_assert_int_eq(-1, access(database_file, F_OK));
 
     database_t *conn = db_init_connection(database_file);
     ck_assert(conn != NULL);
@@ -364,6 +399,7 @@ START_TEST(test_get_new_token_consistency) {
     char *current_token = NULL;
     const char *result;
 
+    ck_assert_int_eq(-1, access(database_file, F_OK));
     database_t *conn = db_init_connection(database_file);
     ck_assert(conn != NULL);
 
@@ -397,6 +433,40 @@ START_TEST(test_get_new_token_consistency) {
 }
 END_TEST
 
+START_TEST(test_db_is_an_authorized_key_empty_db) {
+
+    char *database_file = get_filepath("test_db_is_an_authorized_key_empty_db");
+
+    ck_assert_int_eq(-1, access(database_file, F_OK));
+
+    database_t *conn = db_init_connection(database_file);
+    ck_assert(conn != NULL);
+    ck_assert_int_eq(-1, db_is_an_authorized_key(conn, "any_key"));
+
+    close_and_remove_db(database_file, conn);
+}
+END_TEST
+
+START_TEST(test_db_is_an_authorized_key) {
+
+    char *database_file = get_filepath("test_db_is_an_authorized_key");
+
+    ck_assert_int_eq(-1, access(database_file, F_OK));
+
+    database_t *conn = db_init_connection(database_file);
+    ck_assert(conn != NULL);
+
+    ck_assert_int_eq(DTC_ERR_NONE, create_tables(conn));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     insert_server(conn->ppDb, "valid_key", "id", "token"));
+
+    ck_assert_int_eq(1, db_is_an_authorized_key(conn, "valid_key"));
+    ck_assert_int_eq(0, db_is_an_authorized_key(conn, "not_valid_key"));
+
+    close_and_remove_db(database_file, conn);
+}
+END_TEST
+
 TCase *get_dt_tclib_database_c_test_case() {
     TCase *test_case = tcase_create("database_c");
 
@@ -408,6 +478,8 @@ TCase *get_dt_tclib_database_c_test_case() {
     tcase_add_test(test_case, test_get_new_token_server_not_found);
     tcase_add_test(test_case, test_get_new_token_consistency);
 
+    tcase_add_test(test_case, test_db_is_an_authorized_key_empty_db);
+    tcase_add_test(test_case, test_db_is_an_authorized_key);
     return test_case;
 }
 
