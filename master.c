@@ -11,8 +11,9 @@
 #include <tc.h>
 
 #include "dtc.h"
-#include "messages.h"
 #include "err.h"
+#include "messages.h"
+#include "utilities.h"
 
 #ifndef NDEBUG
     #include "logger/logger.h"
@@ -398,68 +399,6 @@ static int set_client_socket_security(void *socket,
     }
 
     return 0;
-}
-
-/**
- * Auxiliary function to read an string from a config_setting_t and copy it
- * into a new memory chunk to persist after the config_setting_t deletion.
- *
- * @param setting setting to perform the lookup.
- * @param name name of the string in the configuration.
- * @param value the copied string will be stored at *value.
- *          On error will not be modified.
- *
- * @return DTC_ERR_NONE on success, a proper error code otherwise.
- *
- **/
-static int lookup_string_conf_element(const config_setting_t *setting,
-                                      const char *name, char **value) {
-
-    int ret;
-    const char *char_aux;
-    ret = config_setting_lookup_string(setting, name, &char_aux);
-    if(ret == CONFIG_FALSE) {
-        LOG_DEBUG(LOG_LVL_CRIT, "Error getting %s.", name);
-        return DTC_ERR_CONFIG_FILE;
-    }
-    *value = strdup(char_aux);
-    if(*value == NULL) {
-        LOG_DEBUG(LOG_LVL_CRIT, "Not enough memory to copy %s.", name);
-        return DTC_ERR_NOMEM;
-    }
-    return DTC_ERR_NONE;
-}
-
-/**
- * Auxiliary function to read an uint16_t from a config_setting_t, it's read
- * as int64 and then tested if it fit in an uint16_t.
- *
- * @param setting setting to perform the lookup.
- * @param name name of the uint16 in the configuration.
- * @param out on success will point to the value looked for.
- *          On error will not be modified.
- *
- * @return DTC_ERR_NONE on success, a proper error code otherwise.
- **/
-static int lookup_uint16_conf_element(const config_setting_t *setting,
-                                      const char *name, uint16_t *out) {
-    int ret;
-    long long aux;
-
-    ret = config_setting_lookup_int64(setting, name, &aux);
-    if(ret != CONFIG_TRUE) {
-        LOG_DEBUG(LOG_LVL_CRIT, "%s not found in the configuration.", name);
-        return DTC_ERR_CONFIG_FILE;
-    }
-    if(aux > UINT16_MAX){
-        LOG_DEBUG(LOG_LVL_CRIT,
-                  "Error getting %s. %d is too big, should fit in uint16_t.",
-                  name, aux);
-        return DTC_ERR_CONFIG_FILE;
-    }
-
-    *out = (uint16_t) aux;
-    return DTC_ERR_NONE;
 }
 
 /**
