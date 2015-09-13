@@ -83,6 +83,13 @@ enum {
             return val; \
     } while(0);
 
+#define LOG_EXIT(format, ...) \
+    do {\
+        LOG(LOG_LVL_CRIT, format, ## __VA_ARGS__) \
+        exit(1); \
+    } while(0);
+
+
 /**
  * If val evaluates to false, log as critical the format message and
  * call exit(1). Otherwise does nothing.
@@ -94,8 +101,7 @@ enum {
 #define EXIT_ON_FALSE(val, format, ...) \
     do { \
         if (!val) {\
-            LOG(LOG_LVL_CRIT, format, ## __VA_ARGS__) \
-            exit(1); \
+            LOG_EXIT(format, ## __VA_ARGS__) \
         } \
     } while(0);
 
