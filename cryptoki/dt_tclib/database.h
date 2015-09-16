@@ -63,10 +63,23 @@ int db_get_new_temp_token(database_t *db, const char *server_public_key,
  * @return DTC_ERR_NONE on successs, a proper positive error code if something
  *      fails or -1 if the server is not stored in the database.
  **/
-int get_current_token(database_t *db, const char *server_id, char **output);
+int db_get_current_token(database_t *db, const char *server_id, char **output);
 
 //TODO
-int get_server_id(database_t *db, const char *public_key, char **output);
+/**
+ * Retrieve the server_id of the server with public_key.
+ *
+ * @param db Active database connection.
+ * @param public_key Public key of the server.
+ * @param ouput On a success call, the server_id will be popinted by *output.
+ *      The memory is dynamic and the caller take responsibility of freeing it
+ *      on success.
+ *
+ *  @return DTC_ERR_NONE on success, a proper positive error code if something
+ *      fails or -1 if the server is not stored in the database.
+ */
+int db_get_server_id(database_t *db, const char *public_key, char **output);
+
 /**
  * Add a new server to the DB, this is stored in a temporal table until
  * db_update_servers is called and the old servers are replaced by the new

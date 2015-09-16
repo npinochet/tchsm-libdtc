@@ -216,9 +216,7 @@ int db_update_servers(database_t *db) {
     int rc;
     static const char *delete =
             "DELETE FROM server\n"
-            "   WHERE not Exists\n"
-            "       (SELECT server_id FROM new_server\n"
-            "        WHERE new_server.server_id = server.server_id);\n";
+            "WHERE server_id NOT IN (SELECT server_id FROM new_server);\n";
 
     static const char *update_existing =
         "UPDATE server\n"
@@ -280,13 +278,53 @@ int db_update_servers(database_t *db) {
     return DTC_ERR_NONE;
 }
 
-int get_current_token(database_t *db, const char *server_id, char **output) {
+int db_get_server_id(database_t *db, const char *public_key, char **output) {
+    int rc, step;
+    const char *server_id;
+    sqlite3_stmt *stmt = NULL;
+
+    static const char *sql_query = "SELECT server_id\n"
+                                   "FROM server\n"\
+                                   "WHERE public_key = ?;";
+
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 1, public_key);
+    if(rc != DTC_ERR_NONE)
+        return rc;
+
+    step = sqlite3_step(stmt);
+    if(step == SQLITE_ROW) {
+        server_id = (const char *)sqlite3_column_text(stmt, 0);
+    }
+    else if(step == SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        return -1;
+    }
+    else {
+        LOG(LOG_LVL_ERRO, "sqlite3_step: %s", sqlite3_errmsg(db->ppDb));
+        sqlite3_finalize(stmt);
+        return DTC_ERR_DATABASE;
+    }
+
+    *output = strdup((const char *)server_id);
+
+    rc = sqlite3_finalize(stmt);
+    if(rc != SQLITE_OK)
+        LOG(LOG_LVL_ERRO, "sqlite3_finalize %s", sqlite3_errmsg(db->ppDb));
+
+    return DTC_ERR_NONE;
+
+    sqlite3_finalize(stmt);
+
+}
+
+int db_get_current_token(database_t *db, const char *server_id, char **output) {
     int rc, step;
     sqlite3_stmt *stmt = NULL;
     const char *token;
     static const char *sql_query = "SELECT last_token\n"\
                                    "FROM server\n"\
                                    "WHERE server_id=?;";
+    // TODO use the bind aux functino.
     rc = sqlite3_prepare_v2(db->ppDb, sql_query, -1, &stmt, 0);
     if(rc != SQLITE_OK) {
         LOG(LOG_LVL_ERRO, "sqlite3_prepare_v2: %s", sqlite3_errmsg(db->ppDb));
@@ -315,11 +353,8 @@ int get_current_token(database_t *db, const char *server_id, char **output) {
     *output = strdup((const char *)token);
 
     rc = sqlite3_finalize(stmt);
-    if(rc != SQLITE_OK) {
+    if(rc != SQLITE_OK)
         LOG(LOG_LVL_ERRO, "sqlite3_finalize: %s", sqlite3_errmsg(db->ppDb));
-        free(*output);
-        goto err_exit;
-    }
 
     return DTC_ERR_NONE;
 
@@ -454,6 +489,7 @@ static void close_and_remove_db(char *file, database_t *db) {
     free(file);
 }
 
+// Testing only, do not use it, it allows SQL injection.
 static int insert_server(sqlite3 *db, const char *server_key,
                          const char *server_id, const char *token) {
     char *err;
@@ -602,14 +638,14 @@ START_TEST(test_get_new_token_consistency) {
 
     // Check changed token.
     ck_assert_int_eq(DTC_ERR_NONE,
-                     get_current_token(conn, server_id, &current_token));
+                     db_get_current_token(conn, server_id, &current_token));
     ck_assert_str_ne(old_token, current_token);
     ck_assert_str_ne("token", current_token);
     free(current_token);
 
     //Check not changed token
     ck_assert_int_eq(DTC_ERR_NONE,
-                     get_current_token(conn, "rand_id", &current_token));
+                     db_get_current_token(conn, "rand_id", &current_token));
     ck_assert_str_eq("token", current_token);
     free(current_token);
 
@@ -688,6 +724,7 @@ START_TEST(test_update_servers_empty_db) {
 END_TEST
 
 START_TEST(test_update_servers_no_old_servers) {
+    char *aux;
     char *database_file = get_filepath("test_update_servers_no_old_servers");
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
@@ -699,16 +736,109 @@ START_TEST(test_update_servers_no_old_servers) {
                      db_add_new_server(conn, "id", "key"));
     ck_assert_int_eq(DTC_ERR_DATABASE,
                      db_add_new_server(conn, "id", "key_2"));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_add_new_server(conn, "id_2", "key_2"));
 
-    //TODO check that key is in the DB and not key_2
-    ck_assert_int_eq(DTC_ERR_NONE, db_update_servers(conn));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_update_servers(conn));
+
+
+    ck_assert_int_eq(DTC_ERR_NONE, db_get_server_id(conn, "key", &aux));
+    ck_assert_str_eq("id", aux);
+    free(aux);
+
+    ck_assert_int_eq(DTC_ERR_NONE, db_get_server_id(conn, "key_2", &aux));
+    ck_assert_str_eq("id_2", aux);
+    free(aux);
+    close_and_remove_db(database_file, conn);
+}
+END_TEST
+
+START_TEST(test_update_servers_just_update) {
+    char *aux;
+    char *database_file = get_filepath("test_update_servers_just_update");
+
+    ck_assert_int_eq(-1, access(database_file, F_OK));
+
+    database_t *conn = db_init_connection(database_file);
+    ck_assert(conn != NULL);
+
+    ck_assert_int_eq(0, insert_server(conn->ppDb, "key", "id", "token"));
+
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_add_new_server(conn, "id2", "key"));
+
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_update_servers(conn));
+
+
+    ck_assert_int_eq(DTC_ERR_NONE, db_get_server_id(conn, "key", &aux));
+    ck_assert_str_eq("id2", aux);
+    free(aux);
 
     close_and_remove_db(database_file, conn);
 }
 END_TEST
 
-//TODO more testing of update_servers
+START_TEST(test_update_servers_delete_only) {
+    char *aux;
+    char *database_file = get_filepath("test_update_servers_delete_only");
 
+    ck_assert_int_eq(-1, access(database_file, F_OK));
+
+    database_t *conn = db_init_connection(database_file);
+    ck_assert(conn != NULL);
+
+    ck_assert_int_eq(0, insert_server(conn->ppDb, "key", "id", "token"));
+    ck_assert_int_eq(0, insert_server(conn->ppDb, "key2", "id2", "token"));
+
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_update_servers(conn));
+
+
+    ck_assert_int_eq(-1, db_get_server_id(conn, "key", &aux));
+    ck_assert_int_eq(-1, db_get_server_id(conn, "key2", &aux));
+
+    close_and_remove_db(database_file, conn);
+}
+END_TEST
+
+START_TEST(test_update_servers_mix_operations) {
+    char *aux;
+    char *database_file = get_filepath("test_update_servers_just_update");
+
+    ck_assert_int_eq(-1, access(database_file, F_OK));
+
+    database_t *conn = db_init_connection(database_file);
+    ck_assert(conn != NULL);
+
+    ck_assert_int_eq(0, insert_server(conn->ppDb, "key", "id", "token"));
+    ck_assert_int_eq(0, insert_server(conn->ppDb, "key2", "id2", "token"));
+
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_add_new_server(conn, "id2", "updatedkey2"));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_add_new_server(conn, "id3", "key3"));
+
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_update_servers(conn));
+
+
+    ck_assert_int_eq(-1, db_get_server_id(conn, "key", &aux));
+    ck_assert_int_eq(-1, db_get_server_id(conn, "key2", &aux));
+
+
+    ck_assert_int_eq(DTC_ERR_NONE, db_get_server_id(conn, "updatedkey2", &aux));
+    ck_assert_str_eq("id2", aux);
+    free(aux);
+
+    ck_assert_int_eq(DTC_ERR_NONE, db_get_server_id(conn, "key3", &aux));
+    ck_assert_str_eq("id3", aux);
+    free(aux);
+
+    close_and_remove_db(database_file, conn);
+}
+END_TEST
 
 TCase *get_dt_tclib_database_c_test_case() {
 
@@ -731,6 +861,9 @@ TCase *get_dt_tclib_database_c_test_case() {
 
     tcase_add_test(test_case, test_update_servers_empty_db);
     tcase_add_test(test_case, test_update_servers_no_old_servers);
+    tcase_add_test(test_case, test_update_servers_just_update);
+    tcase_add_test(test_case, test_update_servers_delete_only);
+    tcase_add_test(test_case, test_update_servers_mix_operations);
 
     return test_case;
 }
