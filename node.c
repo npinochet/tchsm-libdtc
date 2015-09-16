@@ -276,7 +276,9 @@ void handle_store_key_pub(struct op_req *op) {
     }
 
 
-    free(op);
+
+
+    delete_op_req(op);
 }
 void classify_and_handle_operation(struct op_req *op) {
     #define TOTAL_SUPPORTED_OPS 1
@@ -291,7 +293,7 @@ void classify_and_handle_operation(struct op_req *op) {
     }
     if(i == TOTAL_SUPPORTED_OPS) {
         LOG(LOG_LVL_ERRO, "Operation %" PRIu16 " not supported.", op->op);
-        free(op);
+        delete_op_req(op);
         return;
     }
 
@@ -575,7 +577,6 @@ int s_sendmore(void *socket, const char *string) {
     return size;
 }
 
-
 static int is_an_authorized_publisher(database_t *conn, const char *key) {
     return db_is_an_authorized_key(conn, key) == 1;
 }
@@ -611,7 +612,7 @@ static void zap_handler(void *zap_data_)
         char client_key_text [41];
         zmq_z85_encode(client_key_text, client_key, 32);
 
-        printf("%.*s\n", 32, client_key_text);
+        printf("%.*s\n", 41, client_key_text);
 
         s_sendmore(sock, version);
         s_sendmore(sock, sequence);
@@ -621,6 +622,7 @@ static void zap_handler(void *zap_data_)
             s_sendmore(sock, "200");
             s_sendmore(sock, "OK");
             s_sendmore(sock, client_key_text);
+            LOG(LOG_LVL_LOG, "Sub socket accepted a new connection.");
         }
         else if(strcmp("ROUTER_SOCKET", domain) == 0) {
             ret = db_get_new_temp_token(db_conn, client_key_text, &aux_char);
@@ -629,17 +631,20 @@ static void zap_handler(void *zap_data_)
                 s_sendmore(sock, "OK");
                 s_sendmore(sock, aux_char);
                 free(aux_char);
+                LOG(LOG_LVL_LOG, "Router socket accepted a new connection.");
             }
             else {
                 s_sendmore(sock, "400");
                 s_sendmore(sock, "Not an authorized master");
                 s_sendmore(sock, "");
+                LOG(LOG_LVL_LOG, "Router socket rejected a connection.");
             }
         }
         else {
             s_sendmore(sock, "400");
             s_sendmore(sock, "Invalid client public key");
             s_sendmore(sock, "");
+            LOG(LOG_LVL_LOG, "Connection rejected.");
         }
 
         s_send(sock, "");

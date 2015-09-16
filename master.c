@@ -61,6 +61,7 @@ struct configuration {
 
     char *public_key;
     char *private_key;
+    char *server_public_key;
     char *server_id;
 };
 
@@ -308,14 +309,14 @@ static int create_connect_sockets(const struct configuration *conf,
                                      client_public_key, server_public_key);
     if(ret)
         goto err_exit;
-
+/*
     ret_val = zmq_setsockopt(router_socket, ZMQ_IDENTITY, "soy_server",
                              10);
     if(ret_val != 0) {
         ret = DTC_ERR_ZMQ_CURVE;
         goto err_exit;
     }
-
+*/
     for(i = 0; i < conf->cant_nodes; i++) {
         ret_val = snprintf(&buff[0], BUFF_SIZE, "%s://%s:%" PRIu16,
                            protocol, conf->nodes[i].ip,
