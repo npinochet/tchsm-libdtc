@@ -11,7 +11,8 @@
 #include "logger/logger.h"
 
 // DO NOT USE sqlite3_exec for USER PROVIDED queries/arguments.
-
+#define START_MY_TEST(test_name) START_TEST(test_name)\
+                                 LOG(LOG_LVL_LOG, "Testing: %s.", #test_name)
 struct database_conn {
    sqlite3 *ppDb;
 };
@@ -215,8 +216,12 @@ int db_update_servers(database_t *db) {
     char *err;
     int rc;
     static const char *delete =
-            "DELETE FROM server\n"
-            "WHERE server_id NOT IN (SELECT server_id FROM new_server);\n";
+            "DELETE\n"
+            "FROM server\n"
+            "WHERE server_id NOT IN\n"
+            "   (SELECT server_id\n"
+            "    FROM new_server\n"
+            "    WHERE server.server_id = new_server.server_id);\n";
 
     static const char *update_existing =
         "UPDATE server\n"
@@ -255,7 +260,7 @@ int db_update_servers(database_t *db) {
         return DTC_ERR_DATABASE;
     }
 
-    LOG(LOG_LVL_LOG, "%d server where updated with a different public_key.",
+    LOG(LOG_LVL_LOG, "%d servers were updated with a different public_key.",
         sqlite3_changes(db->ppDb));
 
     // And move the new servers from new_server to server.
@@ -265,7 +270,7 @@ int db_update_servers(database_t *db) {
         sqlite3_free(err);
         return DTC_ERR_DATABASE;
     }
-    LOG(LOG_LVL_LOG, "%d new servers where added.", sqlite3_changes(db->ppDb));
+    LOG(LOG_LVL_LOG, "%d new servers were added.", sqlite3_changes(db->ppDb));
 
     // This will make subsequent calls to db_add_new_server fail.
     rc = sqlite3_exec(db->ppDb, drop_table, NULL, NULL, &err);
@@ -520,7 +525,7 @@ static int insert_server(sqlite3 *db, const char *server_key,
 }
 
 
-START_TEST(test_create_db) {
+START_MY_TEST(test_create_db) {
     char *database_file = get_filepath("test_create_db");
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
@@ -543,7 +548,7 @@ static int foreign_key_callback(void * unused, int cols, char **cols_data,
     return 0;
 }
 
-START_TEST(test_foreign_keys_support) {
+START_MY_TEST(test_foreign_keys_support) {
     char *database_file = get_filepath("test_foreign_keys_support");
     int rc;
 
@@ -561,7 +566,7 @@ START_TEST(test_foreign_keys_support) {
 }
 END_TEST
 
-START_TEST(test_create_tables) {
+START_MY_TEST(test_create_tables) {
     char *database_file = get_filepath("test_create_tables");
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
@@ -578,7 +583,7 @@ START_TEST(test_create_tables) {
 }
 END_TEST
 
-START_TEST(test_get_new_token_empty_db) {
+START_MY_TEST(test_get_new_token_empty_db) {
     char *result;
     const char *server_p_key = "a98478teqgdkg129*&&%^$%#$";
     char *database_file = get_filepath("test_get_new_token_empty_db");
@@ -593,7 +598,7 @@ START_TEST(test_get_new_token_empty_db) {
 }
 END_TEST
 
-START_TEST(test_get_new_token_server_not_found) {
+START_MY_TEST(test_get_new_token_server_not_found) {
     char *database_file = get_filepath("test_get_new_token_server_not_found");
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
@@ -610,7 +615,7 @@ START_TEST(test_get_new_token_server_not_found) {
 }
 END_TEST
 
-START_TEST(test_get_new_token_consistency) {
+START_MY_TEST(test_get_new_token_consistency) {
 
     char *database_file = get_filepath("test_get_new_token_consistency");
     char *server_key = "1(*A&S^DYHJA]&TYHJ@aklut*&@2128ha";
@@ -653,7 +658,7 @@ START_TEST(test_get_new_token_consistency) {
 }
 END_TEST
 
-START_TEST(test_db_is_an_authorized_key_empty_db) {
+START_MY_TEST(test_db_is_an_authorized_key_empty_db) {
 
     char *database_file = get_filepath("test_db_is_an_authorized_key_empty_db");
 
@@ -667,7 +672,7 @@ START_TEST(test_db_is_an_authorized_key_empty_db) {
 }
 END_TEST
 
-START_TEST(test_db_is_an_authorized_key) {
+START_MY_TEST(test_db_is_an_authorized_key) {
 
     char *database_file = get_filepath("test_db_is_an_authorized_key");
 
@@ -687,7 +692,7 @@ START_TEST(test_db_is_an_authorized_key) {
 }
 END_TEST
 
-START_TEST(test_db_add_new_server) {
+START_MY_TEST(test_db_add_new_server) {
     char *database_file = get_filepath("test_db_add_new_server");
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
@@ -709,7 +714,7 @@ START_TEST(test_db_add_new_server) {
 }
 END_TEST
 
-START_TEST(test_update_servers_empty_db) {
+START_MY_TEST(test_update_servers_empty_db) {
     char *database_file = get_filepath("test_update_server_empty_tables");
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
@@ -723,7 +728,7 @@ START_TEST(test_update_servers_empty_db) {
 }
 END_TEST
 
-START_TEST(test_update_servers_no_old_servers) {
+START_MY_TEST(test_update_servers_no_old_servers) {
     char *aux;
     char *database_file = get_filepath("test_update_servers_no_old_servers");
 
@@ -754,9 +759,35 @@ START_TEST(test_update_servers_no_old_servers) {
 }
 END_TEST
 
-START_TEST(test_update_servers_just_update) {
+START_MY_TEST(test_update_servers_update_only) {
     char *aux;
-    char *database_file = get_filepath("test_update_servers_just_update");
+    char *database_file = get_filepath("test_update_servers_update_only");
+
+    ck_assert_int_eq(-1, access(database_file, F_OK));
+
+    database_t *conn = db_init_connection(database_file);
+    ck_assert(conn != NULL);
+
+    ck_assert_int_eq(0, insert_server(conn->ppDb, "key", "id", "token"));
+
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_add_new_server(conn, "id", "key2"));
+
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_update_servers(conn));
+
+
+    ck_assert_int_eq(DTC_ERR_NONE, db_get_server_id(conn, "key2", &aux));
+    ck_assert_str_eq("id", aux);
+    free(aux);
+
+    close_and_remove_db(database_file, conn);
+}
+END_TEST
+
+START_MY_TEST(test_update_servers_replace) {
+    char *aux;
+    char *database_file = get_filepath("test_update_servers_replace");
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
@@ -780,7 +811,32 @@ START_TEST(test_update_servers_just_update) {
 }
 END_TEST
 
-START_TEST(test_update_servers_delete_only) {
+START_MY_TEST(test_update_servers_nothing_to_update) {
+    char *aux;
+    char *database_file = get_filepath("test_update_servers_nothing_to_update");
+
+    ck_assert_int_eq(-1, access(database_file, F_OK));
+
+    database_t *conn = db_init_connection(database_file);
+    ck_assert(conn != NULL);
+
+    ck_assert_int_eq(0, insert_server(conn->ppDb, "key", "id", "token"));
+
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_add_new_server(conn, "id", "key"));
+
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_update_servers(conn));
+
+
+    ck_assert_int_eq(DTC_ERR_NONE, db_get_server_id(conn, "key", &aux));
+    ck_assert_str_eq("id", aux);
+    free(aux);
+
+    close_and_remove_db(database_file, conn);
+}
+END_TEST
+START_MY_TEST(test_update_servers_delete_only) {
     char *aux;
     char *database_file = get_filepath("test_update_servers_delete_only");
 
@@ -803,7 +859,7 @@ START_TEST(test_update_servers_delete_only) {
 }
 END_TEST
 
-START_TEST(test_update_servers_mix_operations) {
+START_MY_TEST(test_update_servers_mix_operations) {
     char *aux;
     char *database_file = get_filepath("test_update_servers_just_update");
 
@@ -861,7 +917,9 @@ TCase *get_dt_tclib_database_c_test_case() {
 
     tcase_add_test(test_case, test_update_servers_empty_db);
     tcase_add_test(test_case, test_update_servers_no_old_servers);
-    tcase_add_test(test_case, test_update_servers_just_update);
+    tcase_add_test(test_case, test_update_servers_update_only);
+    tcase_add_test(test_case, test_update_servers_nothing_to_update);
+    tcase_add_test(test_case, test_update_servers_replace);
     tcase_add_test(test_case, test_update_servers_delete_only);
     tcase_add_test(test_case, test_update_servers_mix_operations);
 
