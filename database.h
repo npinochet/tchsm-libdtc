@@ -65,7 +65,6 @@ int db_get_new_temp_token(database_t *db, const char *server_public_key,
  **/
 int db_get_current_token(database_t *db, const char *server_id, char **output);
 
-//TODO
 /**
  * Retrieve the server_id of the server with public_key.
  *
