@@ -216,18 +216,23 @@ int db_update_servers(database_t *db) {
     char *err;
     int rc;
     static const char *delete =
-            "DELETE\n"
-            "FROM server\n"
-            "WHERE server_id NOT IN\n"
-            "   (SELECT server_id\n"
-            "    FROM new_server\n"
-            "    WHERE server.server_id = new_server.server_id);\n";
+        "DELETE\n"
+        "FROM server\n"
+        "WHERE server_id NOT IN\n"
+        "   (SELECT server_id\n"
+        "    FROM new_server\n"
+        "    WHERE server.server_id = new_server.server_id);\n";
 
     static const char *update_existing =
         "UPDATE server\n"
         "SET public_key = (SELECT public_key\n"
         "                  FROM new_server\n"
-        "                  WHERE server_id = server.server_id);\n";
+        "                  WHERE server_id = server.server_id)\n"
+        "WHERE server_id IN\n"
+        "   (SELECT server_id\n"
+        "    FROM new_server\n"
+        "    WHERE (server_id = new_server.server_id and\n"
+        "        public_key != server.public_key))\n";
 
     static const char *create_new =
         "INSERT INTO server(server_id, public_key)\n"
@@ -378,6 +383,7 @@ int db_get_new_temp_token(database_t *db, const char *server_public_key,
                                    "SET last_token=?\n"\
                                    "WHERE public_key=?";
 
+    //TODO use bind helper.
     rc = sqlite3_prepare_v2(db->ppDb, sql_query, -1, &stmt, 0);
     if(rc != SQLITE_OK) {
         LOG(LOG_LVL_ERRO, "Failed to prepare an statment: %s",
@@ -409,6 +415,7 @@ int db_get_new_temp_token(database_t *db, const char *server_public_key,
     affected_rows = sqlite3_changes(db->ppDb);
     if(affected_rows == 0) {
         sqlite3_finalize(stmt);
+        LOG(LOG_LVL_WARN, "Trying to get new token for not authorized master");
         return -1;
     }
 

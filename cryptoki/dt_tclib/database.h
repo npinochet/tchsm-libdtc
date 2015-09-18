@@ -39,7 +39,7 @@ int db_is_an_authorized_key(database_t *db, const char *key);
  *
  *  @param db Active database connection.
  *  @param server_public_key Public key of the server for the one we will
- *      a new token.
+ *      get a new token.
  *  @param output The token will be pointed by *output if the execution is
  *      successful. *output will point to dynamic memory, the caller is
  *      responsible for freeing the memory on a successful call.

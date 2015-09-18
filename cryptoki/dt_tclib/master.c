@@ -59,10 +59,12 @@ struct configuration {
     uint32_t cant_nodes;
     struct node_info *nodes;
 
+    char *server_id;
+
+    // Curve Security
     char *public_key;
     char *private_key;
-    char *server_public_key;
-    char *server_id;
+
 };
 
 struct communication_objects {
@@ -131,8 +133,7 @@ static char* configuration_to_string(const struct configuration *conf){
 static void free_nodes(unsigned int cant_nodes, struct node_info *node);
 static int set_client_socket_security(void *socket,
                                       const char *client_secret_key,
-                                      const char *client_public_key,
-                                      const char *server_public_key);
+                                      const char *client_public_key);
 static int create_connect_sockets();
 static int read_configuration_file(struct configuration *conf);
 
@@ -271,7 +272,7 @@ static int create_connect_sockets(const struct configuration *conf,
                                   struct dtc_ctx *ctx) {
     void *pub_socket, *router_socket;
     int ret_val = 0;
-    unsigned int i = 0;
+    int i = 0;
     char *protocol = "tcp";
     const int BUFF_SIZE = 200;
     char buff[BUFF_SIZE];
@@ -296,17 +297,13 @@ static int create_connect_sockets(const struct configuration *conf,
         return DTC_ERR_ZMQ_ERROR;
     }
 
-    char *client_secret_key = "<:3iHkAB:>2{T9osSbDDeyJfM@e%wIc]33#h9-@4";
-    char *client_public_key = "E!okhRB>r7!&T(ORk#(tncmcW-gJzA4y4G[=lm9o";
-    char *server_public_key = "}L#cv]<CVY@.h3}-G(<4pky><w1]H$V?c^R*91VK";
-
-    ret = set_client_socket_security(pub_socket, client_secret_key,
-                                     client_public_key, server_public_key);
+    ret = set_client_socket_security(pub_socket, conf->private_key,
+                                     conf->public_key);
     if(ret)
         goto err_exit;
 
-    ret = set_client_socket_security(router_socket, client_secret_key,
-                                     client_public_key, server_public_key);
+    ret = set_client_socket_security(router_socket, conf->private_key,
+                                     conf->public_key);
     if(ret)
         goto err_exit;
 /*
@@ -318,12 +315,34 @@ static int create_connect_sockets(const struct configuration *conf,
     }
 */
     for(i = 0; i < conf->cant_nodes; i++) {
+    //for(i = conf->cant_nodes -1; i >= 0; i--) {
+        ret_val = zmq_setsockopt(pub_socket, ZMQ_CURVE_SERVERKEY,
+                                 conf->nodes[i].public_key,
+                                 strlen(conf->nodes[i].public_key));
+        if(ret_val) {
+            LOG_DEBUG(LOG_LVL_CRIT,
+                      "PUB socket: Error setting node %d public key: %s.", i,
+                      strerror(errno));
+            return DTC_ERR_ZMQ_CURVE;
+        }
+
+        ret_val = zmq_setsockopt(router_socket, ZMQ_CURVE_SERVERKEY,
+                                 conf->nodes[i].public_key,
+                                 strlen(conf->nodes[i].public_key));
+        if(ret_val) {
+            LOG_DEBUG(LOG_LVL_CRIT,
+                      "ROUTER socket: Error setting node %d public key: %s.", i,
+                      strerror(errno));
+            return DTC_ERR_ZMQ_CURVE;
+        }
+
+
         ret_val = snprintf(&buff[0], BUFF_SIZE, "%s://%s:%" PRIu16,
                            protocol, conf->nodes[i].ip,
                            conf->nodes[i].sub_port);
         if(ret_val >= BUFF_SIZE) {
             LOG_DEBUG(LOG_LVL_CRIT, "BUFF_SIZE %d is not enough to store %d",
-                BUFF_SIZE, ret_val);
+                      BUFF_SIZE, ret_val);
             ret = DTC_ERR_INTERN;
             goto err_exit;
         }
@@ -372,16 +391,8 @@ err_exit:
 
 static int set_client_socket_security(void *socket,
                                       const char *client_secret_key,
-                                      const char *client_public_key,
-                                      const char *server_public_key) {
+                                      const char *client_public_key) {
     int rc = 0;
-    rc = zmq_setsockopt(socket, ZMQ_CURVE_SERVERKEY, server_public_key,
-                        strlen(server_public_key));
-    if(rc) {
-        LOG_DEBUG(LOG_LVL_CRIT, "Error setting server's public key: %s.",
-                  strerror(errno));
-        return DTC_ERR_ZMQ_CURVE;
-    }
 
     rc = zmq_setsockopt(socket, ZMQ_CURVE_PUBLICKEY, client_public_key,
                         strlen(client_public_key));
