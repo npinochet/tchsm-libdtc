@@ -51,7 +51,7 @@ struct configuration {
 struct communication_objects {
     void *ctx;
     void *sub_socket;
-    void *dealer_socket;
+    void *router_socket;
 
     // Inter threads communication.
     char *classifier_socket_address;
@@ -59,8 +59,9 @@ struct communication_objects {
 
 };
 
-struct socket_descr {
+struct classifier_data {
     void *ctx;
+    void *router_socket;
     char *socket_address;
 };
 
@@ -115,8 +116,8 @@ static void update_database(struct configuration *conf) {
     EXIT_ON_FALSE(db_conn, "Error trying to connect to the database.");
 
     for(i = 0; i < conf->cant_masters; i++) {
-        if(db_add_new_server(db_conn, conf->masters[i].public_key,
-                             conf->masters[i].id))
+        if(db_add_new_server(db_conn, conf->masters[i].id,
+                             conf->masters[i].public_key))
             LOG_EXIT("Error adding new server.");
     }
 
@@ -278,6 +279,10 @@ void handle_store_key_pub(struct op_req *op) {
 
 
 
+
+
+
+
     delete_op_req(op);
 }
 void classify_and_handle_operation(struct op_req *op) {
@@ -302,7 +307,7 @@ void classify_and_handle_operation(struct op_req *op) {
     return;
 
 }
-void *classifier_thr(void *inproc_socket_descr) {
+void *classifier_thr(void *classifier_thread_data) {
     int rc = 0;
     void *inproc_socket = NULL;
     int close_thread = 0;
@@ -310,17 +315,17 @@ void *classifier_thr(void *inproc_socket_descr) {
     zmq_msg_t *msg = &msg_;
     struct op_req *op;
 
-    struct socket_descr *sock_descr =
-        (struct socket_descr *) inproc_socket_descr;
+    struct classifier_data *thr_data =
+        (struct classifier_data *) classifier_thread_data;
 
-    inproc_socket = zmq_socket(sock_descr->ctx, ZMQ_PAIR);
+    inproc_socket = zmq_socket(thr_data->ctx, ZMQ_PAIR);
     PERROR_AND_EXIT_ON_FALSE(inproc_socket, "zmq_socket",
                              "Unable to create inproc socket.");
-    rc = zmq_connect(inproc_socket, sock_descr->socket_address);
+    rc = zmq_connect(inproc_socket, thr_data->socket_address);
     PERROR_AND_EXIT_ON_FALSE(rc == 0, "zmq_connect",
                              "Unable to connect inproc socket.");
-    free(sock_descr);
-    LOG(LOG_LVL_NOTI, "Inproc socket connected!");
+    free(classifier_thread_data);
+    LOG(LOG_LVL_NOTI, "Inproc classifier socket connected!");
 
     while(!close_thread) {
         rc = zmq_msg_init(msg);
@@ -353,16 +358,16 @@ void *classifier_thr(void *inproc_socket_descr) {
     return NULL;
 }
 
-static void create_worker_threads(void *zmq_ctx,
-                                  char *classifier_socket_address) {
+static void create_classifier_thread(void *zmq_ctx, void *router_socket,
+                                     char *classifier_socket_address) {
     int ret;
     pthread_t pid;
-    struct socket_descr *sock_descr =
-        (struct socket_descr *) malloc(sizeof(struct socket_descr));
-    sock_descr->ctx = zmq_ctx;
-    sock_descr->socket_address = classifier_socket_address;
+    struct classifier_data *classifier_data =
+        (struct classifier_data *) malloc(sizeof(struct classifier_data));
+    classifier_data->ctx = zmq_ctx;
+    classifier_data->socket_address = classifier_socket_address;
 
-    ret = pthread_create(&pid, NULL, classifier_thr, sock_descr);
+    ret = pthread_create(&pid, NULL, classifier_thr, classifier_data);
 }
 
 static struct communication_objects *init_node(
@@ -373,7 +378,13 @@ static struct communication_objects *init_node(
 
     comm_objs = create_and_bind_sockets(configuration);
 
-    create_worker_threads(comm_objs->ctx, comm_objs->classifier_socket_address);
+    create_classifier_thread(comm_objs->ctx, comm_objs->router_socket,
+                             comm_objs->classifier_socket_address);
+
+    // The classifier thread will take ownership of the router_socket,
+    // as sockets are not intended to be shared by threads, this prevent to use
+    // it from a different thread.
+    comm_objs->router_socket = NULL;
 
     return comm_objs;
 }
@@ -407,7 +418,7 @@ static struct communication_objects *create_and_bind_sockets(
         (struct communication_objects *) malloc(
                 sizeof(struct communication_objects));
 
-    void *sub_socket = NULL, *dealer_socket = NULL;
+    void *sub_socket = NULL, *router_socket = NULL;
     int ret_value = 0;
     ret_val->classifier_socket_address = "inproc://classifier";
 
@@ -437,25 +448,22 @@ static struct communication_objects *create_and_bind_sockets(
     PERROR_AND_EXIT_ON_FALSE(ret_value == 0, "zmq_setsockopt",
                              "ZMQ_ZAP_DOMAIN failed.");
 
-    ret_val->dealer_socket = zmq_socket(ret_val->ctx, ZMQ_ROUTER);
-    dealer_socket = ret_val->dealer_socket;
-    PERROR_AND_EXIT_ON_FALSE(dealer_socket, "zmq_socket:",
+    ret_val->router_socket = zmq_socket(ret_val->ctx, ZMQ_ROUTER);
+    router_socket = ret_val->router_socket;
+    PERROR_AND_EXIT_ON_FALSE(router_socket, "zmq_socket:",
                              "Unable to create socket.");
-    ret_value = zmq_setsockopt(dealer_socket, ZMQ_ZAP_DOMAIN, "ROUTER_SOCKET",
+    ret_value = zmq_setsockopt(router_socket, ZMQ_ZAP_DOMAIN, "ROUTER_SOCKET",
                                13);
     PERROR_AND_EXIT_ON_FALSE(ret_value == 0, "zmq_setsockopt",
                              "ZMQ_ZAP_DOMAIN failed for router socket.");
 
-    char *server_secret_key = "kS=N$zQ%^yv8lp6J%e]z&Eqzkje+Hh(2pD1dffMb";
-    char *server_public_key = "}L#cv]<CVY@.h3}-G(<4pky><w1]H$V?c^R*91VK";
-
-    ret_value = zmq_setsockopt(dealer_socket, ZMQ_IDENTITY, server_public_key,
-                               strlen(server_public_key));
+    ret_value = zmq_setsockopt(router_socket, ZMQ_IDENTITY, conf->public_key,
+                               strlen(conf->public_key));
     PERROR_AND_EXIT_ON_FALSE(ret_value == 0, "zmq_setsockopt",
                              "ZMQ_IDENTITY failed for router socket.");
 
-    if(set_server_socket_security(sub_socket, server_secret_key) ||
-        set_server_socket_security(dealer_socket, server_secret_key))
+    if(set_server_socket_security(sub_socket, conf->private_key) ||
+        set_server_socket_security(router_socket, conf->private_key))
         exit(1);
 
     //TODO(fmontoto) Dumping both bind addresses is the same code, refactor
@@ -482,7 +490,7 @@ static struct communication_objects *create_and_bind_sockets(
         exit(1);
     }
 
-    ret_value = zmq_bind(dealer_socket, bind_buff);
+    ret_value = zmq_bind(router_socket, bind_buff);
     LOG(LVL_NOTI, "Both socket binded, node ready to talk with the Master.");
     return ret_val;
 }
@@ -584,8 +592,6 @@ static int is_an_authorized_publisher(database_t *conn, const char *key) {
 static void zap_handler(void *zap_data_)
 {
 
-    LOG(LOG_LVL_LOG, "ZAP thread just started.");
-    //`char *client_public = "E!okhRB>r7!&T(ORk#(tncmcW-gJzA4y4G[=lm9o";
     uint8_t client_key [32];
     char *aux_char;
     int ret;
@@ -593,6 +599,7 @@ static void zap_handler(void *zap_data_)
     void *sock = zap_data->socket;
     database_t *db_conn = db_init_connection(zap_data->database);
     EXIT_ON_FALSE(db_conn, "Error trying to connect to the DB.");
+    LOG(LOG_LVL_LOG, "Starting ZAP thread.");
 
     //  Process ZAP requests forever
     while (1) {
@@ -609,10 +616,10 @@ static void zap_handler(void *zap_data_)
                           "mechanism: %s. received.",size, sequence, domain,
                           address, identity, mechanism);
 
-        char client_key_text [41];
+        char client_key_text [42];
         zmq_z85_encode(client_key_text, client_key, 32);
 
-        printf("%.*s\n", 41, client_key_text);
+        //printf("%s\n", client_key_text);
 
         s_sendmore(sock, version);
         s_sendmore(sock, sequence);
