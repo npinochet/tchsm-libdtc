@@ -79,8 +79,11 @@ static struct json_object *serialize_store_key_req(
 
     ret = json_object_new_object();
     json_object_object_add(
-            ret, "server_id_accepted",
-            json_object_new_int(store_key_req->server_id_accepted));
+            ret, "key_id_accepted",
+            json_object_new_int(store_key_req->key_id_accepted));
+
+    json_object_object_add(
+            ret, "key_id", json_object_new_string(store_key_req->key_id));
 
     return ret;
 }
@@ -95,12 +98,18 @@ static union command_args *unserialize_store_key_req(struct json_object *in,
     if(version != 1)
         goto err_exit;
 
-    if(!json_object_object_get_ex(in, "server_id_accepted", &temp)) {
-        LOG(LOG_LVL_CRT, "Key \"server_id_accepted\" does not exists.");
+    if(!json_object_object_get_ex(in, "key_id_accepted", &temp)) {
+        LOG(LOG_LVL_CRT, "Key \"key_id_accepted\" does not exists.");
         goto err_exit;
     }
 
-    ret->server_id_accepted = (uint8_t) json_object_get_int(temp);
+    ret->key_id_accepted = (uint8_t) json_object_get_int(temp);
+
+    if(!json_object_object_get_ex(in, "key_id", &temp)){
+        LOG(LOG_LVL_CRT, "Key \"key_id\" does not exists.");
+        goto err_exit;
+    }
+    ret->key_id = strdup(json_object_get_string(temp));
 
     return ret_union;
 
@@ -110,6 +119,9 @@ err_exit:
 }
 
 int delete_store_key_req(union command_args *data) {
+
+    struct store_key_req *store_key_req = &data->store_key_req;
+    free((void *)store_key_req->key_id);
     free(data);
     return 0;
 }
@@ -348,15 +360,18 @@ START_TEST(serialize_unserialize_store_key_req) {
     union command_args store_key_req;
     union command_args *obtained_store_key_req;
     json_object *json_obj;
-    const uint8_t server_id_accepted = 2;
+    const char *key_id = "key_id";
+    const uint8_t key_id_accepted = 2;
 
-    store_key_req.store_key_req.server_id_accepted = server_id_accepted;
+    store_key_req.store_key_req.key_id_accepted = key_id_accepted;
+    store_key_req.store_key_req.key_id = key_id;
 
     json_obj = serialize_store_key_req(&store_key_req, 1);
     obtained_store_key_req = unserialize_store_key_req(json_obj, 1);
 
-    ck_assert(server_id_accepted ==
-              obtained_store_key_req->store_key_req.server_id_accepted);
+    ck_assert(key_id_accepted ==
+              obtained_store_key_req->store_key_req.key_id_accepted);
+    ck_assert_str_eq(key_id, obtained_store_key_req->store_key_req.key_id);
 
     json_object_put(json_obj);
     delete_store_key_req(obtained_store_key_req);
