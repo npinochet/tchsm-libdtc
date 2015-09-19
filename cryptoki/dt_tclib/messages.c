@@ -5,7 +5,6 @@
 #include <string.h>
 
 #include <json.h>
-//#include <json_tokener.h>
 
 #include "logger/logger.h"
 #include "messages.h"
@@ -119,28 +118,106 @@ err_exit:
 }
 
 int delete_store_key_req(union command_args *data) {
-
     struct store_key_req *store_key_req = &data->store_key_req;
     free((void *)store_key_req->key_id);
     free(data);
     return 0;
 }
 
-// struct store_key_res
-//static struct json_object *serialize_store_key_res
+static struct json_object *serialize_store_key_res(
+        const union command_args *args_u, uint16_t version) {
+    const struct store_key_res *store_key_res = &args_u->store_key_res;
+    struct json_object *ret;
+    char *serialized_key_metainfo, *serialized_key_share;
+
+    if(version != 1)
+        return NULL;
+
+    serialized_key_metainfo = tc_serialize_key_metainfo(
+            store_key_res->meta_info);
+
+    serialized_key_share = tc_serialize_key_share(store_key_res->key_share);
+
+    ret = json_object_new_object();
+
+    json_object_object_add(ret, "key_share",
+                           json_object_new_string(serialized_key_share));
+
+    json_object_object_add(ret, "meta_info",
+                           json_object_new_string(serialized_key_metainfo));
+
+    json_object_object_add(ret, "key_id",
+                           json_object_new_string(store_key_res->key_id));
+
+    return ret;
+}
+
+static union command_args *unserialize_store_key_res(struct json_object *in,
+                                                     uint16_t version) {
+    struct json_object *temp;
+    union command_args *ret_union =
+        (union command_args *) malloc(sizeof(union command_args));
+    struct store_key_res *ret = &ret_union->store_key_res;
+
+    if(version != 1)
+        goto err_exit;
+
+    if(!json_object_object_get_ex(in, "key_id", &temp)) {
+        LOG(LOG_LVL_CRT, "Key \"key_id\" does not exists.");
+        goto err_exit;
+    }
+    ret->key_id = strdup(json_object_get_string(temp));
+
+    if(!json_object_object_get_ex(in, "meta_info", &temp)) {
+        LOG(LOG_LVL_CRT, "Key \"metainfo\" does not exists.");
+        free(ret->key_id);
+        goto err_exit;
+    }
+    ret->meta_info = tc_deserialize_key_metainfo(json_object_get_string(temp));
+
+    if(!json_object_object_get_ex(in, "key_share", &temp)) {
+        LOG(LOG_LVL_CRT, "Key \"key_share\" does not exists.");
+        free(ret->key_id);
+        tc_clear_key_metainfo(ret->meta_info);
+        goto err_exit;
+    }
+    ret->key_share = tc_deserialize_key_share(json_object_get_string(temp));
+
+    return ret_union;
+
+err_exit:
+    free(ret_union);
+    return NULL;
+}
+
+static int delete_store_key_res(union command_args *data) {
+    struct store_key_res *store_key_res = &data->store_key_res;
+    free((void *)store_key_res->key_id);
+    tc_clear_key_metainfo(store_key_res->meta_info);
+    tc_clear_key_share(store_key_res->key_share);
+    free(data);
+    return 0;
+}
+
+// *************************************************************
+// ***********************Public API****************************
+// *************************************************************
 
 // Arrays with functions to do the serialization/unserialization and deletion.
 static struct json_object *(
         *const serialize_funcs[OP_MAX])(const union command_args *data,
                                         uint16_t version) =
-    {serialize_store_key_pub, serialize_store_key_req, NULL};
+    {serialize_store_key_pub, serialize_store_key_req, serialize_store_key_res};
 
 static union command_args *(*const unserialize_funcs[OP_MAX])(
         struct json_object *in, uint16_t version) =
-    {unserialize_store_key_pub, unserialize_store_key_req, NULL};
+    {unserialize_store_key_pub,
+     unserialize_store_key_req,
+     unserialize_store_key_res};
 
 static int (*delete_funcs[OP_MAX])(union command_args *data) =
-    {delete_store_key_pub, delete_store_key_req, NULL};
+    {delete_store_key_pub, delete_store_key_req, delete_store_key_res};
+
 
 // *************************************************************
 // ***********************Public API****************************
@@ -249,6 +326,8 @@ err_exit:
 
 int delete_op_req(struct op_req *operation_request){
     int ret = 0;
+    if(!operation_request)
+        return 0;
     if(operation_request->version != 1){
         LOG(LOG_LVL_CRT, "Version %" PRIu16 " not supported.",
             operation_request->version);
@@ -468,5 +547,7 @@ TCase* get_dt_tclib_messages_c_test_case(){
 
     return test_case;
 }
+
+//TODO(fmontoto) Test store_key_res serialization
 
 #endif
