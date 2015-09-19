@@ -211,6 +211,7 @@ static int distribute_key_shares(const char *key_id,
         if(zmq_msg_init(msg) != 0)
             return DTC_ERR_NOMEM;
 
+        printf("ASD\n");
         node_identity = s_recv(router_socket);
         if(node_identity == NULL) {
             return DTC_ERR_COMMUNICATION;
@@ -229,18 +230,22 @@ static int distribute_key_shares(const char *key_id,
         zmq_msg_close(msg);
         if(!req_op || req_op->op != OP_STORE_KEY_REQ) {
             delete_op_req(req_op);
+            free(node_identity);
             return DTC_ERR_INTERN;
         }
 
         if(req_op->args->store_key_req.key_id_accepted != 1) {
+            ret = req_op->args->store_key_req.key_id_accepted;
+            free(node_identity);
             delete_op_req(req_op);
-            if(req_op->args->store_key_req.key_id_accepted == 0)
+            if(ret == 0)
                 return -1;
             return DTC_ERR_INTERN;
         }
 
         if(strcmp(key_id, req_op->args->store_key_req.key_id) != 0) {
             delete_op_req(req_op);
+            free(node_identity);
             LOG_DEBUG(LOG_LVL_CRIT, "Received a different key_id.");
             return DTC_ERR_INTERN;
         }
@@ -251,6 +256,8 @@ static int distribute_key_shares(const char *key_id,
             delete_op_req(req_op);
             return ret;
         }
+        free(node_identity);
+        delete_op_req(req_op);
     }
     return DTC_ERR_NONE;
 }
@@ -281,6 +288,10 @@ int main(int argc, char **argv){
     printf("Generate: %d\n", ret_val);
     if(ret_val != DTC_ERR_NONE)
         return 1;
+
+    free(info);
+
+    printf("Destroy: %d\n", dtc_destroy(ctx));
 
     sleep(1);
 
@@ -328,6 +339,8 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err) {
         goto err_exit;
 
     ret->timeout = conf.timeout;
+
+    free_conf(&conf);
 
     return ret;
 
@@ -393,9 +406,25 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
     if(ret != DTC_ERR_NONE)
         ;//TODO Send msg to delete key_id in the nodes
 
+    tc_clear_key_shares(key_shares, key_metainfo);
+
     return ret;
 }
 
+
+int dtc_destroy(dtc_ctx_t *ctx) {
+    if(!ctx)
+        return DTC_ERR_NONE;
+
+    zmq_close(ctx->router_socket);
+    zmq_close(ctx->pub_socket);
+    zmq_ctx_term(ctx->zmq_ctx);
+
+    free(ctx->server_id);
+    free(ctx);
+
+    return DTC_ERR_NONE;
+}
 
 
 static int create_connect_sockets(const struct configuration *conf,
@@ -640,6 +669,8 @@ static int read_configuration_file(struct configuration *conf) {
             goto err_exit;
 
     }
+
+    config_destroy(&cfg);
 
     return DTC_ERR_NONE;
 
