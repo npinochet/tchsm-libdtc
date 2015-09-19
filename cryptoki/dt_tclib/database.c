@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,6 +8,7 @@
 #include <uuid/uuid.h>
 
 #include "database.h"
+#include "blocking_sql3.h"
 #include "err.h"
 #include "logger/logger.h"
 
@@ -26,19 +28,34 @@ static char *generate_token(char *ret) {
     return ret;
 }
 
-static int create_table(sqlite3 *db, const char *table_name,
-                        const char *sql_creation_query) {
-    char *err;
-    int rc = sqlite3_exec(db, sql_creation_query, NULL, NULL, &err);
+int sqlite3_my_blocking_exec(sqlite3 *db, const char *sql_query) {
+    sqlite3_stmt *stmt;
+    int rc, step;
 
+    rc = sqlite3_blocking_prepare_v2(db, sql_query, -1, &stmt, 0);
     if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "Table %s couldn't be created: %s.\n%s", table_name,
-            err, sql_creation_query);
-        sqlite3_free(err);
+        LOG(LOG_LVL_ERRO, "sqlite3_prepare_v2: %s", sqlite3_errmsg(db));
         return DTC_ERR_DATABASE;
     }
 
-    return DTC_ERR_NONE;
+    step = sqlite3_blocking_step(stmt);
+    rc = sqlite3_finalize(stmt);
+    if (rc != SQLITE_OK)
+        LOG(LOG_LVL_ERRO, "Error finalizing stmt: %s", sqlite3_errmsg(db));
+    if(step == SQLITE_DONE)
+        return DTC_ERR_NONE;
+    LOG(LOG_LVL_ERRO, "Error blocking step: %s", sqlite3_errmsg(db));
+    return DTC_ERR_DATABASE;
+}
+
+static int create_table(sqlite3 *db, const char *table_name,
+                        const char *sql_creation_query) {
+    int rc = sqlite3_my_blocking_exec(db, sql_creation_query);
+
+    if(rc != DTC_ERR_NONE)
+        LOG(LOG_LVL_ERRO, "Table %s couldn't be created:.\n%s", table_name,
+            sql_creation_query);
+    return rc;
 }
 
 static int create_tables(database_t *db) {
@@ -47,9 +64,10 @@ static int create_tables(database_t *db) {
     // TODO public_key also have to be NOT NULL
     const char *server_stmt =
                     "CREATE TABLE IF NOT EXISTS server (\n"\
-                    "   server_id   TEXT PRIMARY KEY,\n"\
-                    "   public_key  TEXT UNIQUE,\n"\
-                    "   last_token  TEXT\n"\
+                    "   server_id       TEXT PRIMARY KEY,\n"\
+                    "   public_key      TEXT UNIQUE,\n"\
+                    "   router_token    TEXT,\n"\
+                    "   pub_token       TEXT\n"\
                     ");\n";
     const char *key_share_stmt =
                     "CREATE TABLE IF NOT EXISTS key_share (\n"\
@@ -119,9 +137,10 @@ static int prepare_bind_stmt(sqlite3 *db, const char *query, sqlite3_stmt **out,
     int rc;
     sqlite3_stmt *stmt;
 
-    rc = sqlite3_prepare_v2(db, query, -1, &stmt, 0);
+    rc = sqlite3_blocking_prepare_v2(db, query, -1, &stmt, 0);
     if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "sqlite3_prepare_v2: %s", sqlite3_errmsg(db));
+        LOG(LOG_LVL_ERRO, "sqlite3_prepare_v2: %s\n%s", sqlite3_errmsg(db),
+            query);
         return DTC_ERR_DATABASE;
     }
 
@@ -132,7 +151,7 @@ static int prepare_bind_stmt(sqlite3 *db, const char *query, sqlite3_stmt **out,
         rc = sqlite3_bind_text(
                 stmt, i + 1, va_arg(valist, const char *), -1, SQLITE_STATIC);
         if(rc != SQLITE_OK) {
-            LOG(LOG_LVL_ERRO, "sqlite3_binf_text: %s", sqlite3_errmsg(db));
+            LOG(LOG_LVL_ERRO, "sqlite3_bind_text: %s", sqlite3_errmsg(db));
             break;
         }
     }
@@ -155,7 +174,10 @@ database_t *db_init_connection(const char *path){
     char *err;
     database_t *ret = (database_t *) malloc(sizeof(database_t));
     static const char *foreign_keys_support = "PRAGMA foreign_keys = ON;";
-    rc = sqlite3_open(path, &ret->ppDb);
+    rc = sqlite3_open_v2(
+            path, &ret->ppDb,
+            SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
+            NULL);
     if(rc != SQLITE_OK) {
         LOG(LOG_LVL_CRIT, "Unable to open the database:%s",
             sqlite3_errstr(rc));
@@ -194,7 +216,7 @@ int db_add_new_server(database_t *db, const char *id, const char *public_key) {
     if(rc != DTC_ERR_NONE)
         return rc;
 
-    step = sqlite3_step(stmt);
+    step = sqlite3_blocking_step(stmt);
     sqlite3_finalize(stmt);
     if(step == SQLITE_DONE) {
         affected_rows = sqlite3_changes(db->ppDb);
@@ -213,7 +235,6 @@ int db_add_new_server(database_t *db, const char *id, const char *public_key) {
 }
 
 int db_update_servers(database_t *db) {
-    char *err;
     int rc;
     static const char *delete =
         "DELETE\n"
@@ -240,50 +261,47 @@ int db_update_servers(database_t *db) {
         "FROM new_server\n"
         "WHERE server_id NOT IN (SELECT server_id FROM server);\n";
 
-    static const char *drop_table =
-        "DROP TABLE IF EXISTS new_server";
+    static const char *delete_table =
+        "DELETE FROM new_server";
 
     rc = create_tables(db);
     if(rc != DTC_ERR_NONE)
         return rc;
 
     // First, delete all servers not in new_servers.
-    rc = sqlite3_exec(db->ppDb, delete, NULL, NULL, &err);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_CRIT, "Error deleting server: %s", err);
-        sqlite3_free(err);
-        return DTC_ERR_DATABASE;
+    rc = sqlite3_my_blocking_exec(db->ppDb, delete);
+    if(rc != DTC_ERR_NONE) {
+        LOG(LOG_LVL_CRIT, "Error deleting server.");
+        return rc;
     }
     LOG(LOG_LVL_LOG, "%d deleted servers on update.",
         sqlite3_changes(db->ppDb));
 
     // Then update existing.
-    rc = sqlite3_exec(db->ppDb, update_existing, NULL, NULL, &err);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_CRIT, "Error updating server: %s", err);
-        sqlite3_free(err);
-        return DTC_ERR_DATABASE;
+    rc = sqlite3_my_blocking_exec(db->ppDb, update_existing);
+    if(rc != DTC_ERR_NONE) {
+        LOG(LOG_LVL_CRIT, "Error updating server.");
+        return rc;
     }
 
     LOG(LOG_LVL_LOG, "%d servers were updated with a different public_key.",
         sqlite3_changes(db->ppDb));
 
     // And move the new servers from new_server to server.
-    rc = sqlite3_exec(db->ppDb, create_new, NULL, NULL, &err);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_CRIT, "Error inserting new servers: %s", err);
-        sqlite3_free(err);
-        return DTC_ERR_DATABASE;
+    rc = sqlite3_my_blocking_exec(db->ppDb, create_new);
+    if(rc != DTC_ERR_NONE) {
+        LOG(LOG_LVL_CRIT, "Error inserting new servers.");
+        return rc;
     }
     LOG(LOG_LVL_LOG, "%d new servers were added.", sqlite3_changes(db->ppDb));
 
-    // This will make subsequent calls to db_add_new_server fail.
-    rc = sqlite3_exec(db->ppDb, drop_table, NULL, NULL, &err);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_CRIT, "Error droping new_server table: %s", err);
-        sqlite3_free(err);
-        return DTC_ERR_DATABASE;
+
+    rc = sqlite3_my_blocking_exec(db->ppDb, delete_table);
+    if(rc != DTC_ERR_NONE) {
+        LOG(LOG_LVL_CRIT, "Error deleting new_server table.");
+        return rc;
     }
+
 
     return DTC_ERR_NONE;
 }
@@ -301,7 +319,7 @@ int db_get_server_id(database_t *db, const char *public_key, char **output) {
     if(rc != DTC_ERR_NONE)
         return rc;
 
-    step = sqlite3_step(stmt);
+    step = sqlite3_blocking_step(stmt);
     if(step == SQLITE_ROW) {
         server_id = (const char *)sqlite3_column_text(stmt, 0);
     }
@@ -327,27 +345,43 @@ int db_get_server_id(database_t *db, const char *public_key, char **output) {
 
 }
 
-int db_get_current_token(database_t *db, const char *server_id, char **output) {
+int db_is_key_id_available(database_t *db, const char *server_id,
+                           const char *key_id) {
+    sqlite3_stmt *stmt;
+    int rc, step;
+    char *sql_query = "SELECT server_id\n"
+                      "FROM key_share\n"
+                      "WHERE server_id = ? and key_id = ?;\n";
+
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2, server_id, key_id);
+    if(rc != DTC_ERR_NONE)
+        return 2;
+
+    step = sqlite3_blocking_step(stmt);
+    sqlite3_finalize(stmt);
+    if(step == SQLITE_DONE) {
+        return 1;
+    }
+    else if(step == SQLITE_ROW) {
+        return 0;
+    }
+    LOG(LOG_LVL_ERRO, "Step db_is_key_id_available failed: %s",
+        sqlite3_errmsg(db->ppDb));
+    return 2;
+}
+
+static int db_get_current_token(database_t *db, const char *server_id,
+                                const char *sql_query, char **output) {
+
     int rc, step;
     sqlite3_stmt *stmt = NULL;
     const char *token;
-    static const char *sql_query = "SELECT last_token\n"\
-                                   "FROM server\n"\
-                                   "WHERE server_id=?;";
-    // TODO use the bind aux functino.
-    rc = sqlite3_prepare_v2(db->ppDb, sql_query, -1, &stmt, 0);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "sqlite3_prepare_v2: %s", sqlite3_errmsg(db->ppDb));
-        goto err_exit;
-    }
 
-    rc = sqlite3_bind_text(stmt, 1, server_id, -1, SQLITE_STATIC);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "sqlite3_bind_text: %s", sqlite3_errmsg(db->ppDb));
-        goto err_exit;
-    }
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 1, server_id);
+    if(rc != DTC_ERR_NONE)
+        return rc;
 
-    step = sqlite3_step(stmt);
+    step = sqlite3_blocking_step(stmt);
     if(step == SQLITE_ROW) {
         token = (const char *)sqlite3_column_text(stmt, 0);
     }
@@ -373,40 +407,32 @@ err_exit:
     return DTC_ERR_DATABASE;
 }
 
+int db_get_router_token(database_t *db, const char *server_id, char **output) {
+    return db_get_current_token(
+            db, server_id, "SELECT router_token\n"
+                           "FROM server\n"
+                           "WHERE server_id= ?;\n", output);
+}
+
+int db_get_pub_token(database_t *db, const char *server_id, char **output) {
+    return db_get_current_token(
+            db, server_id, "SELECT pub_token\n"
+                           "FROM server\n"
+                           "WHERE server_id=?;\n", output);
+}
+
 int db_get_new_temp_token(database_t *db, const char *server_public_key,
-                          char **output) {
+                          const char *sql_query, char **output) {
     int rc, step, affected_rows;
     char token[37];
     sqlite3_stmt *stmt = NULL;
 
-    static const char *sql_query = "UPDATE server\n"\
-                                   "SET last_token=?\n"\
-                                   "WHERE public_key=?";
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2,
+                           generate_token(&token[0]), server_public_key);
+    if(rc != DTC_ERR_NONE)
+        return rc;
 
-    //TODO use bind helper.
-    rc = sqlite3_prepare_v2(db->ppDb, sql_query, -1, &stmt, 0);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "Failed to prepare an statment: %s",
-            sqlite3_errmsg(db->ppDb));
-        goto err_exit;
-    }
-
-    rc = sqlite3_bind_text(stmt, 1, generate_token(&token[0]), -1,
-                           SQLITE_STATIC);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "Failed binding the new token public key: %s",
-            sqlite3_errmsg(db->ppDb));
-        goto err_exit;
-    }
-
-    rc = sqlite3_bind_text(stmt, 2, server_public_key, -1, SQLITE_STATIC);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "Failed binding the server public key: %s",
-            sqlite3_errmsg(db->ppDb));
-        goto err_exit;
-    }
-
-    step = sqlite3_step(stmt);
+    step = sqlite3_blocking_step(stmt);
     if(step != SQLITE_DONE) {
         LOG(LOG_LVL_ERRO, "Step error:%s", sqlite3_errmsg(db->ppDb));
         goto err_exit;
@@ -420,9 +446,10 @@ int db_get_new_temp_token(database_t *db, const char *server_public_key,
     }
 
     rc = sqlite3_finalize(stmt);
-    if( rc != SQLITE_OK) {
+    if(rc != SQLITE_OK) {
         LOG(LOG_LVL_ERRO, "Failed finalizing the statment: %s",
             sqlite3_errmsg(db->ppDb));
+
         return DTC_ERR_DATABASE;
     }
 
@@ -435,13 +462,29 @@ err_exit:
     return DTC_ERR_DATABASE;
 }
 
+int db_get_new_router_token(database_t *db, const char *server_public_key,
+                            char **output) {
+    return db_get_new_temp_token(
+            db, server_public_key, "UPDATE server\n"
+                                   "SET router_token = ?\n"
+                                   "WHERE public_key = ?;", output);
+}
+
+int db_get_new_pub_token(database_t *db, const char *server_public_key,
+                         char **output) {
+    return db_get_new_temp_token(
+            db, server_public_key, "UPDATE server\n"
+                                   "SET pub_token = ?\n"
+                                   "WHERE public_key = ?;", output);
+}
+
 int db_is_an_authorized_key(database_t *db, const char *key) {
     int rc, step;
     sqlite3_stmt *stmt = NULL;
-    static const char *sql_query = "SELECT server_id\n"\
-                                   "FROM server\n"\
+    static const char *sql_query = "SELECT server_id\n"
+                                   "FROM server\n"
                                    "WHERE public_key=?;";
-    rc = sqlite3_prepare_v2(db->ppDb, sql_query, -1, &stmt, 0);
+    rc = sqlite3_blocking_prepare_v2(db->ppDb, sql_query, -1, &stmt, 0);
     if(rc != SQLITE_OK) {
         LOG(LOG_LVL_ERRO, "sqlite3_prepare_v2: %s", sqlite3_errmsg(db->ppDb));
         goto err_exit;
@@ -453,7 +496,7 @@ int db_is_an_authorized_key(database_t *db, const char *key) {
         goto err_exit;
     }
 
-    step = sqlite3_step(stmt);
+    step = sqlite3_blocking_step(stmt);
     if(step == SQLITE_ROW) {
         sqlite3_finalize(stmt);
         return 1;
@@ -507,14 +550,17 @@ static int insert_server(sqlite3 *db, const char *server_key,
     char *err;
     size_t ret;
     int rc;
-    char *sql_template  = "INSERT INTO server (public_key, server_id, last_token)\n"\
-                          "    VALUES('%s', '%s', '%s');";
+    char *sql_template  = "INSERT INTO server (public_key, server_id, "
+                                              "router_token, pub_token)\n"
+                          "    VALUES('%s', '%s', '%s', '%s');";
     size_t len = strlen(sql_template) +
                  strlen(server_key) +
                  strlen(server_id) +
+                 strlen(token) +
                  strlen(token) + 1; // %s will be replaced, this isn't needed.
     char *sql_query = (char *) malloc(sizeof(char) * len);
-    ret = snprintf(sql_query, len, sql_template, server_key, server_id, token);
+    ret = snprintf(sql_query, len, sql_template, server_key, server_id, token,
+                   token);
     ck_assert(ret < len);
 
     rc = sqlite3_exec(db, sql_query, NULL, NULL, &err);
@@ -599,7 +645,7 @@ START_MY_TEST(test_get_new_token_empty_db) {
     database_t *conn = db_init_connection(database_file);
     ck_assert(conn != NULL);
     ck_assert_int_eq(-1,
-                     db_get_new_temp_token(conn, server_p_key, &result));
+                     db_get_new_router_token(conn, server_p_key, &result));
 
     close_and_remove_db(database_file, conn);
 }
@@ -615,7 +661,7 @@ START_MY_TEST(test_get_new_token_server_not_found) {
 
     ck_assert_int_eq(DTC_ERR_NONE, create_tables(conn));
 
-    ck_assert_int_eq(-1, db_get_new_temp_token(conn, "any_key", NULL));
+    ck_assert_int_eq(-1, db_get_new_pub_token(conn, "any_key", NULL));
 
     close_and_remove_db(database_file, conn);
 
@@ -645,19 +691,19 @@ START_MY_TEST(test_get_new_token_consistency) {
                                    "token"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
-                    db_get_new_temp_token(conn, server_key, &result));
+                    db_get_new_router_token(conn, server_key, &result));
     free((void *)result);
 
     // Check changed token.
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_get_current_token(conn, server_id, &current_token));
+                     db_get_router_token(conn, server_id, &current_token));
     ck_assert_str_ne(old_token, current_token);
     ck_assert_str_ne("token", current_token);
     free(current_token);
 
     //Check not changed token
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_get_current_token(conn, "rand_id", &current_token));
+                     db_get_router_token(conn, "rand_id", &current_token));
     ck_assert_str_eq("token", current_token);
     free(current_token);
 
