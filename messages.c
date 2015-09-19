@@ -170,14 +170,14 @@ static union command_args *unserialize_store_key_res(struct json_object *in,
 
     if(!json_object_object_get_ex(in, "meta_info", &temp)) {
         LOG(LOG_LVL_CRT, "Key \"metainfo\" does not exists.");
-        free(ret->key_id);
+        free((void *) ret->key_id);
         goto err_exit;
     }
     ret->meta_info = tc_deserialize_key_metainfo(json_object_get_string(temp));
 
     if(!json_object_object_get_ex(in, "key_share", &temp)) {
         LOG(LOG_LVL_CRT, "Key \"key_share\" does not exists.");
-        free(ret->key_id);
+        free((void *) ret->key_id);
         tc_clear_key_metainfo(ret->meta_info);
         goto err_exit;
     }

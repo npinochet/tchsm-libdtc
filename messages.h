@@ -32,7 +32,7 @@ struct store_key_req {
 struct store_key_res {
     key_share_t *key_share;
     key_metainfo_t *meta_info;
-    char *key_id;
+    const char *key_id;
 };
 
 union command_args {
