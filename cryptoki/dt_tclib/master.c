@@ -73,6 +73,10 @@ struct communication_objects {
     void *dealer_socket;
 };
 
+static void free_wrapper(void *data, void *hint) {
+    void (*free_function)(void *) = (void (*)(void *))hint;
+    free_function(data);
+}
 static void free_nodes(unsigned int cant_nodes, struct node_info *node) {
     unsigned int i;
     if(!node)
@@ -99,6 +103,10 @@ static void free_conf(struct configuration *conf) {
         free(conf->server_id);
 }
 
+static int s_sendmore(void *socket, const char *string) {
+    int size = zmq_send (socket, string, strlen(string), ZMQ_SNDMORE);
+    return size;
+}
 /* Return a human readable version of the configuration */
 static char* configuration_to_string(const struct configuration *conf){
     /* Be aware, this memory is shared among the aplication, this function
@@ -130,6 +138,123 @@ static char* configuration_to_string(const struct configuration *conf){
     return &buff[0];
 }
 
+static char *s_recv (void *socket) {
+    char buffer [256];
+    int size = zmq_recv(socket, buffer, 255, 0);
+    if (size == -1)
+        return NULL;
+    if (size > 255)
+        size = 255;
+    buffer[size] = 0;
+    return strdup(buffer);
+}
+
+static int send_key_share(const char *key_id, void *router_socket,
+                          key_metainfo_t *key_metainfo, key_share_t *key_share,
+                          const char *node_identity) {
+    struct op_req res_op;
+    struct store_key_res store_key_res;
+    size_t size;
+    int ret;
+    char *serialized_op;
+    zmq_msg_t msg_;
+    zmq_msg_t *msg = &msg_;
+
+
+    res_op.version = 1;
+    res_op.op = OP_STORE_KEY_RES;
+    res_op.args = (union command_args *)&store_key_res;
+
+    store_key_res.key_share = key_share;
+    store_key_res.meta_info = key_metainfo;
+    store_key_res.key_id = key_id;
+
+    size = serialize_op_req(&res_op, &serialized_op);
+    if(size == 0)
+        return DTC_ERR_SERIALIZATION;
+
+    ret = zmq_msg_init_data(msg, serialized_op, size, free_wrapper, free);
+    if(ret) {
+        free(serialized_op);
+        return DTC_ERR_ZMQ_ERROR;
+    }
+
+    ret = s_sendmore(router_socket, node_identity);
+    if(ret == 0) {
+        zmq_msg_close(msg);
+        return DTC_ERR_COMMUNICATION;
+    }
+
+    ret = zmq_msg_send(msg, router_socket, 0);
+    if(ret == 0) {
+        zmq_msg_close(msg);
+        return DTC_ERR_COMMUNICATION;
+    }
+
+    return DTC_ERR_NONE;
+}
+
+static int distribute_key_shares(const char *key_id,
+                                 void *router_socket,
+                                 key_metainfo_t *key_metainfo,
+                                 key_share_t **key_shares,
+                                 unsigned cant_nodes) {
+
+    zmq_msg_t msg_;
+    zmq_msg_t *msg = &msg_;
+    int ret;
+    unsigned i;
+    char *node_identity;
+    struct op_req *req_op;
+
+    for(i = 0; i < cant_nodes; i ++) {
+        if(zmq_msg_init(msg) != 0)
+            return DTC_ERR_NOMEM;
+
+        node_identity = s_recv(router_socket);
+        if(node_identity == NULL) {
+            return DTC_ERR_COMMUNICATION;
+        }
+
+        printf("Iden: %s\n", node_identity);
+
+        ret = zmq_msg_recv(msg, router_socket, 0);
+        if(ret ==-1) {
+            zmq_msg_close(msg);
+            free(node_identity);
+            return DTC_ERR_COMMUNICATION;
+        }
+
+        req_op = unserialize_op_req(zmq_msg_data(msg), ret);
+        zmq_msg_close(msg);
+        if(!req_op || req_op->op != OP_STORE_KEY_REQ) {
+            delete_op_req(req_op);
+            return DTC_ERR_INTERN;
+        }
+
+        if(req_op->args->store_key_req.key_id_accepted != 1) {
+            delete_op_req(req_op);
+            if(req_op->args->store_key_req.key_id_accepted == 0)
+                return -1;
+            return DTC_ERR_INTERN;
+        }
+
+        if(strcmp(key_id, req_op->args->store_key_req.key_id) != 0) {
+            delete_op_req(req_op);
+            LOG_DEBUG(LOG_LVL_CRIT, "Received a different key_id.");
+            return DTC_ERR_INTERN;
+        }
+
+        ret = send_key_share(key_id, router_socket, key_metainfo, key_shares[i],
+                             node_identity);
+        if(ret != DTC_ERR_NONE) {
+            delete_op_req(req_op);
+            return ret;
+        }
+    }
+    return DTC_ERR_NONE;
+}
+
 static void free_nodes(unsigned int cant_nodes, struct node_info *node);
 static int set_client_socket_security(void *socket,
                                       const char *client_secret_key,
@@ -151,10 +276,13 @@ int main(int argc, char **argv){
         return 1;
 
     sleep(1);
-    ret_val = dtc_generate_key_shares(ctx, "hola_id", 1024, 2, 2, info);
+
+    ret_val = dtc_generate_key_shares(ctx, "hola_id", 512, 2, 2, info);
     printf("Generate: %d\n", ret_val);
     if(ret_val != DTC_ERR_NONE)
         return 1;
+
+    sleep(1);
 
     return 0;
 }
@@ -213,7 +341,7 @@ err_exit:
 int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
                             uint16_t threshold, uint16_t cant_nodes,
                             public_key_t **info) {
-    struct op_req operation;
+    struct op_req pub_op;
     struct store_key_pub store_key_pub;
     union command_args *args = (union command_args *) &store_key_pub;
     size_t msg_size = 0;
@@ -225,44 +353,46 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
     key_share_t **key_shares = NULL;
     key_metainfo_t *key_metainfo = NULL;
 
-    operation.version = 1;
-    operation.op = OP_STORE_KEY_PUB;
+    pub_op.version = 1;
+    pub_op.op = OP_STORE_KEY_PUB;
     store_key_pub.server_id = ctx->server_id;
     store_key_pub.key_id = key_id;
-    operation.args = args;
+    pub_op.args = args;
 
-    msg_size = serialize_op_req(&operation, &msg_data);
+    // TODO(fmontoto) Which memory should I free from here?
+    key_shares = tc_generate_keys(&key_metainfo, bit_size, threshold,
+                                  cant_nodes);
+    if(!key_shares)
+        return DTC_ERR_INTERN;
+
+    msg_size = serialize_op_req(&pub_op, &msg_data);
     if(!msg_size)
+        // TODO(fmontoto free memory of tc_generate_keys
         return DTC_ERR_SERIALIZATION;
 
-    printf("%s\n", msg_data);
-
-    ret = zmq_msg_init_data(msg, msg_data, msg_size, NULL, NULL);
+    ret = zmq_msg_init_data(msg, msg_data, msg_size, free_wrapper, free);
     if(ret) {
         LOG_DEBUG(LOG_LVL_CRIT, "zmq_msg_init_data failed");
-        goto err_exit;
+        free(msg_data);
+        // TODO(fmontoto free memory of tc_generate_keys
+        return DTC_ERR_INTERN;
     }
 
     ret = zmq_msg_send(msg, ctx->pub_socket, 0);
     if(ret  == -1) {
-        LOG_DEBUG(LOG_LVL_CRIT, "zmq_msg_send:%s\n%s", strerror(errno),
+        LOG_DEBUG(LOG_LVL_CRIT, "zmq_msg_send:%s\n%s", zmq_strerror(errno),
                   "Error sending the message.");
+        zmq_msg_close(msg);
+        // TODO(fmontoto free memory of tc_generate_keys
         return DTC_ERR_COMMUNICATION;
     }
 
-    key_shares = tc_generate_keys(&key_metainfo, bit_size, threshold,
-                                  cant_nodes);
+    ret = distribute_key_shares(key_id, ctx->router_socket, key_metainfo,
+                                key_shares, cant_nodes);
 
-    zmq_msg_init(msg);
-    ret = zmq_msg_recv(msg, ctx->router_socket, 0);
+    if(ret != DTC_ERR_NONE)
+        ;//TODO Send msg to delete key_id in the nodes
 
-    printf("%.*s\n", ret, zmq_msg_data(msg));
-    zmq_msg_close(msg);
-
-    return DTC_ERR_NONE;
-
-err_exit:
-    free(msg_data);
     return ret;
 }
 
@@ -287,7 +417,7 @@ static int create_connect_sockets(const struct configuration *conf,
     pub_socket = zmq_socket(zmq_ctx, ZMQ_PUB);
     if(!pub_socket) {
         LOG_DEBUG(LOG_LVL_CRIT, "Unable to create pub socket %s.",
-                  strerror(errno));
+                  zmq_strerror(errno));
         return DTC_ERR_ZMQ_ERROR;
     }
 
@@ -306,14 +436,12 @@ static int create_connect_sockets(const struct configuration *conf,
                                      conf->public_key);
     if(ret)
         goto err_exit;
-/*
-    ret_val = zmq_setsockopt(router_socket, ZMQ_IDENTITY, "soy_server",
-                             10);
+    ret_val = zmq_setsockopt(router_socket, ZMQ_IDENTITY, ctx->server_id,
+                             strlen(ctx->server_id));
     if(ret_val != 0) {
         ret = DTC_ERR_ZMQ_CURVE;
         goto err_exit;
     }
-*/
     for(i = 0; i < conf->cant_nodes; i++) {
     //for(i = conf->cant_nodes -1; i >= 0; i--) {
         ret_val = zmq_setsockopt(pub_socket, ZMQ_CURVE_SERVERKEY,
