@@ -17,8 +17,14 @@ struct store_key_pub{
 };
 
 struct store_key_req {
-    // Indicates if the key_id is accepted or not.
-    uint8_t server_id_accepted;
+    // Indicates if the key_id is accepted or not:
+    // 1 if the key_id is available, 0 if the key_id is already been used or
+    // 2 if an error occurred.
+    // is already being used.
+    uint8_t key_id_accepted;
+
+    const char *key_id;
+
 };
 
 struct store_key_res {
