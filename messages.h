@@ -2,6 +2,8 @@
 #define DT_TCLIB_MESSAGES_H_
 #include <stdint.h>
 
+#include "tc.h"
+
 enum OP {
     OP_STORE_KEY_PUB,
     OP_STORE_KEY_REQ,
@@ -28,8 +30,8 @@ struct store_key_req {
 };
 
 struct store_key_res {
-    void *key_share;
-    void *meta_info;
+    key_share_t *key_share;
+    key_metainfo_t *meta_info;
     char *key_id;
 };
 
