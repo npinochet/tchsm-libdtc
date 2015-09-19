@@ -149,6 +149,9 @@ static struct json_object *serialize_store_key_res(
     json_object_object_add(ret, "key_id",
                            json_object_new_string(store_key_res->key_id));
 
+    free(serialized_key_metainfo);
+    free(serialized_key_share);
+
     return ret;
 }
 
