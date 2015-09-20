@@ -341,7 +341,6 @@ void handle_store_key_res(database_t *db_conn, void *router_socket,
         return;
     }
 
-    printf("ASD\n");
     identity = s_recv(router_socket);
     if(identity == NULL) {
         LOG(LOG_LVL_ERRO, "Could not get sender identity.");
@@ -349,7 +348,6 @@ void handle_store_key_res(database_t *db_conn, void *router_socket,
         return;
     }
 
-    printf("ASD\n");
     rc = zmq_msg_recv(msg, router_socket, 0);
     if(rc == -1) {
         LOG(LOG_LVL_ERRO, "Error getting msg from %s:%s", identity,
@@ -357,7 +355,6 @@ void handle_store_key_res(database_t *db_conn, void *router_socket,
         goto err_exit;
     }
 
-    printf("ASD\n");
     if(!auth_router(db_conn, identity, zmq_msg_gets(msg, "User-Id"))) {
         LOG(LOG_LVL_ERRO, "Unauthorized user (%s) dropped at store_key_res.",
             identity);
@@ -609,6 +606,7 @@ static struct communication_objects *create_and_bind_sockets(
 
     void *sub_socket = NULL, *router_socket = NULL;
     int ret_value = 0;
+    int enabled = 1;
     ret_val->classifier_socket_address = "inproc://classifier";
 
     ret_val->ctx = zmq_ctx_new();
@@ -645,6 +643,13 @@ static struct communication_objects *create_and_bind_sockets(
                                13);
     PERROR_AND_EXIT_ON_FALSE(ret_value == 0, "zmq_setsockopt",
                              "ZMQ_ZAP_DOMAIN failed for router socket.");
+
+    // This cause that the router accept a new connection with a previously
+    // used identity, disconnecting the old one.
+    ret_value = zmq_setsockopt(router_socket, ZMQ_ROUTER_HANDOVER, &enabled,
+                               sizeof(enabled));
+    PERROR_AND_EXIT_ON_FALSE(ret_value == 0, "zmq_setsockopt",
+                             "ZMQ_ROUTER_HANDOVER failed for router socket.");
 
     ret_value = zmq_setsockopt(router_socket, ZMQ_IDENTITY, conf->public_key,
                                strlen(conf->public_key));
