@@ -515,6 +515,12 @@ err_exit:
     return -1;
 }
 
+int db_store_key(database *db, const char *server_id, const char *key_id,
+                 key_share_t *key_share, key_metainfo_t *metainfo) {
+    return 0;
+
+}
+
 #ifdef UNIT_TEST
 
 #include <unistd.h>

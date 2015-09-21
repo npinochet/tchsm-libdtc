@@ -3,8 +3,7 @@
 
 #include <sqlite3.h>
 
-#include "database.h"
-
+#include "tc.h"
 struct database_conn;
 typedef struct database_conn database_t;
 
@@ -145,6 +144,8 @@ int db_update_servers(database_t *db);
 int db_is_key_id_available(database_t *db, const char *server_id,
                            const char *key_id);
 
+int db_store_key(database *db, const char *server_id, const char *key_id,
+                 key_share_t *key_share, key_metainfo_t *metainfo);
 /**
  * Close and release the memory of a connection, after this call the connection
  * is closed and the behavior of using it is undefined.
