@@ -326,6 +326,7 @@ static int auth_router(database_t *conn, const char *server_id,
 
 void store_key(database_t *db_conn, struct op_req *pub_op, struct op_req *req_op,
                struct op_req *res_op){
+
     return;
 }
 void handle_store_key_res(database_t *db_conn, void *router_socket,
