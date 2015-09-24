@@ -69,43 +69,14 @@ static int create_tables(database_t *db) {
                     "   router_token    TEXT,\n"\
                     "   pub_token       TEXT\n"\
                     ");\n";
-    const char *key_share_stmt =
-                    "CREATE TABLE IF NOT EXISTS key_share (\n"\
-                    "   server_id   TEXT NOT NULL,\n"\
-                    "   key_id      TEXT NOT NULL,\n"\
-                    "   key         TEXT,\n"\
-                    "   n           TEXT,\n"\
-                    "   id          INTEGER,\n"\
-                    "   PRIMARY KEY(server_id, key_id),\n"\
-                    "   FOREIGN KEY(server_id) REFERENCES server\n"\
-                    ");\n";
-    const char *public_key_stmt =
-                    "CREATE TABLE IF NOT EXISTS public_key (\n"\
-                    "   server_id   TEXT NOT NULL,\n"\
-                    "   key_id      TEXT NOT NULL,\n"\
-                    "   n           TEXT,\n"\
-                    "   m           TEXT,\n"\
-                    "   e           TEXT,\n"\
-                    "   PRIMARY KEY(server_id, key_id),\n"\
-                    "   FOREIGN KEY(server_id, key_id) REFERENCES key_share\n"\
-                    ");\n";
-    const char *key_metainfo_stmt =
-                    "CREATE TABLE IF NOT EXISTS key_metainfo (\n"\
-                    "   server_id   TEXT NOT NULL,\n"\
-                    "   key_id      TEXT NOT NULL,\n"\
-                    "   bit_size    INTEGER,\n"\
-                    "   k           INTEGER,\n"\
-                    "   l           INTEGER,\n"\
-                    "   vk_v        TEXT,\n"\
-                    "   vk_id       INTEGER,\n"\
-                    "   PRIMARY KEY(server_id, key_id),\n"\
-                    "   FOREIGN KEY(server_id, key_id) REFERENCES key_share\n"\
-                    ");\n";
-    const char *verification_key_stms =
-                    "CREATE TABLE IF NOT EXISTS verification_key (\n"\
-                    "   id          INTEGER,\n"\
-                    "   vk          TEXT,\n"\
-                    "   PRIMARY KEY(id, vk)\n"\
+    const char *key_stmt =
+                    "CREATE TABLE IF NOT EXISTS key (\n"
+                    "   key_id          TEXT NOT NULL,\n"
+                    "   server_id       TEXT NOT NULL,\n"
+                    "   key_share       TEXT NOT NULL,\n"
+                    "   key_metainfo    TEXT NOT NULL,\n"
+                    "   PRIMARY KEY(server_id, key_id),\n"
+                    "   FOREIGN KEY(server_id) REFERENCES server\n"
                     ");\n";
 
     const char *new_server_stms =
@@ -114,15 +85,12 @@ static int create_tables(database_t *db) {
                     "   public_key  TEXT UNIQUE\n"\
                     ");";
 
-    const char *tables[6][2] = {{"server", server_stmt},
-                                {"key_share", key_share_stmt},
-                                {"public_key", public_key_stmt},
-                                {"key_metainfo", key_metainfo_stmt},
-                                {"verification_key", verification_key_stms},
+    const char *tables[3][2] = {{"server", server_stmt},
+                                {"key", key_stmt},
                                 {"new_server", new_server_stms},
                                };
 
-    for(i = 0; i < 6; i++) {
+    for(i = 0; i < 3; i++) {
         rc = create_table(db->ppDb, tables[i][0], tables[i][1]);
         if(rc)
             return rc;
