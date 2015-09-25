@@ -136,6 +136,7 @@ int db_update_servers(database_t *db);
 /**
  * Check in the database if the key_id provided is available for the server.
  *
+ * @param db Active database connection.
  * @param server_id Specify the server for the one we want to check the key_id.
  * @param key_id key_id to check availability for.
  *
@@ -145,6 +146,22 @@ int db_update_servers(database_t *db);
 int db_is_key_id_available(database_t *db, const char *server_id,
                            const char *key_id);
 
+/**
+ * Insert a new key in the database, a key is the metainfo of the key plus
+ * the key share that belongs to thi node.
+ *
+ * @param db Active database connection.
+ * @param server_id The server asking to store the key.
+ * @param key_id The id to store the key with.
+ * @param metainfo The key metainfo.
+ * @param key_share The share of the key for this node.
+ *
+ * @return DTC_ERR_NONE if the key was successfully inserted, -1 if it couldn't
+ *      be insterted and a positive error code on error. Inserting the same keys
+ *      two or more times will not trigger an error.
+ */
+int db_store_key(database_t *db, const char *server_id, const char *key_id,
+                 const char *metainfo, const char *key_share);
 /**
  * Close and release the memory of a connection, after this call the connection
  * is closed and the behavior of using it is undefined.
