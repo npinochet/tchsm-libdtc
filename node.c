@@ -324,8 +324,21 @@ static int auth_router(database_t *conn, const char *server_id,
     return ret;
 }
 
-void store_key(database_t *db_conn, struct op_req *pub_op, struct op_req *req_op,
-               struct op_req *res_op){
+void store_key(database_t *db_conn, const char *server_id,
+               struct store_key_res *res_op) {
+    int rc;
+    char *key_metainfo = tc_serialize_key_metainfo(res_op->meta_info);
+    char *key_share = tc_serialize_key_share(res_op->key_share);
+    rc = db_store_key(
+            db_conn, server_id, res_op->key_id, key_metainfo, key_share);
+    free(key_metainfo);
+    free(key_share);
+    if(rc == DTC_ERR_NONE)
+        LOG(LOG_LVL_LOG, "Successfully stored key %s from server %s.",
+            res_op->key_id, server_id)
+    else
+        LOG(LOG_LVL_NOTI, "Error adding key %s from server %s.", res_op->key_id,
+            server_id)
     return;
 }
 void handle_store_key_res(database_t *db_conn, void *router_socket,
@@ -369,7 +382,14 @@ void handle_store_key_res(database_t *db_conn, void *router_socket,
         goto err_exit;
     }
 
-    store_key(db_conn, pub_op, req_op, res_op);
+    if(strcmp(req_op->args->store_key_req.key_id,
+              res_op->args->store_key_res.key_id) != 0) {
+        LOG(LOG_LVL_ERRO, "Received a different key id from %s.", identity);
+        goto err_exit;
+    }
+
+    store_key(db_conn, identity, &res_op->args->store_key_res);
+
     printf("Res: %.*s\n", rc, zmq_msg_data(msg));
 
     delete_op_req(res_op);
