@@ -9,6 +9,10 @@ enum OP {
     OP_STORE_KEY_REQ,
     OP_STORE_KEY_RES,
 
+    OP_SIGN_PUB,
+    OP_SIGN_REQ,
+    OP_SIGN_RES,
+
     //Keep this at the end.
     OP_MAX
 };
@@ -33,6 +37,12 @@ struct store_key_res {
     key_share_t *key_share;
     key_metainfo_t *meta_info;
     const char *key_id;
+};
+
+struct sign_pub {
+    char *key_id;
+    char *message;
+    size_t msg_len;
 };
 
 union command_args {
