@@ -9,9 +9,8 @@ enum OP {
     OP_STORE_KEY_REQ,
     OP_STORE_KEY_RES,
 
-    OP_SIGN_PUB,
-    OP_SIGN_REQ,
-    OP_SIGN_RES,
+    OP_DELETE_KEY_SHARE_PUB,
+    OP_DELETE_KEY_SHARE_REQ,
 
     //Keep this at the end.
     OP_MAX
@@ -45,10 +44,22 @@ struct sign_pub {
     size_t msg_len;
 };
 
+struct delete_key_share_pub {
+    char *server_id;
+    char *key_id;
+};
+
+struct delete_key_share_req {
+    uint8_t deleted;
+};
+
 union command_args {
     struct store_key_pub store_key_pub;
     struct store_key_req store_key_req;
     struct store_key_res store_key_res;
+
+    struct delete_key_share_pub delete_key_share_pub;
+    struct delete_key_share_req delete_key_share_req;
 };
 
 struct op_req{
