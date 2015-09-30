@@ -157,11 +157,23 @@ int db_is_key_id_available(database_t *db, const char *server_id,
  * @param key_share The share of the key for this node.
  *
  * @return DTC_ERR_NONE if the key was successfully inserted, -1 if it couldn't
- *      be insterted and a positive error code on error. Inserting the same keys
- *      two or more times will not trigger an error.
+ *      be inserted and a positive error code on error.
  */
 int db_store_key(database_t *db, const char *server_id, const char *key_id,
                  const char *metainfo, const char *key_share);
+
+/**
+ * Delete the specified key from the database.
+ *
+ * @param db Active database connection.
+ * @param server_id The server requesting to delete the key.
+ * @param key_id The id of the key to delete.
+ *
+ * @return DTC_ERR_NONE if the key was successfully deleted, -1 if it wasn't
+ *      present, a positive error code on error.
+ */
+int db_delete_key(database_t *db, const char *server_id, const char *key_id);
+
 /**
  * Close and release the memory of a connection, after this call the connection
  * is closed and the behavior of using it is undefined.

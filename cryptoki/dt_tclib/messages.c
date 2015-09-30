@@ -274,6 +274,9 @@ static struct json_object *serialize_delete_key_share_req(
     json_object_object_add(
             ret, "deleted",
             json_object_new_int(delete_key_share->deleted));
+
+    json_object_object_add(ret, "key_id",
+                           json_object_new_string(delete_key_share->key_id));
     return ret;
 }
 
@@ -288,11 +291,16 @@ static union command_args *unserialize_delete_key_share_req(
     if(version != 1)
         goto err_exit;
 
+    if(!json_object_object_get_ex(in, "key_id", &temp)) {
+        LOG(LOG_LVL_CRT, "Key \"key_id\" does not exists.")
+        goto err_exit;
+    }
+    ret->key_id = strdup(json_object_get_string(temp));
+
     if(!json_object_object_get_ex(in, "deleted", &temp)) {
         LOG(LOG_LVL_CRT, "Key \"deleted\" does not exists.");
         goto err_exit;
     }
-
     ret->deleted = (uint8_t) json_object_get_int(temp);
 
     return ret_union;
@@ -302,7 +310,10 @@ err_exit:
     return NULL;
 }
 
-int delete_delete_key_share_req(union command_args *data) {
+int delete_delete_key_share_req(union command_args *data){
+    struct delete_key_share_req *delete_key_share =
+        &data->delete_key_share_req;
+    free((void *)delete_key_share->key_id);
     free(data);
     return 0;
 }
@@ -329,7 +340,6 @@ static union command_args *(*const unserialize_funcs[OP_MAX])(
 static int (*delete_funcs[OP_MAX])(union command_args *data) =
     {delete_store_key_pub, delete_store_key_req, delete_store_key_res,
      delete_delete_key_share_pub, delete_delete_key_share_req};
-
 
 // *************************************************************
 // ***********************Public API****************************
@@ -680,6 +690,7 @@ START_TEST(serialize_unserialize_delete_key_share_req) {
     union command_args com_args;
 
     com_args.delete_key_share_req.deleted = 3;
+    com_args.delete_key_share_req.key_id = "key_id";
     operation_request.version = 1;
     operation_request.op = OP_DELETE_KEY_SHARE_REQ;
     operation_request.args = &com_args;
@@ -693,6 +704,8 @@ START_TEST(serialize_unserialize_delete_key_share_req) {
     ck_assert(unserialized_op_req->op == operation_request.op);
     ck_assert_int_eq(unserialized_op_req->args->delete_key_share_req.deleted,
                      com_args.delete_key_share_req.deleted);
+    ck_assert_str_eq(unserialized_op_req->args->delete_key_share_req.key_id,
+                     com_args.delete_key_share_req.key_id);
 
     free(output);
     delete_op_req(unserialized_op_req);
