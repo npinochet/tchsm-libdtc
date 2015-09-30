@@ -496,6 +496,7 @@ int db_is_an_authorized_key(database_t *db, const char *key) {
     static const char *sql_query = "SELECT server_id\n"
                                    "FROM server\n"
                                    "WHERE public_key=?;";
+    //TODO use the prepare wrapper.
     rc = sqlite3_blocking_prepare_v2(db->ppDb, sql_query, -1, &stmt, 0);
     if(rc != SQLITE_OK) {
         LOG(LOG_LVL_ERRO, "sqlite3_prepare_v2: %s", sqlite3_errmsg(db->ppDb));
@@ -525,6 +526,42 @@ int db_is_an_authorized_key(database_t *db, const char *key) {
 err_exit:
     sqlite3_finalize(stmt);
     return -1;
+}
+
+int db_delete_key(database_t *db, const char *server_id, const char *key_id){
+    int rc, step, affected_rows;
+    sqlite3_stmt *stmt = NULL;
+    static const char *sql_query = "DELETE\n"
+                                   "FROM key\n"
+                                   "WHERE server_id = ? and key_id = ?;";
+
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2, server_id, key_id);
+    if(rc != DTC_ERR_NONE)
+        return rc;
+
+    step = sqlite3_blocking_step(stmt);
+    if(step != SQLITE_DONE) {
+        LOG(LOG_LVL_ERRO, "Step error:%s", sqlite3_errmsg(db->ppDb));
+        sqlite3_finalize(stmt);
+        return DTC_ERR_DATABASE;
+    }
+
+    affected_rows = sqlite3_changes(db->ppDb);
+    if(affected_rows != 1) {
+        sqlite3_finalize(stmt);
+        LOG(LOG_LVL_ERRO, "Tried to delete a unexistent key, %s:%s",
+            server_id, key_id);
+        return -1;
+    }
+
+    rc = sqlite3_finalize(stmt);
+    if(rc != SQLITE_OK) {
+        LOG(LOG_LVL_ERRO, "Failed finalizing the statment: %s",
+            sqlite3_errmsg(db->ppDb));
+        return DTC_ERR_DATABASE;
+    }
+
+    return DTC_ERR_NONE;
 }
 
 #ifdef UNIT_TEST
@@ -1019,6 +1056,29 @@ START_MY_TEST(test_store_key_simple) {
 }
 END_TEST
 
+START_TEST(test_delete_key_simple) {
+    char *database_file = get_filepath("test_store_key_simple");
+
+    ck_assert_int_eq(-1, access(database_file, F_OK));
+
+    database_t *conn = db_init_connection(database_file);
+    ck_assert(conn != NULL);
+
+    ck_assert_int_eq(0, insert_server(conn->ppDb, "key", "s_id", "token"));
+
+    ck_assert_int_eq(-1,
+                     db_delete_key(conn, "s_id", "k_id"));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_store_key(conn, "s_id", "k_id", "k_1", "k_2"));
+    ck_assert_int_eq(0,
+                     db_delete_key(conn, "s_id", "k_id"));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_store_key(conn, "s_id", "k_id", "k_1", "k_2"));
+
+    close_and_remove_db(database_file, conn);
+}
+END_TEST
+
 TCase *get_dt_tclib_database_c_test_case() {
 
     TCase *test_case = tcase_create("database_c");
@@ -1047,6 +1107,8 @@ TCase *get_dt_tclib_database_c_test_case() {
     tcase_add_test(test_case, test_update_servers_mix_operations);
 
     tcase_add_test(test_case, test_store_key_simple);
+
+    tcase_add_test(test_case, test_delete_key_simple);
 
     return test_case;
 }

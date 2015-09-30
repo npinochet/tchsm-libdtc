@@ -29,7 +29,6 @@ struct store_key_req {
     uint8_t key_id_accepted;
 
     const char *key_id;
-
 };
 
 struct store_key_res {
@@ -50,6 +49,7 @@ struct delete_key_share_pub {
 };
 
 struct delete_key_share_req {
+    const char *key_id;
     uint8_t deleted;
 };
 
