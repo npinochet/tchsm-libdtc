@@ -117,7 +117,7 @@ err_exit:
     return NULL;
 }
 
-int delete_store_key_req(union command_args *data) {
+static int delete_store_key_req(union command_args *data) {
     struct store_key_req *store_key_req = &data->store_key_req;
     free((void *)store_key_req->key_id);
     free(data);
@@ -251,7 +251,7 @@ err_exit:
     return NULL;
 }
 
-int delete_delete_key_share_pub(union command_args *data) {
+static int delete_delete_key_share_pub(union command_args *data) {
     struct delete_key_share_pub *delete_key_share = &data->delete_key_share_pub;
     free((void *)delete_key_share->server_id);
     free((void *)delete_key_share->key_id);
@@ -310,10 +310,172 @@ err_exit:
     return NULL;
 }
 
-int delete_delete_key_share_req(union command_args *data){
+static int delete_delete_key_share_req(union command_args *data){
     struct delete_key_share_req *delete_key_share =
         &data->delete_key_share_req;
     free((void *)delete_key_share->key_id);
+    free(data);
+    return 0;
+}
+
+static struct json_object *serialize_sign_pub(
+        const union command_args *args_u, uint16_t version){
+
+    const struct sign_pub *sign_pub = &args_u->sign_pub;
+    struct json_object *ret;
+
+    if(version != 1)
+        return NULL;
+
+    ret = json_object_new_object();
+
+    json_object_object_add(ret, "signing_id",
+                           json_object_new_string(sign_pub->signing_id));
+    json_object_object_add(ret, "key_id",
+                           json_object_new_string(sign_pub->key_id));
+    json_object_object_add(
+            ret, "message",
+            json_object_new_string_len((const char *) sign_pub->message,
+                                                      sign_pub->msg_len));
+    json_object_object_add(ret, "signing_id",
+                           json_object_new_string(sign_pub->signing_id));
+    json_object_object_add(ret, "msg_len",
+                           json_object_new_int64(sign_pub->msg_len));
+
+    return ret;
+}
+
+static union command_args *unserialize_sign_pub(
+        struct json_object *in, uint16_t version) {
+
+    struct json_object *temp;
+    union command_args *ret_union =
+        (union command_args *) malloc(sizeof(union command_args));
+    struct sign_pub *ret = &ret_union->sign_pub;
+
+    if(version != 1)
+        goto err_exit;
+
+    if(!json_object_object_get_ex(in, "msg_len", &temp)) {
+        LOG(LOG_LVL_CRT, "Key \"msg_len\" does not exists.");
+        goto err_exit;
+    }
+    ret->msg_len = (size_t) json_object_get_int64(temp);
+
+    if(!json_object_object_get_ex(in, "key_id", &temp)) {
+        LOG(LOG_LVL_CRT, "Key \"key_id\" does not exists.")
+        goto err_exit;
+    }
+    ret->key_id = strdup(json_object_get_string(temp));
+
+    if(!json_object_object_get_ex(in, "signing_id", &temp)) {
+        LOG(LOG_LVL_CRT, "Key \"signing_id\" does not exists.")
+        free((void *)ret->key_id);
+        goto err_exit;
+    }
+    ret->signing_id = strdup(json_object_get_string(temp));
+
+
+    if(!json_object_object_get_ex(in, "message", &temp)) {
+        LOG(LOG_LVL_CRT, "Key \"message\" does not exists.")
+        free((void *)ret->key_id);
+        free((void *)ret->signing_id);
+        goto err_exit;
+    }
+    ret->message = (uint8_t *)strdup(json_object_get_string(temp));
+
+    return ret_union;
+
+err_exit:
+    free(ret);
+    return NULL;
+}
+
+static int delete_sign_pub(union command_args *data){
+    struct sign_pub *sign_pub = &data->sign_pub;
+    free((void *)sign_pub->key_id);
+    free((void *)sign_pub->signing_id);
+    free((void *)sign_pub->message);
+    free(data);
+    return 0;
+}
+
+static struct json_object *serialize_sign_req(
+        const union command_args *args_u, uint16_t version){
+
+    const struct sign_req *sign_req = &args_u->sign_req;
+    struct json_object *ret;
+    const char *serialized_signature;
+
+    if(version != 1)
+        return NULL;
+
+    ret = json_object_new_object();
+
+    serialized_signature = tc_serialize_signature_share(sign_req->signature);
+    if(!serialized_signature) {
+        LOG(LOG_LVL_ERRO, "Failed serializing signature share")
+        return NULL;
+    }
+
+    json_object_object_add(ret, "status_code",
+                           json_object_new_int(sign_req->status_code));
+    json_object_object_add(ret, "signing_id",
+                           json_object_new_string(sign_req->signing_id));
+
+    json_object_object_add(ret, "signature",
+                           json_object_new_string(serialized_signature));
+    free((void *)serialized_signature);
+    return ret;
+}
+
+static union command_args *unserialize_sign_req(
+        struct json_object *in, uint16_t version) {
+
+    struct json_object *temp;
+    union command_args *ret_union =
+        (union command_args *) malloc(sizeof(union command_args));
+    struct sign_req *ret = &ret_union->sign_req;
+
+    if(version != 1)
+        goto err_exit;
+
+    if(!json_object_object_get_ex(in, "status_code", &temp)) {
+        LOG(LOG_LVL_CRT, "Key \"status_code\" does not exists.");
+        goto err_exit;
+    }
+    ret->status_code = (uint8_t) json_object_get_int(temp);
+
+    if(!json_object_object_get_ex(in, "signing_id", &temp)) {
+        LOG(LOG_LVL_CRT, "Key \"signing_id\" does not exists.")
+        goto err_exit;
+    }
+    ret->signing_id = strdup(json_object_get_string(temp));
+
+    if(!json_object_object_get_ex(in, "signature", &temp)) {
+        LOG(LOG_LVL_CRT, "Key \"signature\" does not exists.")
+        free((void *)ret->signing_id);
+        goto err_exit;
+    }
+
+    ret->signature = tc_deserialize_signature_share(
+                                            json_object_get_string(temp));
+    if(!ret->signature) {
+        LOG(LOG_LVL_CRT, "Unable to deserialize signature share")
+        free((void *)ret->signing_id);
+        goto err_exit;
+    }
+    return ret_union;
+
+err_exit:
+    free(ret);
+    return NULL;
+}
+
+static int delete_sign_req(union command_args *data){
+    struct sign_req *sign_req = &data->sign_req;
+    free((void *)sign_req->signing_id);
+    tc_clear_signature_share((signature_share_t *)sign_req->signature);
     free(data);
     return 0;
 }
@@ -327,7 +489,8 @@ static struct json_object *(
         *const serialize_funcs[OP_MAX])(const union command_args *data,
                                         uint16_t version) =
     {serialize_store_key_pub, serialize_store_key_req, serialize_store_key_res,
-     serialize_delete_key_share_pub, serialize_delete_key_share_req};
+     serialize_delete_key_share_pub, serialize_delete_key_share_req,
+     serialize_sign_pub, serialize_sign_req};
 
 static union command_args *(*const unserialize_funcs[OP_MAX])(
         struct json_object *in, uint16_t version) =
@@ -335,11 +498,14 @@ static union command_args *(*const unserialize_funcs[OP_MAX])(
      unserialize_store_key_req,
      unserialize_store_key_res,
      unserialize_delete_key_share_pub,
-     unserialize_delete_key_share_req};
+     unserialize_delete_key_share_req,
+     unserialize_sign_pub,
+     unserialize_sign_req};
 
 static int (*delete_funcs[OP_MAX])(union command_args *data) =
     {delete_store_key_pub, delete_store_key_req, delete_store_key_res,
-     delete_delete_key_share_pub, delete_delete_key_share_req};
+     delete_delete_key_share_pub, delete_delete_key_share_req,
+     delete_sign_pub, delete_sign_req};
 
 // *************************************************************
 // ***********************Public API****************************
@@ -681,7 +847,6 @@ START_TEST(serialize_unserialize_delete_key_share_pub) {
 }
 END_TEST
 
-
 START_TEST(serialize_unserialize_delete_key_share_req) {
     char *output;
     size_t ret;
@@ -713,6 +878,97 @@ START_TEST(serialize_unserialize_delete_key_share_req) {
 }
 END_TEST
 
+START_TEST(serialize_unserialize_sign_pub) {
+    char *output;
+    size_t ret;
+    struct op_req operation_request;
+    struct op_req *unserialized_op_req;
+    union command_args com_args;
+
+    com_args.sign_pub.signing_id = "signing_id";
+    com_args.sign_pub.key_id = "key_id";
+    com_args.sign_pub.message = (uint8_t *) "message";
+    com_args.sign_pub.msg_len = strlen("message") + 1;
+
+    operation_request.version = 1;
+    operation_request.op = OP_SIGN_PUB;
+    operation_request.args = &com_args;
+
+    ret = serialize_op_req(&operation_request, &output);
+    ck_assert(ret > 0);
+
+    unserialized_op_req = unserialize_op_req(output, ret);
+
+    ck_assert(unserialized_op_req->version == operation_request.version);
+    ck_assert(unserialized_op_req->op == operation_request.op);
+
+    ck_assert_int_eq(unserialized_op_req->args->sign_pub.msg_len,
+                     com_args.sign_pub.msg_len);
+    ck_assert_str_eq(unserialized_op_req->args->sign_pub.signing_id,
+                     com_args.sign_pub.signing_id);
+    ck_assert_str_eq((const char *)unserialized_op_req->args->sign_pub.message,
+                     (const char *)com_args.sign_pub.message);
+    ck_assert_str_eq(unserialized_op_req->args->sign_pub.key_id,
+                     com_args.sign_pub.key_id);
+
+    free(output);
+    delete_op_req(unserialized_op_req);
+
+}
+END_TEST
+
+START_TEST(serialize_unserialize_sign_req) {
+    char *output;
+    size_t ret;
+    struct op_req operation_request;
+    struct op_req *unserialized_op_req;
+    union command_args com_args;
+    const char *got_serialized_ss;
+
+    // Any signature share serialized.
+    const char *serialized_ss =
+            "AAEAAQAAAEAeWX/lZTXD6a90gwgVkatm4JLdVaKubn/hNuqknpdpVEjSlRWBadv1Md"
+            "RZgFGACEFkF2qLomJm+4uZJ1q1I9/AAAAAIG8PfhTzPBMCuPaQB9R09LpWlQk5ENzZ"
+            "Lf8GXT9PpboLAAAAf7P1XBhE6oWQ5dp4JEm+wxHfL+1b+q245K59tvcHbin5VDMbPU"
+            "yFYIZX3Bj/k5LhPtPJOwXLhVLNJuDsRhfrwX21DR53u9vxk1ZidxPde0hdhTpJBhJX"
+            "LPgJbZHwUMafr+O0vDNSPPyxyZV/BAbGLs7rW93r6aW/bBzeNOnMqaU=";
+    const signature_share_t *sig =
+                            tc_deserialize_signature_share(serialized_ss);
+    ck_assert_ptr_ne(NULL, (void *)sig);
+
+    com_args.sign_req.status_code = 3;
+    com_args.sign_req.signing_id = "signing_id";
+    com_args.sign_req.signature = sig;
+
+    operation_request.version = 1;
+    operation_request.op = OP_SIGN_REQ;
+    operation_request.args = &com_args;
+
+    ret = serialize_op_req(&operation_request, &output);
+    ck_assert(ret > 0);
+
+    unserialized_op_req = unserialize_op_req(output, ret);
+
+    ck_assert(unserialized_op_req->version == operation_request.version);
+    ck_assert(unserialized_op_req->op == operation_request.op);
+
+    ck_assert_int_eq(unserialized_op_req->args->sign_req.status_code,
+                     com_args.sign_req.status_code);
+    ck_assert_str_eq(unserialized_op_req->args->sign_req.signing_id,
+                     com_args.sign_req.signing_id);
+
+    got_serialized_ss = tc_serialize_signature_share(
+                            unserialized_op_req->args->sign_req.signature);
+    ck_assert_str_eq(got_serialized_ss, serialized_ss);
+
+    free((void *)got_serialized_ss);
+    tc_clear_signature_share((signature_share_t *) sig);
+    free(output);
+    delete_op_req(unserialized_op_req);
+
+}
+END_TEST
+
 TCase* get_dt_tclib_messages_c_test_case(){
     TCase *test_case = tcase_create("messages_c");
 
@@ -733,6 +989,8 @@ TCase* get_dt_tclib_messages_c_test_case(){
     tcase_add_test(test_case, serialize_unserialize_delete_key_share_pub);
     tcase_add_test(test_case, serialize_unserialize_delete_key_share_req);
 
+    tcase_add_test(test_case, serialize_unserialize_sign_pub);
+    tcase_add_test(test_case, serialize_unserialize_sign_req);
     return test_case;
 }
 
