@@ -69,43 +69,15 @@ static int create_tables(database_t *db) {
                     "   router_token    TEXT,\n"\
                     "   pub_token       TEXT\n"\
                     ");\n";
-    const char *key_share_stmt =
-                    "CREATE TABLE IF NOT EXISTS key_share (\n"\
-                    "   server_id   TEXT NOT NULL,\n"\
-                    "   key_id      TEXT NOT NULL,\n"\
-                    "   key         TEXT,\n"\
-                    "   n           TEXT,\n"\
-                    "   id          INTEGER,\n"\
-                    "   PRIMARY KEY(server_id, key_id),\n"\
-                    "   FOREIGN KEY(server_id) REFERENCES server\n"\
-                    ");\n";
-    const char *public_key_stmt =
-                    "CREATE TABLE IF NOT EXISTS public_key (\n"\
-                    "   server_id   TEXT NOT NULL,\n"\
-                    "   key_id      TEXT NOT NULL,\n"\
-                    "   n           TEXT,\n"\
-                    "   m           TEXT,\n"\
-                    "   e           TEXT,\n"\
-                    "   PRIMARY KEY(server_id, key_id),\n"\
-                    "   FOREIGN KEY(server_id, key_id) REFERENCES key_share\n"\
-                    ");\n";
-    const char *key_metainfo_stmt =
-                    "CREATE TABLE IF NOT EXISTS key_metainfo (\n"\
-                    "   server_id   TEXT NOT NULL,\n"\
-                    "   key_id      TEXT NOT NULL,\n"\
-                    "   bit_size    INTEGER,\n"\
-                    "   k           INTEGER,\n"\
-                    "   l           INTEGER,\n"\
-                    "   vk_v        TEXT,\n"\
-                    "   vk_id       INTEGER,\n"\
-                    "   PRIMARY KEY(server_id, key_id),\n"\
-                    "   FOREIGN KEY(server_id, key_id) REFERENCES key_share\n"\
-                    ");\n";
-    const char *verification_key_stms =
-                    "CREATE TABLE IF NOT EXISTS verification_key (\n"\
-                    "   id          INTEGER,\n"\
-                    "   vk          TEXT,\n"\
-                    "   PRIMARY KEY(id, vk)\n"\
+    const char *key_stmt =
+                    "CREATE TABLE IF NOT EXISTS key (\n"
+                    "   key_id          TEXT NOT NULL,\n"
+                    "   server_id       TEXT NOT NULL,\n"
+                    "   key_share       TEXT NOT NULL,\n"
+                    "   key_metainfo    TEXT NOT NULL,\n"
+                    "   PRIMARY KEY(server_id, key_id),\n"
+                    "   FOREIGN KEY(server_id) REFERENCES server(server_id) "
+                                                          "ON DELETE CASCADE"
                     ");\n";
 
     const char *new_server_stms =
@@ -114,15 +86,12 @@ static int create_tables(database_t *db) {
                     "   public_key  TEXT UNIQUE\n"\
                     ");";
 
-    const char *tables[6][2] = {{"server", server_stmt},
-                                {"key_share", key_share_stmt},
-                                {"public_key", public_key_stmt},
-                                {"key_metainfo", key_metainfo_stmt},
-                                {"verification_key", verification_key_stms},
+    const char *tables[3][2] = {{"server", server_stmt},
+                                {"key", key_stmt},
                                 {"new_server", new_server_stms},
                                };
 
-    for(i = 0; i < 6; i++) {
+    for(i = 0; i < 3; i++) {
         rc = create_table(db->ppDb, tables[i][0], tables[i][1]);
         if(rc)
             return rc;
@@ -350,7 +319,7 @@ int db_is_key_id_available(database_t *db, const char *server_id,
     sqlite3_stmt *stmt;
     int rc, step;
     char *sql_query = "SELECT server_id\n"
-                      "FROM key_share\n"
+                      "FROM key\n"
                       "WHERE server_id = ? and key_id = ?;\n";
 
     rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2, server_id, key_id);
@@ -478,12 +447,56 @@ int db_get_new_pub_token(database_t *db, const char *server_public_key,
                                    "WHERE public_key = ?;", output);
 }
 
+int db_store_key(database_t *db, const char *server_id, const char *key_id,
+                 const char *metainfo, const char *key_share) {
+
+    int rc, step, affected_rows;
+    sqlite3_stmt *stmt;
+    char *sql_query  = "INSERT INTO key "
+                       "(server_id, key_id, key_metainfo, key_share)\n"
+                       "VALUES (?, ?, ?, ?);";
+
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 4, server_id, key_id,
+                           metainfo, key_share);
+    if(rc != DTC_ERR_NONE)
+        return rc;
+
+    step = sqlite3_blocking_step(stmt);
+    if(step != SQLITE_DONE) {
+        LOG(LOG_LVL_ERRO, "Step error:%s", sqlite3_errmsg(db->ppDb));
+        goto err_exit;
+    }
+
+    affected_rows = sqlite3_changes(db->ppDb);
+    if(affected_rows != 1) {
+        sqlite3_finalize(stmt);
+        LOG(LOG_LVL_ERRO, "Key %s from server %s couldn't be inserted.", key_id,
+            server_id);
+        return DTC_ERR_DATABASE;
+    }
+
+    rc = sqlite3_finalize(stmt);
+    if(rc != SQLITE_OK) {
+        LOG(LOG_LVL_ERRO, "Failed finalizing the statment: %s",
+            sqlite3_errmsg(db->ppDb));
+        return DTC_ERR_DATABASE;
+    }
+
+    return DTC_ERR_NONE;
+
+err_exit:
+    sqlite3_finalize(stmt);
+    return DTC_ERR_DATABASE;
+}
+
+
 int db_is_an_authorized_key(database_t *db, const char *key) {
     int rc, step;
     sqlite3_stmt *stmt = NULL;
     static const char *sql_query = "SELECT server_id\n"
                                    "FROM server\n"
                                    "WHERE public_key=?;";
+    //TODO use the prepare wrapper.
     rc = sqlite3_blocking_prepare_v2(db->ppDb, sql_query, -1, &stmt, 0);
     if(rc != SQLITE_OK) {
         LOG(LOG_LVL_ERRO, "sqlite3_prepare_v2: %s", sqlite3_errmsg(db->ppDb));
@@ -515,10 +528,40 @@ err_exit:
     return -1;
 }
 
-int db_store_key(database *db, const char *server_id, const char *key_id,
-                 key_share_t *key_share, key_metainfo_t *metainfo) {
-    return 0;
+int db_delete_key(database_t *db, const char *server_id, const char *key_id){
+    int rc, step, affected_rows;
+    sqlite3_stmt *stmt = NULL;
+    static const char *sql_query = "DELETE\n"
+                                   "FROM key\n"
+                                   "WHERE server_id = ? and key_id = ?;";
 
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2, server_id, key_id);
+    if(rc != DTC_ERR_NONE)
+        return rc;
+
+    step = sqlite3_blocking_step(stmt);
+    if(step != SQLITE_DONE) {
+        LOG(LOG_LVL_ERRO, "Step error:%s", sqlite3_errmsg(db->ppDb));
+        sqlite3_finalize(stmt);
+        return DTC_ERR_DATABASE;
+    }
+
+    affected_rows = sqlite3_changes(db->ppDb);
+    if(affected_rows != 1) {
+        sqlite3_finalize(stmt);
+        LOG(LOG_LVL_ERRO, "Tried to delete a unexistent key, %s:%s",
+            server_id, key_id);
+        return -1;
+    }
+
+    rc = sqlite3_finalize(stmt);
+    if(rc != SQLITE_OK) {
+        LOG(LOG_LVL_ERRO, "Failed finalizing the statment: %s",
+            sqlite3_errmsg(db->ppDb));
+        return DTC_ERR_DATABASE;
+    }
+
+    return DTC_ERR_NONE;
 }
 
 #ifdef UNIT_TEST
@@ -582,7 +625,6 @@ static int insert_server(sqlite3 *db, const char *server_key,
     return DTC_ERR_NONE;
 
 }
-
 
 START_MY_TEST(test_create_db) {
     char *database_file = get_filepath("test_create_db");
@@ -955,6 +997,88 @@ START_MY_TEST(test_update_servers_mix_operations) {
 }
 END_TEST
 
+static int get_keys_callback(void *expected_keys, int cols, char **cols_data,
+                             char **cols_name) {
+    char **keys = (char **)expected_keys;
+    char *expected_metainfo = keys[0];
+    char *expected_key_share = keys[1];
+    ck_assert_ptr_ne(NULL, *keys);
+
+    ck_assert_int_eq(2, cols);
+    ck_assert_str_eq(expected_metainfo, cols_data[0]);
+    ck_assert_str_eq(expected_key_share, cols_data[1]);
+
+    // This limit the times the callback can be called to 1.
+    *keys = NULL;
+
+    return 0;
+}
+
+START_MY_TEST(test_store_key_simple) {
+    char *database_file = get_filepath("test_store_key_simple");
+    char *keys[2];
+    int rc;
+
+    keys[0] = "key_metainfo_";
+    keys[1] = "k_share_";
+
+    ck_assert_int_eq(-1, access(database_file, F_OK));
+
+    database_t *conn = db_init_connection(database_file);
+    ck_assert(conn != NULL);
+
+    ck_assert_int_eq(0, insert_server(conn->ppDb, "key", "s_id", "token"));
+    //ck_assert_int_eq(0, insert_server(conn->ppDb, "key2", "s_id2", "token"));
+
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_store_key(conn, "s_id", "k_id", keys[0], keys[1]));
+    rc = sqlite3_exec(conn->ppDb, "SELECT key_metainfo, key_share\n"
+                                  "FROM key\n"
+                                  "WHERE server_id = 's_id' and "
+                                    "key_id = 'k_id';\n",
+                      get_keys_callback, &keys, NULL);
+
+    ck_assert_int_eq(SQLITE_OK, rc);
+    // This check that the callback was called.
+    ck_assert_ptr_eq(NULL, *keys);
+
+    keys[0] = "key_metainfo_";
+    keys[1] = "k_share_";
+    ck_assert_int_eq(0, insert_server(conn->ppDb, "key2", "s2_id", "token"));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_store_key(conn, "s2_id", "k_id", keys[0], keys[1]));
+    ck_assert_int_ne(DTC_ERR_NONE,
+                     db_store_key(conn, "s2_id", "k_id", keys[0], keys[1]));
+
+    ck_assert_int_eq(DTC_ERR_DATABASE,
+                     db_store_key(conn, "s2_id", "k_id", keys[0], "diff"));
+    close_and_remove_db(database_file, conn);
+}
+END_TEST
+
+START_TEST(test_delete_key_simple) {
+    char *database_file = get_filepath("test_store_key_simple");
+
+    ck_assert_int_eq(-1, access(database_file, F_OK));
+
+    database_t *conn = db_init_connection(database_file);
+    ck_assert(conn != NULL);
+
+    ck_assert_int_eq(0, insert_server(conn->ppDb, "key", "s_id", "token"));
+
+    ck_assert_int_eq(-1,
+                     db_delete_key(conn, "s_id", "k_id"));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_store_key(conn, "s_id", "k_id", "k_1", "k_2"));
+    ck_assert_int_eq(0,
+                     db_delete_key(conn, "s_id", "k_id"));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_store_key(conn, "s_id", "k_id", "k_1", "k_2"));
+
+    close_and_remove_db(database_file, conn);
+}
+END_TEST
+
 TCase *get_dt_tclib_database_c_test_case() {
 
     TCase *test_case = tcase_create("database_c");
@@ -981,6 +1105,10 @@ TCase *get_dt_tclib_database_c_test_case() {
     tcase_add_test(test_case, test_update_servers_replace);
     tcase_add_test(test_case, test_update_servers_delete_only);
     tcase_add_test(test_case, test_update_servers_mix_operations);
+
+    tcase_add_test(test_case, test_store_key_simple);
+
+    tcase_add_test(test_case, test_delete_key_simple);
 
     return test_case;
 }

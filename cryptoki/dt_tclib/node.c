@@ -324,9 +324,21 @@ static int auth_router(database_t *conn, const char *server_id,
     return ret;
 }
 
-void store_key(database_t *db_conn, struct op_req *pub_op, struct op_req *req_op,
-               struct op_req *res_op){
-
+void store_key(database_t *db_conn, const char *server_id,
+               struct store_key_res *res_op) {
+    int rc;
+    char *key_metainfo = tc_serialize_key_metainfo(res_op->meta_info);
+    char *key_share = tc_serialize_key_share(res_op->key_share);
+    rc = db_store_key(
+            db_conn, server_id, res_op->key_id, key_metainfo, key_share);
+    free(key_metainfo);
+    free(key_share);
+    if(rc == DTC_ERR_NONE)
+        LOG(LOG_LVL_LOG, "Successfully stored key %s from server %s.",
+            res_op->key_id, server_id)
+    else
+        LOG(LOG_LVL_NOTI, "Error adding key %s from server %s.", res_op->key_id,
+            server_id)
     return;
 }
 void handle_store_key_res(database_t *db_conn, void *router_socket,
@@ -370,7 +382,14 @@ void handle_store_key_res(database_t *db_conn, void *router_socket,
         goto err_exit;
     }
 
-    store_key(db_conn, pub_op, req_op, res_op);
+    if(strcmp(req_op->args->store_key_req.key_id,
+              res_op->args->store_key_res.key_id) != 0) {
+        LOG(LOG_LVL_ERRO, "Received a different key id from %s.", identity);
+        goto err_exit;
+    }
+
+    store_key(db_conn, identity, &res_op->args->store_key_res);
+
     printf("Res: %.*s\n", rc, zmq_msg_data(msg));
 
     delete_op_req(res_op);
@@ -379,6 +398,74 @@ err_exit:
     zmq_msg_close(msg);
     return;
 }
+
+void handle_delete_key_share_pub(database_t *db_conn, void *router_socket,
+                                 struct op_req *pub_op, const char *auth_user) {
+    const char *server_id;
+    const char *key_id;
+    int ret;
+    struct op_req req_op;
+    struct delete_key_share_req delete_key_share;
+    char *serialized_msg;
+    size_t size;
+    zmq_msg_t msg_;
+    zmq_msg_t *msg = &msg_;
+
+    if(pub_op->version != 1) {
+        LOG(LOG_LVL_ERRO, "Version %" PRIu16 " not supported");
+        // TODO Should I send a response for this errors?
+        return;
+    }
+
+    server_id = pub_op->args->delete_key_share_pub.server_id;
+    key_id = pub_op->args->delete_key_share_pub.key_id;
+
+    if(!auth_pub(db_conn, server_id, auth_user)) {
+        LOG(LOG_LVL_NOTI,
+            "Unauthorized user (%s) dropped at delete_key_share_pub.",
+            server_id)
+        return;
+    }
+
+    delete_key_share.deleted = db_delete_key(db_conn, server_id, key_id);
+
+    req_op.version = 1;
+    req_op.op = OP_DELETE_KEY_SHARE_REQ;
+    req_op.args = (union command_args *)&delete_key_share;
+
+    ret = zmq_send(router_socket, server_id, strlen(server_id), ZMQ_SNDMORE);
+    if(ret == -1) {
+        LOG(LOG_LVL_ERRO, "Unable to sen msg, zmq_send:%s",
+                          zmq_strerror(errno))
+        return;
+    }
+
+    size = serialize_op_req(&req_op, &serialized_msg);
+    if(size == 0) {
+        LOG(LOG_LVL_ERRO, "Unable to serialize delete_key_share_req.")
+        return;
+    }
+
+    ret = zmq_msg_init_data(msg, serialized_msg, size, free_wrapper, free);
+    if(ret) {
+        LOG(LOG_LVL_ERRO, "Unable to initialize the msg: %s",
+            zmq_strerror(errno))
+        free(serialized_msg);
+        return;
+    }
+
+    zmq_msg_send(msg, router_socket, 0);
+    if(ret == -1) {
+        LOG(LOG_LVL_ERRO, "Unable to send msg: %s", zmq_strerror(errno))
+        zmq_msg_close(msg);
+        return;
+    }
+
+    printf("Sent: %d\n", ret);
+}
+
+
+
 void handle_store_key_pub(database_t *db_conn, void *router_socket,
                           struct op_req *pub_op, const char *auth_user) {
     const char *server_id;
@@ -390,7 +477,7 @@ void handle_store_key_pub(database_t *db_conn, void *router_socket,
     zmq_msg_t msg_;
     zmq_msg_t *msg = &msg_;
 
-    if(pub_op->version != 1){
+    if(pub_op->version != 1) {
         LOG(LOG_LVL_ERRO, "version %" PRIu16 " not supported.");
         return;
     }
