@@ -41,6 +41,7 @@ struct store_key_res {
 };
 
 struct delete_key_share_pub {
+    //TODO(fmontoto) Server_id is not needed, delete it and use auth.
     char *server_id;
     char *key_id;
 };

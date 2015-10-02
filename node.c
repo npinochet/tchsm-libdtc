@@ -464,7 +464,37 @@ void handle_delete_key_share_pub(database_t *db_conn, void *router_socket,
     printf("Sent: %d\n", ret);
 }
 
+const signature_share_t *sign(database_t *db_conn, const char *auth_user,
+                              const char *key_id, uint8_t *message,
+                              size_t msg_len)
+{
 
+}
+void handle_sign_pub(database_t *db_conn, void *router_socket,
+                     struct op_req *pub_op, const char *auth_user) {
+    const char *signing_id;
+    const char *key_id;
+    const uint8_t *message;
+    size_t msg_len;
+    const signature_share_t *signature;
+    zmq_msg_t msg_;
+    zmq_msg_t *msg = &msg_;
+
+    if(pub_op->version != 1) {
+        LOG(LOG_LVL_ERRO, "version %" PRIu16 " not supported.")
+        return;
+    }
+
+    signing_id = pub_op->args->sign_pub.signing_id;
+    key_id = pub_op->args->sign_pub.key_id;
+    message = pub_op->args->sign_pub.message;
+    msg_len = pub_op->args->sign_pub.msg_len;
+
+    signature = sign(db_conn, auth_user, key_id, message, msg_len);
+
+
+
+}
 
 void handle_store_key_pub(database_t *db_conn, void *router_socket,
                           struct op_req *pub_op, const char *auth_user) {
@@ -536,16 +566,18 @@ void handle_store_key_pub(database_t *db_conn, void *router_socket,
 
 void classify_and_handle_operation(database_t *db_conn, void *router_socket,
                                    struct op_req *op, const char *auth_user) {
-    #define TOTAL_SUPPORTED_OPS 1
-    uint16_t supported_operations[TOTAL_SUPPORTED_OPS] = {OP_STORE_KEY_PUB};
+    unsigned i;
+    #define TOTAL_SUPPORTED_OPS 2
+    uint16_t supported_operations[TOTAL_SUPPORTED_OPS] = {OP_STORE_KEY_PUB,
+                                                          OP_SIGN_PUB};
     static void (*const op_handlers[TOTAL_SUPPORTED_OPS]) (
             database_t *db_conn,
             void *router_socket,
             struct op_req *op,
             const char *auth_user) = {
-                                    handle_store_key_pub};
+                                    handle_store_key_pub,
+                                    handle_sign_pub};
 
-    unsigned i;
     for(i = 0; i < TOTAL_SUPPORTED_OPS; i++) {
         if(op->op == supported_operations[i])
             break;
