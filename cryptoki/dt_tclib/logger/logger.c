@@ -15,7 +15,11 @@ void logger_init_stream(FILE *stream) {
     output = stream;
 }
 
-void logger_log(const char *format, ...) {
+void logger_log(int level, const char *format, ...) {
+    static const char *levels[] = {"NONE",  "CRIT",
+                                   "ERRO",  "WARN",
+                                   "NOTI",  "LOG ",
+                                   "DEBG",  "MAX "};
     if(!output)
         output = stderr;
     char buff[50];
@@ -30,7 +34,7 @@ void logger_log(const char *format, ...) {
                             current_tm);
 
     // This is not thread safe, use a mutex or one call to write to make it TS.
-    fprintf(output, "%s\t", buff);
+    fprintf(output, "%s %s: ", buff, levels[level]);
     vfprintf(output, format, args);
     fprintf(output, "\n");
 

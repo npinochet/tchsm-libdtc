@@ -465,10 +465,11 @@ void handle_delete_key_share_pub(database_t *db_conn, void *router_socket,
 }
 
 const signature_share_t *sign(database_t *db_conn, const char *auth_user,
-                              const char *key_id, uint8_t *message,
+                              const char *key_id, const uint8_t *message,
                               size_t msg_len)
 {
-
+    //TODO chanfe brackets in the function definitions as this.
+    return NULL;
 }
 void handle_sign_pub(database_t *db_conn, void *router_socket,
                      struct op_req *pub_op, const char *auth_user) {
@@ -477,8 +478,8 @@ void handle_sign_pub(database_t *db_conn, void *router_socket,
     const uint8_t *message;
     size_t msg_len;
     const signature_share_t *signature;
-    zmq_msg_t msg_;
-    zmq_msg_t *msg = &msg_;
+    //zmq_msg_t msg_;
+    //zmq_msg_t *msg = &msg_;
 
     if(pub_op->version != 1) {
         LOG(LOG_LVL_ERRO, "version %" PRIu16 " not supported.")
@@ -655,7 +656,7 @@ void *classifier_thr(void *classifier_thread_data) {
         free(user_id);
         rc = zmq_msg_close(msg);
         if(rc)
-            LOG(LOG_LVL_ERROR, "Error closing the msg:%s", zmq_strerror(errno));
+            LOG(LOG_LVL_ERRO, "Error closing the msg:%s", zmq_strerror(errno));
     }
     return NULL;
 }
@@ -805,7 +806,7 @@ static struct communication_objects *create_and_bind_sockets(
     }
 
     ret_value = zmq_bind(router_socket, bind_buff);
-    LOG(LVL_NOTI, "Both socket binded, node ready to talk with the Master.");
+    LOG(LOG_LVL_NOTI, "Both socket binded, node ready to talk with the Master.");
     return ret_val;
 }
 
