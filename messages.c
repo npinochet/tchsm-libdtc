@@ -41,13 +41,13 @@ static union command_args *unserialize_store_key_pub(struct json_object *in,
         goto err_exit;
 
     if(!json_object_object_get_ex(in, "server_id", &temp)){
-        LOG(LOG_LVL_CRT, "Key \"server_id\" does not exists.");
+        LOG(LOG_LVL_CRIT, "Key \"server_id\" does not exists.");
         goto err_exit;
     }
     ret->server_id = strdup(json_object_get_string(temp));
 
     if(!json_object_object_get_ex(in, "key_id", &temp)) {
-        LOG(LOG_LVL_CRT, "Key \"key_id\" does not exists.");
+        LOG(LOG_LVL_CRIT, "Key \"key_id\" does not exists.");
         goto err_exit;
     }
     ret->key_id = strdup(json_object_get_string(temp));
@@ -98,14 +98,14 @@ static union command_args *unserialize_store_key_req(struct json_object *in,
         goto err_exit;
 
     if(!json_object_object_get_ex(in, "key_id_accepted", &temp)) {
-        LOG(LOG_LVL_CRT, "Key \"key_id_accepted\" does not exists.");
+        LOG(LOG_LVL_CRIT, "Key \"key_id_accepted\" does not exists.");
         goto err_exit;
     }
 
     ret->key_id_accepted = (uint8_t) json_object_get_int(temp);
 
     if(!json_object_object_get_ex(in, "key_id", &temp)){
-        LOG(LOG_LVL_CRT, "Key \"key_id\" does not exists.");
+        LOG(LOG_LVL_CRIT, "Key \"key_id\" does not exists.");
         goto err_exit;
     }
     ret->key_id = strdup(json_object_get_string(temp));
@@ -166,20 +166,20 @@ static union command_args *unserialize_store_key_res(struct json_object *in,
         goto err_exit;
 
     if(!json_object_object_get_ex(in, "key_id", &temp)) {
-        LOG(LOG_LVL_CRT, "Key \"key_id\" does not exists.");
+        LOG(LOG_LVL_CRIT, "Key \"key_id\" does not exists.");
         goto err_exit;
     }
     ret->key_id = strdup(json_object_get_string(temp));
 
     if(!json_object_object_get_ex(in, "meta_info", &temp)) {
-        LOG(LOG_LVL_CRT, "Key \"metainfo\" does not exists.");
+        LOG(LOG_LVL_CRIT, "Key \"metainfo\" does not exists.");
         free((void *) ret->key_id);
         goto err_exit;
     }
     ret->meta_info = tc_deserialize_key_metainfo(json_object_get_string(temp));
 
     if(!json_object_object_get_ex(in, "key_share", &temp)) {
-        LOG(LOG_LVL_CRT, "Key \"key_share\" does not exists.");
+        LOG(LOG_LVL_CRIT, "Key \"key_share\" does not exists.");
         free((void *) ret->key_id);
         tc_clear_key_metainfo(ret->meta_info);
         goto err_exit;
@@ -233,13 +233,13 @@ static union command_args *unserialize_delete_key_share_pub(
         goto err_exit;
 
     if(!json_object_object_get_ex(in, "server_id", &temp)){
-        LOG(LOG_LVL_CRT, "Key \"server_id\" does not exists.");
+        LOG(LOG_LVL_CRIT, "Key \"server_id\" does not exists.");
         goto err_exit;
     }
     ret->server_id = strdup(json_object_get_string(temp));
 
     if(!json_object_object_get_ex(in, "key_id", &temp)) {
-        LOG(LOG_LVL_CRT, "Key \"key_id\" does not exists.");
+        LOG(LOG_LVL_CRIT, "Key \"key_id\" does not exists.");
         goto err_exit;
     }
     ret->key_id = strdup(json_object_get_string(temp));
@@ -292,13 +292,13 @@ static union command_args *unserialize_delete_key_share_req(
         goto err_exit;
 
     if(!json_object_object_get_ex(in, "key_id", &temp)) {
-        LOG(LOG_LVL_CRT, "Key \"key_id\" does not exists.")
+        LOG(LOG_LVL_CRIT, "Key \"key_id\" does not exists.")
         goto err_exit;
     }
     ret->key_id = strdup(json_object_get_string(temp));
 
     if(!json_object_object_get_ex(in, "deleted", &temp)) {
-        LOG(LOG_LVL_CRT, "Key \"deleted\" does not exists.");
+        LOG(LOG_LVL_CRIT, "Key \"deleted\" does not exists.");
         goto err_exit;
     }
     ret->deleted = (uint8_t) json_object_get_int(temp);
@@ -357,19 +357,19 @@ static union command_args *unserialize_sign_pub(
         goto err_exit;
 
     if(!json_object_object_get_ex(in, "msg_len", &temp)) {
-        LOG(LOG_LVL_CRT, "Key \"msg_len\" does not exists.");
+        LOG(LOG_LVL_CRIT, "Key \"msg_len\" does not exists.");
         goto err_exit;
     }
     ret->msg_len = (size_t) json_object_get_int64(temp);
 
     if(!json_object_object_get_ex(in, "key_id", &temp)) {
-        LOG(LOG_LVL_CRT, "Key \"key_id\" does not exists.")
+        LOG(LOG_LVL_CRIT, "Key \"key_id\" does not exists.")
         goto err_exit;
     }
     ret->key_id = strdup(json_object_get_string(temp));
 
     if(!json_object_object_get_ex(in, "signing_id", &temp)) {
-        LOG(LOG_LVL_CRT, "Key \"signing_id\" does not exists.")
+        LOG(LOG_LVL_CRIT, "Key \"signing_id\" does not exists.")
         free((void *)ret->key_id);
         goto err_exit;
     }
@@ -377,7 +377,7 @@ static union command_args *unserialize_sign_pub(
 
 
     if(!json_object_object_get_ex(in, "message", &temp)) {
-        LOG(LOG_LVL_CRT, "Key \"message\" does not exists.")
+        LOG(LOG_LVL_CRIT, "Key \"message\" does not exists.")
         free((void *)ret->key_id);
         free((void *)ret->signing_id);
         goto err_exit;
@@ -441,19 +441,19 @@ static union command_args *unserialize_sign_req(
         goto err_exit;
 
     if(!json_object_object_get_ex(in, "status_code", &temp)) {
-        LOG(LOG_LVL_CRT, "Key \"status_code\" does not exists.");
+        LOG(LOG_LVL_CRIT, "Key \"status_code\" does not exists.");
         goto err_exit;
     }
     ret->status_code = (uint8_t) json_object_get_int(temp);
 
     if(!json_object_object_get_ex(in, "signing_id", &temp)) {
-        LOG(LOG_LVL_CRT, "Key \"signing_id\" does not exists.")
+        LOG(LOG_LVL_CRIT, "Key \"signing_id\" does not exists.")
         goto err_exit;
     }
     ret->signing_id = strdup(json_object_get_string(temp));
 
     if(!json_object_object_get_ex(in, "signature", &temp)) {
-        LOG(LOG_LVL_CRT, "Key \"signature\" does not exists.")
+        LOG(LOG_LVL_CRIT, "Key \"signature\" does not exists.")
         free((void *)ret->signing_id);
         goto err_exit;
     }
@@ -461,7 +461,7 @@ static union command_args *unserialize_sign_req(
     ret->signature = tc_deserialize_signature_share(
                                             json_object_get_string(temp));
     if(!ret->signature) {
-        LOG(LOG_LVL_CRT, "Unable to deserialize signature share")
+        LOG(LOG_LVL_CRIT, "Unable to deserialize signature share")
         free((void *)ret->signing_id);
         goto err_exit;
     }
@@ -520,11 +520,11 @@ size_t serialize_op_req(const struct op_req *operation_request, char **output){
     size_t ret = 0;
 
     if(version != 1){
-        LOG(LOG_LVL_CRT, "Version %" PRIu16 " not supported.\n", version);
+        LOG(LOG_LVL_CRIT, "Version %" PRIu16 " not supported.\n", version);
         goto err_exit;
     }
     if(operation >= OP_MAX) {
-        LOG(LOG_LVL_CRT, "Operation %d not supported.", operation)
+        LOG(LOG_LVL_CRIT, "Operation %d not supported.", operation)
         goto err_exit;
     }
 
@@ -551,7 +551,7 @@ size_t serialize_op_req(const struct op_req *operation_request, char **output){
 
 err_exit:
     if(!json_object_put(json_ret))
-        LOG(LOG_LVL_CRT, "BUG(mem leak): JSON reference error, not freed.");
+        LOG(LOG_LVL_CRIT, "BUG(mem leak): JSON reference error, not freed.");
     return 0;
 
 }
@@ -566,35 +566,35 @@ struct op_req *unserialize_op_req(const char *operation_request, size_t size){
     parsed_json = json_tokener_parse_ex(json_tok, operation_request, size);
     json_tokener_free(json_tok);
     if(!parsed_json){
-        LOG(LOG_LVL_CRT, "unserialize_op_req: Invalid input.");
+        LOG(LOG_LVL_CRIT, "unserialize_op_req: Invalid input.");
         goto err_exit;
     }
 
     if(!json_object_object_get_ex(parsed_json, "op", &temp_json)){
-        LOG(LOG_LVL_CRT, "Key \"op\" does not exists.");
+        LOG(LOG_LVL_CRIT, "Key \"op\" does not exists.");
         goto err_exit;
     }
     ret->op = (int) json_object_get_int(temp_json);
 
     if(!json_object_object_get_ex(parsed_json, "version", &temp_json)){
-        LOG(LOG_LVL_CRT, "Key \"version\" does not exists.");
+        LOG(LOG_LVL_CRIT, "Key \"version\" does not exists.");
         goto err_exit;
     }
     temp_uint32 = json_object_get_int(temp_json);
     if(temp_uint32 > UINT16_MAX) {
-        LOG(LOG_LVL_CRT, "Version (%" PRIu32 ") not valid.", temp_uint32);
+        LOG(LOG_LVL_CRIT, "Version (%" PRIu32 ") not valid.", temp_uint32);
         goto err_exit;
     }
     ret->version = (uint16_t) temp_uint32;
 
     // TODO refactor this into a method?
     if(ret->op >= OP_MAX) {
-        LOG(LOG_LVL_CRT, "Operation %d not supported.", ret->op)
+        LOG(LOG_LVL_CRIT, "Operation %d not supported.", ret->op)
         goto err_exit;
     }
 
     if(!json_object_object_get_ex(parsed_json, "args", &temp_json)){
-        LOG(LOG_LVL_CRT, "Key \"args\" does not exists.");
+        LOG(LOG_LVL_CRIT, "Key \"args\" does not exists.");
         goto err_exit;
     }
     temp_args = (unserialize_funcs[ret->op])(temp_json, ret->version);
@@ -616,12 +616,12 @@ int delete_op_req(struct op_req *operation_request){
     if(!operation_request)
         return 0;
     if(operation_request->version != 1){
-        LOG(LOG_LVL_CRT, "Version %" PRIu16 " not supported.",
+        LOG(LOG_LVL_CRIT, "Version %" PRIu16 " not supported.",
             operation_request->version);
         return 1;
     }
     if(operation_request->op >= OP_MAX) {
-        LOG(LOG_LVL_CRT, "Operation %d not supported.",operation_request->op);
+        LOG(LOG_LVL_CRIT, "Operation %d not supported.",operation_request->op);
         return 1;
     }
     ret = (delete_funcs[operation_request->op])(operation_request->args);
