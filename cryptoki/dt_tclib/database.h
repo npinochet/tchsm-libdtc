@@ -3,8 +3,7 @@
 
 #include <sqlite3.h>
 
-#include "database.h"
-
+#include "tc.h"
 struct database_conn;
 typedef struct database_conn database_t;
 

@@ -12,6 +12,9 @@ enum OP {
     OP_DELETE_KEY_SHARE_PUB,
     OP_DELETE_KEY_SHARE_REQ,
 
+    OP_SIGN_PUB,
+    OP_SIGN_REQ,
+
     //Keep this at the end.
     OP_MAX
 };
@@ -37,13 +40,8 @@ struct store_key_res {
     const char *key_id;
 };
 
-struct sign_pub {
-    char *key_id;
-    char *message;
-    size_t msg_len;
-};
-
 struct delete_key_share_pub {
+    //TODO(fmontoto) Server_id is not needed, delete it and use auth.
     char *server_id;
     char *key_id;
 };
@@ -53,6 +51,22 @@ struct delete_key_share_req {
     uint8_t deleted;
 };
 
+struct sign_pub {
+    const char *signing_id;
+    const char *key_id;
+    const uint8_t *message;
+    size_t msg_len;
+};
+
+struct sign_req {
+    // 0 On success.
+    // -1 On key missing.
+    // A positive error code otherwise.
+    uint8_t status_code;
+    const char *signing_id;
+    const signature_share_t *signature;
+};
+
 union command_args {
     struct store_key_pub store_key_pub;
     struct store_key_req store_key_req;
@@ -60,6 +74,9 @@ union command_args {
 
     struct delete_key_share_pub delete_key_share_pub;
     struct delete_key_share_req delete_key_share_req;
+
+    struct sign_pub sign_pub;
+    struct sign_req sign_req;
 };
 
 struct op_req{
