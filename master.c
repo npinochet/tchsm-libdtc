@@ -77,6 +77,7 @@ static void free_wrapper(void *data, void *hint) {
     void (*free_function)(void *) = (void (*)(void *))hint;
     free_function(data);
 }
+
 static void free_nodes(unsigned int cant_nodes, struct node_info *node) {
     unsigned int i;
     if(!node)
@@ -289,6 +290,8 @@ int main(int argc, char **argv){
     if(ret_val != DTC_ERR_NONE)
         return 1;
 
+    //ret_val = dtc_delete_key_shares(
+
     free(info);
 
     printf("Destroy: %d\n", dtc_destroy(ctx));
@@ -409,6 +412,34 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
     tc_clear_key_shares(key_shares, key_metainfo);
 
     return ret;
+}
+
+int dtc_delete_key_shares(dtc_ctx_t *ctx, const char *key_id) {
+    struct op_req pub_op;
+    struct delete_key_share_pub delete_key_share;
+    size_t msg_size = 0;
+    char *msg_data = NULL;
+    int ret;
+
+    zmq_msg_t msg_;
+    zmq_msg_t *msg = &msg_;
+
+    pub_op.args = (union command_args *) &delete_key_share;
+    pub_op.version = 1;
+    pub_op.op = OP_DELETE_KEY_SHARE_PUB;
+
+    delete_key_share.server_id = ctx->server_id;
+    delete_key_share.key_id = key_id;
+
+    msg_size = serialize_op_req(&pub_op, &msg_data);
+    if(!msg_size)
+        return DTC_ERR_SERIALIZATION;
+
+    ret = zmq_msg_init_data(msg, msg_data,
+
+
+
+    union command_args *args = (union command_args) &store_
 }
 
 
