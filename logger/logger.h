@@ -25,7 +25,7 @@ void logger_init_stream(FILE *stream);
 /**
  * Log call, do not use this directly. instead use the MACROs defied below.
  **/
-void logger_log(const char *format, ...);
+void logger_log(int level, const char *format, ...);
 
 /**
  * If the logger was initialized with logger_init, the program should call
@@ -58,7 +58,7 @@ enum {
  **/
 #define LOG(level, format,...) \
     do { \
-        logger_log(format, ## __VA_ARGS__); \
+        logger_log(level, format, ## __VA_ARGS__); \
     } while(0);
 
 #define PERROR_LOG(level, msg, format,...) \
