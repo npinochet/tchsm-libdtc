@@ -294,6 +294,8 @@ int main(int argc, char **argv){
 
     free(info);
 
+    printf("Delete shares: %d\n", dtc_delete_key_shares(ctx, "hola_id"));
+
     printf("Destroy: %d\n", dtc_destroy(ctx));
 
     sleep(1);
@@ -414,7 +416,7 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
     return ret;
 }
 
-int dtc_delete_key_shares(dtc_ctx_t *ctx, const char *key_id) {
+void dtc_delete_key_shares(dtc_ctx_t *ctx, const char *key_id) {
     struct op_req pub_op;
     struct delete_key_share_pub delete_key_share;
     size_t msg_size = 0;
@@ -428,20 +430,27 @@ int dtc_delete_key_shares(dtc_ctx_t *ctx, const char *key_id) {
     pub_op.version = 1;
     pub_op.op = OP_DELETE_KEY_SHARE_PUB;
 
-    delete_key_share.server_id = ctx->server_id;
     delete_key_share.key_id = key_id;
 
     msg_size = serialize_op_req(&pub_op, &msg_data);
-    if(!msg_size)
-        return DTC_ERR_SERIALIZATION;
+    if(!msg_size) {
+        LOG_DEBUG(LOG_LVL_CRIT, "Serialize error")
+        return ;
 
-    ret = zmq_msg_init_data(msg, msg_data,
+    ret = zmq_msg_init_data(msg, msg_data, msg_size, free_wrapper, free);
+    if(ret) {
+        LOG_DEBUG(LOG_LVL_CRIT, "zmq_msg_init_data: %s", zmq_strerror(errno))
+        free(msg_data);
+        return;
+    }
 
-
-
-    union command_args *args = (union command_args) &store_
+    ret = zmq_msg_send(msg, ctx->pub_socket, 0);
+    if(ret == 1) {
+        LOG_DEBUG(LOG_LVL_CRIT, "Error sending the msg:%s", zmq_strerror(errno))
+        zmq_msg_close(msg);
+        return;
+    }
 }
-
 
 int dtc_destroy(dtc_ctx_t *ctx) {
     if(!ctx)

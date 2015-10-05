@@ -275,16 +275,13 @@ int db_update_servers(database_t *db) {
     return DTC_ERR_NONE;
 }
 
-int db_get_server_id(database_t *db, const char *public_key, char **output) {
+static int get_server_id(database_t *db, const char *sql_query, const char* key,
+                         char **output) {
     int rc, step;
     const char *server_id;
     sqlite3_stmt *stmt = NULL;
 
-    static const char *sql_query = "SELECT server_id\n"
-                                   "FROM server\n"\
-                                   "WHERE public_key = ?;";
-
-    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 1, public_key);
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 1, key);
     if(rc != DTC_ERR_NONE)
         return rc;
 
@@ -312,6 +309,29 @@ int db_get_server_id(database_t *db, const char *public_key, char **output) {
 
     sqlite3_finalize(stmt);
 
+}
+
+int db_get_server_id(database_t *db, const char *public_key, char **output) {
+    static const char *sql_query = "SELECT server_id\n"
+                                   "FROM server\n"
+                                   "WHERE public_key = ?;";
+    return get_server_id(db, sql_query, public_key, output);
+}
+
+int db_get_server_id_from_pub_token(database_t *db, const char *pub_token,
+                                    char **output) {
+    static const char *sql_query = "SELECT server_id\n"
+                                   "FROM server\n"
+                                   "WHERE pub_token = ?;";
+    return get_server_id(db, sql_query, pub_token, output);
+}
+
+int db_get_server_id_from_router_token(database_t *db, const char *router_token,
+                                       char **output){
+    static const char *sql_query = "SELECT server_id\n"
+                                   "FROM server\n"
+                                   "WHERE router_token = ?;";
+    return get_server_id(db, sql_query, router_token, output);
 }
 
 int db_is_key_id_available(database_t *db, const char *server_id,

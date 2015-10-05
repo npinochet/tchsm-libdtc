@@ -214,8 +214,6 @@ static struct json_object *serialize_delete_key_share_pub(
 
     ret = json_object_new_object();
 
-    json_object_object_add(ret, "server_id",
-                           json_object_new_string(delete_key_share->server_id));
     json_object_object_add(ret, "key_id",
                            json_object_new_string(delete_key_share->key_id));
     return ret;
@@ -232,12 +230,6 @@ static union command_args *unserialize_delete_key_share_pub(
     if(version != 1)
         goto err_exit;
 
-    if(!json_object_object_get_ex(in, "server_id", &temp)){
-        LOG(LOG_LVL_CRIT, "Key \"server_id\" does not exists.");
-        goto err_exit;
-    }
-    ret->server_id = strdup(json_object_get_string(temp));
-
     if(!json_object_object_get_ex(in, "key_id", &temp)) {
         LOG(LOG_LVL_CRIT, "Key \"key_id\" does not exists.");
         goto err_exit;
@@ -253,7 +245,6 @@ err_exit:
 
 static int delete_delete_key_share_pub(union command_args *data) {
     struct delete_key_share_pub *delete_key_share = &data->delete_key_share_pub;
-    free((void *)delete_key_share->server_id);
     free((void *)delete_key_share->key_id);
     free(data);
     return 0;
@@ -822,7 +813,6 @@ START_TEST(serialize_unserialize_delete_key_share_pub) {
     struct op_req *unserialized_op_req;
     union command_args com_args;
 
-    com_args.delete_key_share_pub.server_id = TEST_SERVER_ID;
     com_args.delete_key_share_pub.key_id = TEST_KEY_ID;
     operation_request.version = 1;
     operation_request.op = OP_DELETE_KEY_SHARE_PUB;
@@ -835,8 +825,6 @@ START_TEST(serialize_unserialize_delete_key_share_pub) {
 
     ck_assert(unserialized_op_req->version == operation_request.version);
     ck_assert(unserialized_op_req->op == operation_request.op);
-    ck_assert_str_eq(unserialized_op_req->args->delete_key_share_pub.server_id,
-                     com_args.delete_key_share_pub.server_id);
 
     ck_assert_str_eq(unserialized_op_req->args->delete_key_share_pub.key_id,
                      com_args.delete_key_share_pub.key_id);

@@ -101,15 +101,21 @@ int db_get_pub_token(database_t *db, const char *server_id, char **output);
  *
  * @param db Active database connection.
  * @param public_key Public key of the server.
- * @param ouput On a success call, the server_id will be popinted by *output.
+ * @param ouput On a success call, the server_id will be pointed by *output.
  *      The memory is dynamic and the caller take responsibility of freeing it
  *      on success.
  *
  *  @return DTC_ERR_NONE on success, a proper positive error code if something
  *      fails or -1 if the server is not stored in the database.
  */
+//TODO Delete this? Seems like it will not be used.
 int db_get_server_id(database_t *db, const char *public_key, char **output);
 
+int db_get_server_id_from_pub_token(database_t *db, const char *pub_token,
+                                    char **output);
+
+int db_get_server_id_from_router_token(database_t *db, const char *router_token,
+                                       char **output);
 /**
  * Add a new server to the DB, this is stored in a temporal table until
  * db_update_servers is called and the old servers are replaced by the new
