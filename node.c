@@ -401,8 +401,8 @@ err_exit:
 
 void handle_delete_key_share_pub(database_t *db_conn, void *router_socket,
                                  struct op_req *pub_op, const char *auth_user) {
-    const char *server_id;
     const char *key_id;
+    char *server_id;
     int ret;
     struct op_req req_op;
     struct delete_key_share_req delete_key_share;
@@ -417,33 +417,32 @@ void handle_delete_key_share_pub(database_t *db_conn, void *router_socket,
         return;
     }
 
-    server_id = pub_op->args->delete_key_share_pub.server_id;
-    key_id = pub_op->args->delete_key_share_pub.key_id;
-
-    if(!auth_pub(db_conn, server_id, auth_user)) {
-        LOG(LOG_LVL_NOTI,
-            "Unauthorized user (%s) dropped at delete_key_share_pub.",
-            server_id)
+    ret = db_get_server_id_from_pub_token(db_conn, auth_user, &server_id);
+    if(ret != DTC_ERR_NONE) {
+        LOG(LOG_LVL_ERRO, "Couldn't retrieve the server id %d", ret)
         return;
     }
 
+    key_id = pub_op->args->delete_key_share_pub.key_id;
+
+    //TODO
     delete_key_share.deleted = db_delete_key(db_conn, server_id, key_id);
 
     req_op.version = 1;
     req_op.op = OP_DELETE_KEY_SHARE_REQ;
     req_op.args = (union command_args *)&delete_key_share;
 
-    ret = zmq_send(router_socket, server_id, strlen(server_id), ZMQ_SNDMORE);
+    ret = zmq_send(router_socket, auth_user, strlen(auth_user), ZMQ_SNDMORE);
     if(ret == -1) {
         LOG(LOG_LVL_ERRO, "Unable to sen msg, zmq_send:%s",
                           zmq_strerror(errno))
-        return;
+        goto err_exit;
     }
 
     size = serialize_op_req(&req_op, &serialized_msg);
     if(size == 0) {
         LOG(LOG_LVL_ERRO, "Unable to serialize delete_key_share_req.")
-        return;
+        goto err_exit;
     }
 
     ret = zmq_msg_init_data(msg, serialized_msg, size, free_wrapper, free);
@@ -451,17 +450,20 @@ void handle_delete_key_share_pub(database_t *db_conn, void *router_socket,
         LOG(LOG_LVL_ERRO, "Unable to initialize the msg: %s",
             zmq_strerror(errno))
         free(serialized_msg);
-        return;
+        goto err_exit;
     }
 
-    zmq_msg_send(msg, router_socket, 0);
+    ret = zmq_msg_send(msg, router_socket, 0);
     if(ret == -1) {
         LOG(LOG_LVL_ERRO, "Unable to send msg: %s", zmq_strerror(errno))
         zmq_msg_close(msg);
-        return;
+        goto err_exit;
     }
 
     printf("Sent: %d\n", ret);
+err_exit:
+    free(server_id);
+    return;
 }
 
 const signature_share_t *sign(database_t *db_conn, const char *auth_user,
@@ -568,16 +570,18 @@ void handle_store_key_pub(database_t *db_conn, void *router_socket,
 void classify_and_handle_operation(database_t *db_conn, void *router_socket,
                                    struct op_req *op, const char *auth_user) {
     unsigned i;
-    #define TOTAL_SUPPORTED_OPS 2
+    #define TOTAL_SUPPORTED_OPS 3
     uint16_t supported_operations[TOTAL_SUPPORTED_OPS] = {OP_STORE_KEY_PUB,
-                                                          OP_SIGN_PUB};
+                                                          OP_SIGN_PUB,
+                                                          OP_DELETE_KEY_SHARE_PUB};
     static void (*const op_handlers[TOTAL_SUPPORTED_OPS]) (
             database_t *db_conn,
             void *router_socket,
             struct op_req *op,
             const char *auth_user) = {
                                     handle_store_key_pub,
-                                    handle_sign_pub};
+                                    handle_sign_pub,
+                                    handle_delete_key_share_pub};
 
     for(i = 0; i < TOTAL_SUPPORTED_OPS; i++) {
         if(op->op == supported_operations[i])
@@ -588,7 +592,7 @@ void classify_and_handle_operation(database_t *db_conn, void *router_socket,
         return;
     }
 
-    (op_handlers[op->op])(db_conn, router_socket, op, auth_user);
+    (op_handlers[i])(db_conn, router_socket, op, auth_user);
 
     return;
 
