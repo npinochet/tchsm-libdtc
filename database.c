@@ -7,8 +7,8 @@
 #include <string.h>
 
 //TODO do not use this anymore.
-#include "blocking_sql3.h"
 #include "database.h"
+#include "blocking_sql3.h"
 #include "err.h"
 #include "logger/logger.h"
 #include "utilities.h"

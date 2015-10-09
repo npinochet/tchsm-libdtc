@@ -645,6 +645,11 @@ err_exit:
 
 }
 
+void *receiver_thr(void *data)
+{
+    return NULL;
+}
+
 static int set_client_socket_security(void *socket,
                                       const char *client_secret_key,
                                       const char *client_public_key) {
