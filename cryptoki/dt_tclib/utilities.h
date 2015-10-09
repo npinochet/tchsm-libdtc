@@ -31,5 +31,13 @@ int lookup_uint16_conf_element(const config_setting_t *setting,
  **/
 int lookup_string_conf_element(const config_setting_t *setting,
                                const char *name, char **value);
+/**
+ * Generate and dump a new uuid into ret.
+ *
+ * @param ret Should point to at least 37 bytes to store the uuid into.
+ *
+ * @return ret
+ */
+char *get_uuid_as_char(char *ret);
 
 #endif // DT_TCLIB_UTILTIES_H_

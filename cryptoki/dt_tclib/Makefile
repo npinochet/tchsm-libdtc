@@ -63,8 +63,8 @@ node: logger.o messages.o node.o err.o database.o utilities.o
 master: master.o err.o logger.o messages.o utilities.o
 	$(CXX) $(CXXFLAGS) $(ZMQ_I) $(TCLIB_L) $(JSONC_L) $(LIBCONFIG_I) $(LIBCONFIG_L) $(TCLIB_L) $(LIBSODIUM_L) $(LDFLAGS) $(ZMQ_L) utilities.o err.o master.o messages.o logger.o -o master  -Wl,-Bstatic -ltc -lconfig -lzmq -lsodium -ljson-c -ltc -Wl,-Bdynamic -lpthread
 
-unit_test: unit_test.c database.o messages.o logger.o
-	$(CC) $(CFLAGS) $(TCLIB_L) $(JSONC_L) database.o messages.o logger.o unit_test.c $(LDFLAGS) -Wl,-Bstatic -ljson-c -ltc -Wl,-Bdynamic -o unit_test
+unit_test: unit_test.c database.o messages.o logger.o utilities.o
+	$(CC) $(CFLAGS) $(TCLIB_L) $(JSONC_L) database.o messages.o logger.o utilities.o unit_test.c $(LDFLAGS) -Wl,-Bstatic -ljson-c -ltc -Wl,-Bdynamic -o unit_test
 
 check: unit_test
 	./unit_test
