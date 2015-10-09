@@ -2,6 +2,7 @@
 
 #include <inttypes.h>
 #include <string.h>
+#include <uuid/uuid.h>
 
 #include "err.h"
 #include "utilities.h"
@@ -52,4 +53,15 @@ int lookup_string_conf_element(const config_setting_t *setting,
         return DTC_ERR_NOMEM;
     }
     return DTC_ERR_NONE;
+}
+
+/**
+ * Generate and dump into ret a uuid, ret must point to at least 37 bytes.
+ */
+char *get_uuid_as_char(char *ret) {
+    uuid_t uuid;
+    uuid_generate(uuid);
+    uuid_unparse(uuid, ret);
+
+    return ret;
 }

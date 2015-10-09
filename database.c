@@ -5,12 +5,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <uuid/uuid.h>
 
-#include "database.h"
+//TODO do not use this anymore.
 #include "blocking_sql3.h"
+#include "database.h"
 #include "err.h"
 #include "logger/logger.h"
+#include "utilities.h"
 
 // DO NOT USE sqlite3_exec for USER PROVIDED queries/arguments.
 #define START_MY_TEST(test_name) START_TEST(test_name)\
@@ -18,15 +19,6 @@
 struct database_conn {
    sqlite3 *ppDb;
 };
-
-// Helpers
-static char *generate_token(char *ret) {
-    uuid_t uuid;
-    uuid_generate(uuid);
-    uuid_unparse(uuid, ret);
-
-    return ret;
-}
 
 int sqlite3_my_blocking_exec(sqlite3 *db, const char *sql_query) {
     sqlite3_stmt *stmt;
@@ -417,7 +409,7 @@ int db_get_new_temp_token(database_t *db, const char *server_public_key,
     sqlite3_stmt *stmt = NULL;
 
     rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2,
-                           generate_token(&token[0]), server_public_key);
+                           get_uuid_as_char(&token[0]), server_public_key);
     if(rc != DTC_ERR_NONE)
         return rc;
 

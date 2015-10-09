@@ -90,8 +90,12 @@ static void free_nodes(unsigned int cant_nodes, struct node_info *node) {
 }
 
 static void free_conf(struct configuration *conf) {
+    unsigned i;
     if(!conf)
         return;
+    for(i = 0; i < conf->cant_nodes; i++)
+        if(conf->nodes[i].public_key)
+            free(conf->nodes[i].public_key);
     free_nodes(conf->cant_nodes, conf->nodes);
     conf->cant_nodes = 0;
     if(conf->public_key)
@@ -208,11 +212,11 @@ static int distribute_key_shares(const char *key_id,
     char *node_identity;
     struct op_req *req_op;
 
+    // TODO use a hashtable to avoid the same node to take more than one key.
     for(i = 0; i < cant_nodes; i ++) {
         if(zmq_msg_init(msg) != 0)
             return DTC_ERR_NOMEM;
 
-        printf("ASD\n");
         node_identity = s_recv(router_socket);
         if(node_identity == NULL) {
             return DTC_ERR_COMMUNICATION;
@@ -269,10 +273,11 @@ static int set_client_socket_security(void *socket,
                                       const char *client_public_key);
 static int create_connect_sockets();
 static int read_configuration_file(struct configuration *conf);
+static int send_pub_op(struct op_req *pub_op, void *socket);
 
 int main(int argc, char **argv){
     int ret_val = 0;
-    public_key_t **info = NULL;
+    key_metainfo_t *info = NULL;
 
     logger_init_stream(stderr);
     LOG(LOG_LVL_NOTI, "Logger started for %s", argv[0]);
@@ -285,16 +290,16 @@ int main(int argc, char **argv){
 
     sleep(1);
 
-    ret_val = dtc_generate_key_shares(ctx, "hola_id", 512, 2, 2, info);
+    ret_val = dtc_generate_key_shares(ctx, "hola_id", 512, 2, 2, &info);
     printf("Generate: %d\n", ret_val);
     if(ret_val != DTC_ERR_NONE)
         return 1;
 
     //ret_val = dtc_delete_key_shares(
 
-    free(info);
+    tc_clear_key_metainfo(info);
 
-    printf("Delete shares: %d\n", dtc_delete_key_shares(ctx, "hola_id"));
+    dtc_delete_key_shares(ctx, "hola_id");
 
     printf("Destroy: %d\n", dtc_destroy(ctx));
 
@@ -358,7 +363,7 @@ err_exit:
 
 int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
                             uint16_t threshold, uint16_t cant_nodes,
-                            public_key_t **info) {
+                            key_metainfo_t **key_metainfo) {
     struct op_req pub_op;
     struct store_key_pub store_key_pub;
     union command_args *args = (union command_args *) &store_key_pub;
@@ -369,7 +374,6 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
     zmq_msg_t *msg = &msg_;
 
     key_share_t **key_shares = NULL;
-    key_metainfo_t *key_metainfo = NULL;
 
     pub_op.version = 1;
     pub_op.op = OP_STORE_KEY_PUB;
@@ -378,7 +382,7 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
     pub_op.args = args;
 
     // TODO(fmontoto) Which memory should I free from here?
-    key_shares = tc_generate_keys(&key_metainfo, bit_size, threshold,
+    key_shares = tc_generate_keys(key_metainfo, bit_size, threshold,
                                   cant_nodes);
     if(!key_shares)
         return DTC_ERR_INTERN;
@@ -405,13 +409,13 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
         return DTC_ERR_COMMUNICATION;
     }
 
-    ret = distribute_key_shares(key_id, ctx->router_socket, key_metainfo,
+    ret = distribute_key_shares(key_id, ctx->router_socket, *key_metainfo,
                                 key_shares, cant_nodes);
 
     if(ret != DTC_ERR_NONE)
         ;//TODO Send msg to delete key_id in the nodes
 
-    tc_clear_key_shares(key_shares, key_metainfo);
+    tc_clear_key_shares(key_shares, *key_metainfo);
 
     return ret;
 }
@@ -419,12 +423,6 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
 void dtc_delete_key_shares(dtc_ctx_t *ctx, const char *key_id) {
     struct op_req pub_op;
     struct delete_key_share_pub delete_key_share;
-    size_t msg_size = 0;
-    char *msg_data = NULL;
-    int ret;
-
-    zmq_msg_t msg_;
-    zmq_msg_t *msg = &msg_;
 
     pub_op.args = (union command_args *) &delete_key_share;
     pub_op.version = 1;
@@ -432,24 +430,56 @@ void dtc_delete_key_shares(dtc_ctx_t *ctx, const char *key_id) {
 
     delete_key_share.key_id = key_id;
 
+    send_pub_op(&pub_op, ctx->pub_socket);
+}
+
+bytes_t *dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
+                  const char *key_id, const uint8_t *message, size_t msg_len) {
+    struct op_req pub_op;
+    struct sign_pub sign_pub;
+    size_t msg_size = 0;
+    char *msg_data = NULL;
+    int ret;
+    char signing_id[37];
+    //bytes_t *signature;
+
+    get_uuid_as_char(signing_id);
+
+    zmq_msg_t msg_;
+    zmq_msg_t *msg = &msg_;
+
+    pub_op.args = (union command_args *) &sign_pub;
+    pub_op.version = 1;
+    pub_op.op = OP_SIGN_PUB;
+
+    sign_pub.signing_id = signing_id;
+    sign_pub.key_id = key_id;
+    sign_pub.message = message;
+    sign_pub.msg_len = msg_len;
+
     msg_size = serialize_op_req(&pub_op, &msg_data);
     if(!msg_size) {
         LOG_DEBUG(LOG_LVL_CRIT, "Serialize error")
-        return ;
+        return NULL;
+    }
 
     ret = zmq_msg_init_data(msg, msg_data, msg_size, free_wrapper, free);
     if(ret) {
         LOG_DEBUG(LOG_LVL_CRIT, "zmq_msg_init_data: %s", zmq_strerror(errno))
         free(msg_data);
-        return;
+        return NULL;
     }
 
     ret = zmq_msg_send(msg, ctx->pub_socket, 0);
     if(ret == 1) {
         LOG_DEBUG(LOG_LVL_CRIT, "Error sending the msg:%s", zmq_strerror(errno))
         zmq_msg_close(msg);
-        return;
+        return NULL;
     }
+
+    //signature = wait_signatures();
+    //TODO
+    return NULL;
 }
 
 int dtc_destroy(dtc_ctx_t *ctx) {
@@ -466,6 +496,35 @@ int dtc_destroy(dtc_ctx_t *ctx) {
     return DTC_ERR_NONE;
 }
 
+static int send_pub_op(struct op_req *pub_op, void *socket) {
+    size_t msg_size = 0;
+    char *msg_data = NULL;
+    int ret;
+    zmq_msg_t msg_;
+    zmq_msg_t *msg = &msg_;
+
+    msg_size = serialize_op_req(pub_op, &msg_data);
+    if(!msg_size) {
+        LOG_DEBUG(LOG_LVL_CRIT, "Serialize error")
+        return DTC_ERR_SERIALIZATION;
+    }
+
+    ret = zmq_msg_init_data(msg, msg_data, msg_size, free_wrapper, free);
+    if(ret) {
+        LOG_DEBUG(LOG_LVL_CRIT, "zmq_msg_init_data: %s", zmq_strerror(errno))
+        free(msg_data);
+        return DTC_ERR_INTERN;
+    }
+
+    ret = zmq_msg_send(msg, socket, 0);
+    if(ret == 1) {
+        LOG_DEBUG(LOG_LVL_CRIT, "Error sending the msg: %s", zmq_strerror(errno))
+        zmq_msg_close(msg);
+        return DTC_ERR_COMMUNICATION;
+    }
+
+    return DTC_ERR_NONE;
+}
 
 static int create_connect_sockets(const struct configuration *conf,
                                   struct dtc_ctx *ctx) {
