@@ -70,10 +70,13 @@ unit_test: unit_test.c database.o messages.o logger.o utilities.o
 	$(CC) $(CFLAGS) $(TCLIB_L) $(JSONC_L) $(LIBCONFIG_L) database.o messages.o logger.o utilities.o unit_test.c $(LDFLAGS) -Wl,-Bstatic -ljson-c -ltc -lconfig -Wl,-Bdynamic -o unit_test
 
 structs_test: structs_test.c structs.o
-	$(CC) $(CFLAGS) structs_test.c structs.o -o structs_test
+	$(CC) $(CFLAGS) structs_test.c structs.o $(LDFLAGS) -o structs_test
 
 check: unit_test structs_test
 	./unit_test && ./structs_test
+
+check_structs: structs_test
+	./structs_test
 
 $(EXE): $(OBJS) $(OBJSLIBS)
 	$(CC) -o $@ $^ $(LDFLAGS)

@@ -5,8 +5,8 @@ struct buffer;
 typedef struct buffer Buffer_t;
 
 struct hash_table;
-typedef struct hash_table ConcurrentHash_t;
-//TODO Fix documentation.
+typedef struct hash_table Hash_t;
+//TODO Fix Buffer documentation.
 /**
  * Create a new concurrent buffer, size specify its capacity, not enough
  * memory or problems initializing the exclusion structures make this function
@@ -46,13 +46,67 @@ int get_nowait(Buffer_t *buf, void **out);
  */
 void free_buffer(Buffer_t *buf);
 
+/**
+ *  Alloc and create a hashtable to store (const char *, Buffer_t) pairs.
+ */
+Hash_t *ht_init_hashtable();
 
-ConcurrentHash_t *cht_init_hashtable();
+/**
+ *  Add an element to the hashtable.
+ *
+ *  @param table Table to add into.
+ *  @param k Key, will be copied to be stored, so it's safe to delete it after
+ *      this function returns.
+ *  @param v Value of the element. Do not store NULL pointers, the behaviour is
+ *      undefined.
+ *
+ *  @return 1 if the element could be added, 0 if it wasn't. An element won't be
+ *      inserted if the key was already in the table.
+ */
+int ht_add_element(Hash_t *table, const char *k, Buffer_t *v);
 
-ConcurrentHash_t *cht_add_element(ConcurrentHash_t *table, char *k, void *v);
+/**
+ * Lock the get function in the table, since this function returns no other
+ * thread can get an element from the table.
+ *
+ * @param table table to lock.
+ */
+void ht_lock_get(Hash_t *table);
 
-int cht_get_element(ConcurrentHash_t *table, char *k, void *v);
+/**
+ * Unlock the get funcion, should be called once by each time ht_lock_get is
+ * called.
+ *
+ * @param table table to unlock.
+ */
+void ht_unlock_get(Hash_t *table);
 
-void cht_free(ConcurrentHash_t *table);
+/**
+ * Get a value from the table.
+ *
+ * @param table Table where to look for the element.
+ * @param k Key of the value to be returned.
+ *
+ * @return The value if the key was present in table, NULL otherwise.
+ */
+Buffer_t *ht_get_element(Hash_t *table, const char *k);
+
+/**
+ * Get a value from the table and remove it.
+ *
+ * @param table Table where to look for the element.
+ * @param k Key of the value to be returned.
+ *
+ * @return The value if the key was present in table, NULL otherwise.
+ */
+Buffer_t *ht_get_and_delete_element(Hash_t *table, const char *k);
+
+/**
+ *  Delete and deallocate the hashtable, if elements are present, will free the
+ *  keys and delete the values, the pointed memory of the value will not be free
+ *  by this function. To call this function no other thread should be using the
+ *  table and the get funcion can not be lock by ht_get_lock.
+ */
+void ht_free(Hash_t *table);
 
 #endif
