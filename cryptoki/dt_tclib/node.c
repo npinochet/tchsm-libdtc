@@ -80,7 +80,8 @@ struct zap_handler_data {
 //
 //  Caller must free returned string. Returns NULL if the context
 //  is being terminated.
-static char *s_recv (void *socket) {
+static char *s_recv (void *socket)
+{
     char buffer [256];
     int size = zmq_recv(socket, buffer, 255, 0);
     if (size == -1)
@@ -91,24 +92,28 @@ static char *s_recv (void *socket) {
     return strdup(buffer);
 }
 //  Convert C string to 0MQ string and send to socket
-int s_send(void *socket, const char *string) {
+int s_send(void *socket, const char *string)
+{
     int size = zmq_send(socket, string, strlen(string), 0);
     return size;
 }
 
 //  Sends string as 0MQ string, as multipart non-terminal
-int s_sendmore(void *socket, const char *string) {
+int s_sendmore(void *socket, const char *string)
+{
     int size = zmq_send (socket, string, strlen(string), ZMQ_SNDMORE);
     return size;
 }
 
-static void free_wrapper(void *data, void *hint) {
+static void free_wrapper(void *data, void *hint)
+{
     void (*free_function)(void *) = (void (*)(void *))hint;
     free_function(data);
 }
 
 /* Safe conversion from str to uint16_t */
-int str_to_uint16(const char *str, uint16_t *res){
+int str_to_uint16(const char *str, uint16_t *res)
+{
     errno = 0;
     unsigned long int result = strtoul(str, NULL, 10);
     if (errno == ERANGE || result > UINT16_MAX)
@@ -118,7 +123,8 @@ int str_to_uint16(const char *str, uint16_t *res){
 }
 
 /* Return a human readable version of the configuration */
-static char* configuration_to_string(const struct configuration *conf){
+static char* configuration_to_string(const struct configuration *conf)
+{
     /* Be aware, this memory is shared among the aplication, this function
      * should be called just once or the memory of the previous calls might get
      * corrupted.
@@ -132,7 +138,6 @@ static char* configuration_to_string(const struct configuration *conf){
     return &buff[0];
 }
 
-
 // Just declarations, see definitions for documentation.
 static int read_configuration(int argc, char *argv[], struct configuration *conf);
 static struct communication_objects *init_node(const struct configuration *conf);
@@ -142,7 +147,8 @@ static int node_loop();
 static int set_server_socket_security(void *socket, char *server_secret_key);
 static void zap_handler (void *handler);
 
-static void update_database(struct configuration *conf) {
+static void update_database(struct configuration *conf)
+{
     unsigned i;
     database_t *db_conn = db_init_connection(conf->database);
     EXIT_ON_FALSE(db_conn, "Error trying to connect to the database.");
@@ -156,7 +162,9 @@ static void update_database(struct configuration *conf) {
     EXIT_ON_FALSE(db_update_servers(db_conn) == 0, "Update servers failed.");
     db_close_and_free_connection(db_conn);
 }
-int main(int argc, char **argv){
+
+int main(int argc, char **argv)
+{
     int ret_val = 0;
 
     // Default configuration.
@@ -192,7 +200,8 @@ int main(int argc, char **argv){
  * @return DTC_ERR_NONE on success, a proper error code on error.
  *
  **/
-static int read_configuration_file(struct configuration *conf) {
+static int read_configuration_file(struct configuration *conf)
+{
     config_t cfg;
     config_setting_t *root, *masters, *node, *element;
     int cant_masters = 0, rc;
@@ -267,7 +276,8 @@ static int read_configuration_file(struct configuration *conf) {
  *  1 on unrecoverable error, 0 otherwise.
  */
 static int read_configuration(int argc, char *argv[],
-                               struct configuration *conf) {
+                               struct configuration *conf)
+{
     int option_index = 0;
     char c;
     static struct option long_options[] = {
@@ -303,7 +313,8 @@ static int read_configuration(int argc, char *argv[],
 }
 
 static int auth_pub(database_t *conn, const char *server_id,
-                    const char *auth_user) {
+                    const char *auth_user)
+{
     char *output;
     int ret;
     if(DTC_ERR_NONE != db_get_pub_token(conn, server_id, &output))
@@ -314,7 +325,8 @@ static int auth_pub(database_t *conn, const char *server_id,
 }
 
 static int auth_router(database_t *conn, const char *server_id,
-                       const char *auth_user) {
+                       const char *auth_user)
+{
     char *output;
     int ret;
     if(DTC_ERR_NONE != db_get_router_token(conn, server_id, &output))
@@ -325,7 +337,8 @@ static int auth_router(database_t *conn, const char *server_id,
 }
 
 void store_key(database_t *db_conn, const char *server_id,
-               struct store_key_res *res_op) {
+               struct store_key_res *res_op)
+{
     int rc;
     char *key_metainfo = tc_serialize_key_metainfo(res_op->meta_info);
     char *key_share = tc_serialize_key_share(res_op->key_share);
@@ -341,8 +354,10 @@ void store_key(database_t *db_conn, const char *server_id,
             server_id)
     return;
 }
+
 void handle_store_key_res(database_t *db_conn, void *router_socket,
-                          struct op_req *pub_op, struct op_req *req_op) {
+                          struct op_req *pub_op, struct op_req *req_op)
+{
     char *identity;
     int rc;
     zmq_msg_t msg_;
@@ -400,7 +415,8 @@ err_exit:
 }
 
 void handle_delete_key_share_pub(database_t *db_conn, void *router_socket,
-                                 struct op_req *pub_op, const char *auth_user) {
+                                 struct op_req *pub_op, const char *auth_user)
+{
     const char *key_id;
     char *server_id;
     int ret;
@@ -473,8 +489,10 @@ const signature_share_t *sign(database_t *db_conn, const char *auth_user,
     //TODO chanfe brackets in the function definitions as this.
     return NULL;
 }
+
 void handle_sign_pub(database_t *db_conn, void *router_socket,
-                     struct op_req *pub_op, const char *auth_user) {
+                     struct op_req *pub_op, const char *auth_user)
+{
     const char *signing_id;
     const char *key_id;
     const uint8_t *message;
@@ -500,7 +518,8 @@ void handle_sign_pub(database_t *db_conn, void *router_socket,
 }
 
 void handle_store_key_pub(database_t *db_conn, void *router_socket,
-                          struct op_req *pub_op, const char *auth_user) {
+                          struct op_req *pub_op, const char *auth_user)
+{
     const char *server_id;
     char *serialized_msg;//, *token;
     struct op_req req_op;
@@ -568,7 +587,8 @@ void handle_store_key_pub(database_t *db_conn, void *router_socket,
 }
 
 void classify_and_handle_operation(database_t *db_conn, void *router_socket,
-                                   struct op_req *op, const char *auth_user) {
+                                   struct op_req *op, const char *auth_user)
+{
     unsigned i;
     #define TOTAL_SUPPORTED_OPS 3
     uint16_t supported_operations[TOTAL_SUPPORTED_OPS] = {OP_STORE_KEY_PUB,
@@ -597,7 +617,9 @@ void classify_and_handle_operation(database_t *db_conn, void *router_socket,
     return;
 
 }
-void *classifier_thr(void *classifier_thread_data) {
+
+void *classifier_thr(void *classifier_thread_data)
+{
     int rc = 0;
     void *inproc_socket = NULL;
     void *router_socket = NULL;
@@ -667,7 +689,8 @@ void *classifier_thr(void *classifier_thread_data) {
 
 static void create_classifier_thread(void *zmq_ctx, void *router_socket,
                                      char *classifier_socket_address,
-                                     const struct configuration *conf) {
+                                     const struct configuration *conf)
+{
     int ret;
     pthread_t pid;
     struct classifier_data *classifier_data =
@@ -681,7 +704,8 @@ static void create_classifier_thread(void *zmq_ctx, void *router_socket,
 }
 
 static struct communication_objects *init_node(
-        const struct configuration *configuration) {
+        const struct configuration *configuration)
+{
     // TODO(fmontoto) Initialize the database.
 
     struct communication_objects *comm_objs;
@@ -702,8 +726,8 @@ static struct communication_objects *init_node(
 
 // TODO --help should print usage
 
-static void set_zap_security(void *zmq_ctx, char *database) {
-
+static void set_zap_security(void *zmq_ctx, char *database)
+{
     int ret_value;
     struct zap_handler_data *zap_data =
         (struct zap_handler_data *) malloc(sizeof(struct zap_handler_data));
@@ -721,8 +745,8 @@ static void set_zap_security(void *zmq_ctx, char *database) {
  * TODO
  **/
 static struct communication_objects *create_and_bind_sockets(
-        const struct configuration *conf){
-
+        const struct configuration *conf)
+{
     const size_t bind_buff_length = 200;
     char bind_buff[bind_buff_length];
     struct communication_objects *ret_val =
@@ -826,7 +850,8 @@ static struct communication_objects *create_and_bind_sockets(
  *   0 on success, a non zero value indicates that the socket is not secure.
  */
 // TODO const the key
-static int set_server_socket_security(void *socket, char *server_secret_key){
+static int set_server_socket_security(void *socket, char *server_secret_key)
+{
     int rc = 0, as_server = 1;
     rc = zmq_setsockopt(socket, ZMQ_CURVE_SERVER, &as_server,
                         sizeof(as_server));
@@ -841,7 +866,8 @@ static int set_server_socket_security(void *socket, char *server_secret_key){
     return 0;
 }
 
-static int node_loop(struct communication_objects *communication_objs){
+static int node_loop(struct communication_objects *communication_objs)
+{
     zmq_msg_t rcvd_msg_;
     zmq_msg_t *rcvd_msg = &rcvd_msg_;
     const char *user_id;
