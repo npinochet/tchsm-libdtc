@@ -41,6 +41,21 @@ void *get(Buffer_t *buf);
  */
 int get_nowait(Buffer_t *buf, void **out);
 
+/**
+ * Wait until there are at least n element in the buffer.
+ * This will return iff there are at least n elements in the buffer, but it's
+ * not guaranteed that every time that there are n or more elements it will
+ * return, since the n element might be returned by a get before this function
+ * cah check it. That said, if there are no get waiting for elements, it will
+ * return each time the list has at least n elements. Be aware that if you're
+ * getting elements from the bufer once this function returns the list might
+ * have less than n elements.
+ *
+ * @param buf The buffer.
+ * @param n The amount of elements to wait for.
+ */
+void wait_n_elements(Buffer_t *buf, unsigned n);
+
 /** Try to free the buffer, if there are still some values in the buffer, will
  *  not free it, instead will print an error in the stderr.
  */

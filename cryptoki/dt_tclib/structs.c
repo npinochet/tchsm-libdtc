@@ -114,6 +114,17 @@ int get_nowait(Buffer_t *buf, void **out)
     return 0;
 }
 
+void *wait_n_elements(Buffer_t *buf, unsigned n)
+{
+    pthread_mutex_lock(&buf->mutex);
+    while(buf->cnt <= n) {
+        pthread_cond_wait(&buf->noempty, &buf->mutex);
+        // If i'm not taking the new element, give the chance to another one.
+        pthread_cond_signal(&buf->noempty);
+    }
+    pthread_mutex_unlock(&buf->mutex);
+}
+
 void free_buffer(Buffer_t *buf)
 {
     if(buf->cnt) {
