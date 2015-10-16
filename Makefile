@@ -69,7 +69,7 @@ master: master.o err.o logger.o messages.o utilities.o
 unit_test: unit_test.c database.o messages.o logger.o utilities.o
 	$(CC) $(CFLAGS) $(TCLIB_L) $(JSONC_L) $(LIBCONFIG_L) database.o messages.o logger.o utilities.o unit_test.c $(LDFLAGS) -Wl,-Bstatic -ljson-c -ltc -lconfig -Wl,-Bdynamic -o unit_test
 
-structs_test: structs_test.c structs.o
+structs_test: structs_test.c structs.h
 	$(CC) $(CFLAGS) structs_test.c structs.o $(LDFLAGS) -o structs_test
 
 check: unit_test structs_test
