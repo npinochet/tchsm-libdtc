@@ -273,7 +273,8 @@ static void free_nodes(unsigned int cant_nodes, struct node_info *node);
 static int set_client_socket_security(void *socket,
                                       const char *client_secret_key,
                                       const char *client_public_key);
-static int create_connect_sockets();
+static int create_connect_sockets(const struct configuration *conf,
+                                  struct dtc_ctx *ctx);
 static int read_configuration_file(struct configuration *conf);
 static int send_pub_op(struct op_req *pub_op, void *socket);
 
@@ -580,7 +581,6 @@ static int create_connect_sockets(const struct configuration *conf,
                       strerror(errno));
             return DTC_ERR_ZMQ_CURVE;
         }
-
 
         ret_val = snprintf(&buff[0], BUFF_SIZE, "%s://%s:%" PRIu16,
                            protocol, conf->nodes[i].ip,
