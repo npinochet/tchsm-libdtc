@@ -114,7 +114,7 @@ int get_nowait(Buffer_t *buf, void **out)
     return 0;
 }
 
-void *wait_n_elements(Buffer_t *buf, unsigned n)
+void wait_n_elements(Buffer_t *buf, unsigned n)
 {
     pthread_mutex_lock(&buf->mutex);
     while(buf->cnt <= n) {
