@@ -372,11 +372,7 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
     struct op_req pub_op;
     struct store_key_pub store_key_pub;
     union command_args *args = (union command_args *) &store_key_pub;
-    size_t msg_size = 0;
-    char *msg_data = NULL;
     int ret;
-    zmq_msg_t msg_;
-    zmq_msg_t *msg = &msg_;
 
     key_share_t **key_shares = NULL;
 
@@ -392,33 +388,14 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
     if(!key_shares)
         return DTC_ERR_INTERN;
 
-    msg_size = serialize_op_req(&pub_op, &msg_data);
-    if(!msg_size)
-        // TODO(fmontoto free memory of tc_generate_keys
-        return DTC_ERR_SERIALIZATION;
-
-    ret = zmq_msg_init_data(msg, msg_data, msg_size, free_wrapper, free);
-    if(ret) {
-        LOG_DEBUG(LOG_LVL_CRIT, "zmq_msg_init_data failed");
-        free(msg_data);
-        // TODO(fmontoto free memory of tc_generate_keys
-        return DTC_ERR_INTERN;
-    }
-
-    ret = zmq_msg_send(msg, ctx->pub_socket, 0);
-    if(ret  == -1) {
-        LOG_DEBUG(LOG_LVL_CRIT, "zmq_msg_send:%s\n%s", zmq_strerror(errno),
-                  "Error sending the message.");
-        zmq_msg_close(msg);
-        // TODO(fmontoto free memory of tc_generate_keys
-        return DTC_ERR_COMMUNICATION;
+    ret = send_pub_op(&pub_op, ctx->pub_socket);
+    if(ret != DTC_ERR_NONE) {
+        //TODO Free memory from key shares.
+        return ret;
     }
 
     ret = distribute_key_shares(key_id, ctx->router_socket, *key_metainfo,
                                 key_shares, cant_nodes);
-
-    if(ret != DTC_ERR_NONE)
-        ;//TODO Send msg to delete key_id in the nodes
 
     tc_clear_key_shares(key_shares, *key_metainfo);
 
