@@ -67,18 +67,14 @@ struct configuration {
 
 };
 
-struct communication_objects {
-    void *ctx;
-    void *sub_socket;
-    void *dealer_socket;
-};
-
-static void free_wrapper(void *data, void *hint) {
+static void free_wrapper(void *data, void *hint)
+{
     void (*free_function)(void *) = (void (*)(void *))hint;
     free_function(data);
 }
 
-static void free_nodes(unsigned int cant_nodes, struct node_info *node) {
+static void free_nodes(unsigned int cant_nodes, struct node_info *node)
+{
     unsigned int i;
     if(!node)
         return;
@@ -89,7 +85,8 @@ static void free_nodes(unsigned int cant_nodes, struct node_info *node) {
     free(node);
 }
 
-static void free_conf(struct configuration *conf) {
+static void free_conf(struct configuration *conf)
+{
     unsigned i;
     if(!conf)
         return;
@@ -108,12 +105,15 @@ static void free_conf(struct configuration *conf) {
         free(conf->server_id);
 }
 
-static int s_sendmore(void *socket, const char *string) {
+static int s_sendmore(void *socket, const char *string)
+{
     int size = zmq_send (socket, string, strlen(string), ZMQ_SNDMORE);
     return size;
 }
+
 /* Return a human readable version of the configuration */
-static char* configuration_to_string(const struct configuration *conf){
+static char* configuration_to_string(const struct configuration *conf)
+{
     /* Be aware, this memory is shared among the aplication, this function
      * should be called just once or the memory of the previous calls might get
      * corrupted.
@@ -143,7 +143,8 @@ static char* configuration_to_string(const struct configuration *conf){
     return &buff[0];
 }
 
-static char *s_recv (void *socket) {
+static char *s_recv (void *socket)
+{
     char buffer [256];
     int size = zmq_recv(socket, buffer, 255, 0);
     if (size == -1)
@@ -156,7 +157,8 @@ static char *s_recv (void *socket) {
 
 static int send_key_share(const char *key_id, void *router_socket,
                           key_metainfo_t *key_metainfo, key_share_t *key_share,
-                          const char *node_identity) {
+                          const char *node_identity)
+{
     struct op_req res_op;
     struct store_key_res store_key_res;
     size_t size;
@@ -203,8 +205,8 @@ static int distribute_key_shares(const char *key_id,
                                  void *router_socket,
                                  key_metainfo_t *key_metainfo,
                                  key_share_t **key_shares,
-                                 unsigned cant_nodes) {
-
+                                 unsigned cant_nodes)
+{
     zmq_msg_t msg_;
     zmq_msg_t *msg = &msg_;
     int ret;
@@ -275,7 +277,8 @@ static int create_connect_sockets();
 static int read_configuration_file(struct configuration *conf);
 static int send_pub_op(struct op_req *pub_op, void *socket);
 
-int main(int argc, char **argv){
+int main(int argc, char **argv)
+{
     int ret_val = 0;
     key_metainfo_t *info = NULL;
 
@@ -308,7 +311,8 @@ int main(int argc, char **argv){
     return 0;
 }
 
-dtc_ctx_t *dtc_init(const char *config_file, int *err) {
+dtc_ctx_t *dtc_init(const char *config_file, int *err)
+{
     struct configuration conf;
     int error;
     char *default_conf_file = "./config";
@@ -363,7 +367,8 @@ err_exit:
 
 int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
                             uint16_t threshold, uint16_t cant_nodes,
-                            key_metainfo_t **key_metainfo) {
+                            key_metainfo_t **key_metainfo)
+{
     struct op_req pub_op;
     struct store_key_pub store_key_pub;
     union command_args *args = (union command_args *) &store_key_pub;
@@ -420,7 +425,8 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
     return ret;
 }
 
-void dtc_delete_key_shares(dtc_ctx_t *ctx, const char *key_id) {
+void dtc_delete_key_shares(dtc_ctx_t *ctx, const char *key_id)
+{
     struct op_req pub_op;
     struct delete_key_share_pub delete_key_share;
 
@@ -434,7 +440,8 @@ void dtc_delete_key_shares(dtc_ctx_t *ctx, const char *key_id) {
 }
 
 bytes_t *dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
-                  const char *key_id, const uint8_t *message, size_t msg_len) {
+                  const char *key_id, const uint8_t *message, size_t msg_len)
+{
     struct op_req pub_op;
     struct sign_pub sign_pub;
     size_t msg_size = 0;
@@ -482,7 +489,8 @@ bytes_t *dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
     return NULL;
 }
 
-int dtc_destroy(dtc_ctx_t *ctx) {
+int dtc_destroy(dtc_ctx_t *ctx)
+{
     if(!ctx)
         return DTC_ERR_NONE;
 
@@ -496,7 +504,8 @@ int dtc_destroy(dtc_ctx_t *ctx) {
     return DTC_ERR_NONE;
 }
 
-static int send_pub_op(struct op_req *pub_op, void *socket) {
+static int send_pub_op(struct op_req *pub_op, void *socket)
+{
     size_t msg_size = 0;
     char *msg_data = NULL;
     int ret;
@@ -516,6 +525,8 @@ static int send_pub_op(struct op_req *pub_op, void *socket) {
         return DTC_ERR_INTERN;
     }
 
+    //TODO sockets are not thread safe, a mutex should be used here if we want
+    //to accept calls from different threads.
     ret = zmq_msg_send(msg, socket, 0);
     if(ret == 1) {
         LOG_DEBUG(LOG_LVL_CRIT, "Error sending the msg: %s", zmq_strerror(errno))
@@ -527,7 +538,8 @@ static int send_pub_op(struct op_req *pub_op, void *socket) {
 }
 
 static int create_connect_sockets(const struct configuration *conf,
-                                  struct dtc_ctx *ctx) {
+                                  struct dtc_ctx *ctx)
+{
     void *pub_socket, *router_socket;
     int ret_val = 0;
     int i = 0;
@@ -642,17 +654,22 @@ err_exit:
     zmq_close(router_socket);
     zmq_ctx_destroy(zmq_ctx);
     return ret;
-
 }
 
-void *receiver_thr(void *data)
+void *router_thr(void *data)
+{
+    return NULL;
+}
+
+void *pub_thr(void *data)
 {
     return NULL;
 }
 
 static int set_client_socket_security(void *socket,
                                       const char *client_secret_key,
-                                      const char *client_public_key) {
+                                      const char *client_public_key)
+{
     int rc = 0;
 
     rc = zmq_setsockopt(socket, ZMQ_CURVE_PUBLICKEY, client_public_key,
@@ -682,7 +699,8 @@ static int set_client_socket_security(void *socket,
  * @return DTC_ERR_NONE on success, a proper error code on error.
  *
  **/
-static int read_configuration_file(struct configuration *conf) {
+static int read_configuration_file(struct configuration *conf)
+{
     config_t cfg;
     config_setting_t *root, *master, *nodes, *element;
     int cant_nodes = 0, rc;
