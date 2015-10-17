@@ -355,6 +355,8 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err)
 
     ret->timeout = conf.timeout;
 
+    //start_receiver_thread(ret);
+
     free_conf(&conf);
 
     return ret;
@@ -364,7 +366,13 @@ err_exit:
     free_conf(&conf);
     return NULL;
 }
-
+/*
+static int start_router_socket_handler(dtc_ctx_t *ctx)
+{
+    void *inproc_socket;
+    inproc_socket = zmq_socket(zmq_ctx, ZMQ_SUB);
+}
+*/
 
 int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
                             uint16_t threshold, uint16_t cant_nodes,
@@ -422,16 +430,11 @@ bytes_t *dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
 {
     struct op_req pub_op;
     struct sign_pub sign_pub;
-    size_t msg_size = 0;
-    char *msg_data = NULL;
     int ret;
     char signing_id[37];
     //bytes_t *signature;
 
     get_uuid_as_char(signing_id);
-
-    zmq_msg_t msg_;
-    zmq_msg_t *msg = &msg_;
 
     pub_op.args = (union command_args *) &sign_pub;
     pub_op.version = 1;
@@ -442,23 +445,9 @@ bytes_t *dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
     sign_pub.message = message;
     sign_pub.msg_len = msg_len;
 
-    msg_size = serialize_op_req(&pub_op, &msg_data);
-    if(!msg_size) {
-        LOG_DEBUG(LOG_LVL_CRIT, "Serialize error")
-        return NULL;
-    }
-
-    ret = zmq_msg_init_data(msg, msg_data, msg_size, free_wrapper, free);
-    if(ret) {
-        LOG_DEBUG(LOG_LVL_CRIT, "zmq_msg_init_data: %s", zmq_strerror(errno))
-        free(msg_data);
-        return NULL;
-    }
-
-    ret = zmq_msg_send(msg, ctx->pub_socket, 0);
-    if(ret == 1) {
-        LOG_DEBUG(LOG_LVL_CRIT, "Error sending the msg:%s", zmq_strerror(errno))
-        zmq_msg_close(msg);
+    ret = send_pub_op(&pub_op, ctx->pub_socket);
+    if(ret != DTC_ERR_NONE) {
+        LOG_DEBUG(LOG_LVL_CRIT, "Send pub msg error")
         return NULL;
     }
 
