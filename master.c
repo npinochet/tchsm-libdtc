@@ -276,8 +276,6 @@ int main(int argc, char **argv)
 
     printf("Destroy: %d\n", dtc_destroy(ctx));
 
-    sleep(1);
-
     return 0;
 }
 
@@ -540,7 +538,6 @@ void *router_socket_handler(void *data_)
         }
         // Inproc socket rcvd a message to be sent using the router socket.
         if(items[1].revents) {
-            printf("Received inproc\n");
             rc = zmq_msg_init(msg);
             if(rc != 0) {
                 LOG_DEBUG(LOG_LVL_ERRO, "Error initializing msg")
