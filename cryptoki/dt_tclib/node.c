@@ -346,7 +346,7 @@ static int send_op(const char *server_id, const struct op_req *op, void *socket)
     zmq_msg_t msg_;
     zmq_msg_t *msg = &msg_;
 
-    printf("Seending to %s\n", server_id);
+    printf("Sending to %s\n", server_id);
     msg_size = serialize_op_req(op, &msg_data);
     if(!msg_size) {
         LOG(LOG_LVL_CRIT, "Serialize error at send_op")
@@ -402,6 +402,8 @@ void handle_store_key_res(database_t *db_conn, void *router_socket,
     zmq_msg_t *msg = &msg_;
     struct op_req *res_op;
 
+    printf("handle_store_key_res\n");
+
     if(zmq_msg_init(msg) != 0) {
         LOG(LOG_LVL_ERRO, "Error initializing msg: %s", zmq_strerror(errno));
         return;
@@ -413,6 +415,7 @@ void handle_store_key_res(database_t *db_conn, void *router_socket,
         zmq_msg_close(msg);
         return;
     }
+    printf("handle_store_key_res received a msg\n");
 
     rc = zmq_msg_recv(msg, router_socket, 0);
     if(rc == -1) {
