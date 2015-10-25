@@ -42,6 +42,24 @@ void *get(Buffer_t *buf);
 int get_nowait(Buffer_t *buf, void **out);
 
 /**
+ * Wait until the buffer has no elements.
+ *
+ * This will wait until the buffer has no elements to return, however
+ * there is no guaranteed that every time that the buffer gets empty it will
+ * return, another thread might put a new value before this thread wake up.
+ * There is also not guaranteed that after this function returns the buffer
+ * will be still empty. If there are no threads adding elements this function
+ * will return any time the buffer gets empty.
+ *
+ * @param buf The buffer.
+ * @param timeout after timeout seg the function will exit on timeout.
+ *
+ * @return 0 if returned because an empty buffer, 1 if it returned on timeout.
+ */
+int wait_until_empty(Buffer_t *buf, unsigned timeout);
+
+/**
+ * NOT IMPLEMENTED
  * Wait until there are at least n element in the buffer.
  * This will return iff there are at least n elements in the buffer, but it's
  * not guaranteed that every time that there are n or more elements it will
@@ -78,7 +96,7 @@ Hash_t *ht_init_hashtable();
  *  @return 1 if the element could be added, 0 if it wasn't. An element won't be
  *      inserted if the key was already in the table.
  */
-int ht_add_element(Hash_t *table, const char *k, Buffer_t *v);
+int ht_add_element(Hash_t *table, const char *k, void *v);
 
 /**
  * Lock the get function in the table, since this function returns no other
@@ -101,20 +119,24 @@ void ht_unlock_get(Hash_t *table);
  *
  * @param table Table where to look for the element.
  * @param k Key of the value to be returned.
+ * @param out If it isn't NULL and k exists, will point to the value of the
+ *      element stored with k.
  *
- * @return The value if the key was present in table, NULL otherwise.
+ * @return 1 if the element is present, 0 if it's not.
  */
-Buffer_t *ht_get_element(Hash_t *table, const char *k);
+int ht_get_element(Hash_t *table, const char *k, void **out);
 
 /**
  * Get a value from the table and remove it.
  *
  * @param table Table where to look for the element.
  * @param k Key of the value to be returned.
+ * @param out If it isn't NULL and k exists, will point to the value of the
+ *      element stored with k.
  *
- * @return The value if the key was present in table, NULL otherwise.
+ * @return 1 if the element is present, 0 if it's not.
  */
-Buffer_t *ht_get_and_delete_element(Hash_t *table, const char *k);
+int ht_get_and_delete_element(Hash_t *table, const char *k, void **out);
 
 /**
  *  Delete and deallocate the hashtable, if elements are present, will free the

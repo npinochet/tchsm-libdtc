@@ -12,6 +12,7 @@ enum {
     DTC_ERR_SERIALIZATION,
     DTC_ERR_DATABASE,
     DTC_ERR_INTERN,
+    DTC_ERR_INVALID_VAL,
 
     DTC_ERR_MAX_ // Keep at the end!!
 };

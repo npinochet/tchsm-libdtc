@@ -114,6 +114,19 @@ int get_nowait(Buffer_t *buf, void **out)
     return 0;
 }
 
+//TODO implement timeout.
+int wait_until_empty(Buffer_t *buf, unsigned timeout)
+{
+    pthread_mutex_lock(&buf->mutex);
+    while(buf->cnt != 0) {
+        pthread_cond_wait(&buf->nofull, &buf->mutex);
+        pthread_cond_signal(&buf->nofull);
+    }
+    pthread_mutex_unlock(&buf->mutex);
+    return 0;
+
+}
+
 void wait_n_elements(Buffer_t *buf, unsigned n)
 {
     pthread_mutex_lock(&buf->mutex);
@@ -136,7 +149,7 @@ void free_buffer(Buffer_t *buf)
 }
 
 
-KHASH_MAP_INIT_STR(h_table, Buffer_t *)
+KHASH_MAP_INIT_STR(h_table, void *)
 
 typedef struct hash_table{
     khash_t(h_table) *h_t;
@@ -169,50 +182,53 @@ void ht_unlock_get(Hash_t *table)
     pthread_mutex_unlock(&table->get_mutex);
 }
 
-int ht_add_element(Hash_t *table, const char *k, Buffer_t *v)
+int ht_add_element(Hash_t *table, const char *k, void *v)
 {
     khint_t hint;
     int absent;
+    pthread_mutex_lock(&table->get_mutex);
     hint = kh_put(h_table, table->h_t, k, &absent);
     if(!absent) {
         kh_del(h_table, table->h_t, hint);
+        pthread_mutex_unlock(&table->get_mutex);
         return 0;
     }
     kh_key(table->h_t, hint) = strdup(k);
     kh_value(table->h_t, hint) = v;
+    pthread_mutex_unlock(&table->get_mutex);
     return 1;
 }
 
-static Buffer_t *ht_get_el(Hash_t *table, const char *k, int del)
+static int ht_get_el(Hash_t *table, const char *k, void **out, int del)
 {
     int is_missing;
     khint_t hint;
-    Buffer_t *ret;
     pthread_mutex_lock(&table->get_mutex);
     hint = kh_get(h_table, table->h_t, k);
     is_missing  = (hint == kh_end(table->h_t));
     if(is_missing) {
         kh_del(h_table, table->h_t, hint);
         pthread_mutex_unlock(&table->get_mutex);
-        return NULL;
+        return 0;
     }
-    ret = kh_value(table->h_t, hint);
+    if(out)
+        *out = kh_value(table->h_t, hint);
     if(del) {
         free((char *)kh_key(table->h_t, hint));
         kh_del(h_table, table->h_t, hint);
     }
     pthread_mutex_unlock(&table->get_mutex);
-    return ret;
+    return 1;
 }
 
-Buffer_t *ht_get_element(Hash_t *table, const char *k)
+int ht_get_element(Hash_t *table, const char *k, void **out)
 {
-    return ht_get_el(table, k, 0);
+    return ht_get_el(table, k, out, 0);
 }
 
-Buffer_t *ht_get_and_delete_element(Hash_t *table, const char *k)
+int ht_get_and_delete_element(Hash_t *table, const char *k, void **out)
 {
-    return ht_get_el(table, k, 1);
+    return ht_get_el(table, k, out, 1);
 }
 
 void ht_free(Hash_t *table)

@@ -63,8 +63,8 @@ structs.o: structs.c structs.h
 node: logger.o messages.o node.o err.o database.o utilities.o
 	$(CXX) $(LDFLAGS) $(CFLAGS) $(TCLIB_L) $(ZMQ_L) $(LIBCONFIG_L) $(LIBSODIUM_L) $(JSONC_L) -L/usr/local/lib messages.o utilities.o node.o err.o database.o logger.o -o node -Wl,-Bstatic -lconfig -lzmq -lsodium -ljson-c -ltc -Wl,-Bdynamic -lpthread
 
-master: master.o err.o logger.o messages.o utilities.o
-	$(CXX) $(CXXFLAGS) $(ZMQ_I) $(TCLIB_L) $(JSONC_L) $(LIBCONFIG_I) $(LIBCONFIG_L) $(TCLIB_L) $(LIBSODIUM_L) $(LDFLAGS) $(ZMQ_L) utilities.o err.o master.o messages.o logger.o -o master  -Wl,-Bstatic -ltc -lconfig -lzmq -lsodium -ljson-c -ltc -Wl,-Bdynamic -lpthread
+master: master.o err.o logger.o messages.o utilities.o structs.o
+	$(CXX) $(CXXFLAGS) $(ZMQ_I) $(TCLIB_L) $(JSONC_L) $(LIBCONFIG_I) $(LIBCONFIG_L) $(TCLIB_L) $(LIBSODIUM_L) $(LDFLAGS) $(ZMQ_L) utilities.o err.o master.o messages.o logger.o structs.o -o master  -Wl,-Bstatic -ltc -lconfig -lzmq -lsodium -ljson-c -ltc -Wl,-Bdynamic -lpthread
 
 unit_test: unit_test.c database.o messages.o logger.o utilities.o
 	$(CC) $(CFLAGS) $(TCLIB_L) $(JSONC_L) $(LIBCONFIG_L) database.o messages.o logger.o utilities.o unit_test.c $(LDFLAGS) -Wl,-Bstatic -ljson-c -ltc -lconfig -Wl,-Bdynamic -o unit_test
