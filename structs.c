@@ -223,6 +223,36 @@ int uht_get_and_delete_element(Uint16_Hash_t *table, const char *k,
     return uht_get_el(table, k, out, 1);
 }
 
+int uht_next(Uint16_Hash_t *table, unsigned *prev_it, const char **key,
+             uint16_t *val)
+{
+    khash_t(u_table) *t = table->h_t;
+    unsigned k = *prev_it;
+    khint_t hint;
+    const char *key_;
+
+    if(k >= kh_end(t))
+        return 0;
+
+    for(;k < kh_end(t); k++)
+        if(kh_exist(t, k))
+            break;
+
+    *prev_it = k + 1;
+    if(k >= kh_end(t))
+        return 0;
+
+    key_ = kh_key(t, k);
+
+    if(key)
+        *key = key_;
+    if(val) {
+        hint = kh_get(u_table, t, key_);
+        *val = kh_value(t, hint);
+    }
+    return 1;
+}
+
 void uht_free(Uint16_Hash_t *table)
 {
     int k;

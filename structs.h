@@ -191,13 +191,33 @@ int uht_get_element(Uint16_Hash_t *table, const char *k, uint16_t *out);
  *
  * @return 1 if the element is present, 0 if it's not.
  */
-int uht_get_and_delete_element(Uint16_Hash_t *table, const char *k, uint16_t *out);
+int uht_get_and_delete_element(Uint16_Hash_t *table, const char *k,
+                               uint16_t *out);
+
+/**
+ * Iterate over the elements of the table.
+ *
+ * @param table Table to iterate over.
+ * @param prev_it Last elemet got, to start an iteration should point to zero,
+ *      the function will update this value, you don't need to change within a
+ *      iteration.
+ * @param key If not NULL, will point to the key of the element, you must not
+ *      modify *key or **key, this would lead to undefined results.
+ * @param val If not NULL will point to the value of the element.
+ *
+ * @return Will return 1 if the function found an element, 0 if it did not. The
+ *      key and val parameter will be set only if this function returned 1,
+ *      once the function return 0 there are no more elements in the table to
+ *      iterate over.
+ */
+int uht_next(Uint16_Hash_t *table, unsigned *prev_it, const char **key,
+                uint16_t *val);
 
 /**
  *  Delete and deallocate the hashtable, if elements are present, will free the
  *  keys and delete the values, the pointed memory of the value will not be free
  *  by this function. To call this function no other thread should be using the
- *  table and the get funcion can not be lock by ht_get_lock.
+ *  table.
  */
 void uht_free(Uint16_Hash_t *table);
 

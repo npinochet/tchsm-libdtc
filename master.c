@@ -356,9 +356,7 @@ void handle_store_key_req(void *zmq_ctx, const struct op_req *req,
     // If key was not accepted.
     if(store_key_req->key_id_accepted != 1) {
         key_rejected = 1;
-
     }
-    //TODO check if it was accepted. And delete it if it wasn't
 
     response.op = OP_STORE_KEY_RES;
     response.version = 1;
@@ -630,8 +628,7 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
 
     ret = store_key_shares_nodes(ctx, key_id, cant_nodes, key_metainfo, key_shares);
     if(ret != DTC_ERR_NONE) {
-        //TODO on error should send a delete key to the nodes??
-        ;
+        dtc_delete_key_shares(ctx, key_id);
     }
 
     tc_clear_key_shares(key_shares, *key_metainfo);
@@ -650,6 +647,8 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
     union command_args *args = (union command_args *) &store_key_pub;
     int ret, i;
     void *remaining_key;
+    unsigned prev;
+    uint16_t val;
     Buffer_t *keys;
 
     pub_op.version = 1;
@@ -708,6 +707,16 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
     while(get_nowait(keys, (void **)&remaining_key) == 0)
         ret = DTC_ERR_INTERN;
     free_buffer(keys);
+
+    if(ret != DTC_ERR_NONE)
+        uht_free(store_key_data.users_delivered);
+
+    //Check that all the nodes did accept the key.
+    prev = 0;
+    while(uht_next(store_key_data.users_delivered, &prev, NULL, &val))
+        if(val != 0)
+            ret = DTC_ERR_INVALID_VAL;
+
     uht_free(store_key_data.users_delivered);
 
     return ret;
