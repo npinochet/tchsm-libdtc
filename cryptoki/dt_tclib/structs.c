@@ -148,6 +148,96 @@ void free_buffer(Buffer_t *buf)
     free(buf);
 }
 
+KHASH_MAP_INIT_STR(u_table, uint16_t)
+
+typedef struct uint16_hash_table {
+    khash_t(u_table) *h_t;
+    pthread_mutex_t get_mutex;
+} Uint16_Hash_t;
+
+Uint16_Hash_t *uht_init_hashtable()
+{
+    Uint16_Hash_t *ret  = (Uint16_Hash_t *) malloc(sizeof(Uint16_Hash_t));
+
+    ret->h_t = kh_init(u_table);
+
+    pthread_mutexattr_t mta;
+    pthread_mutexattr_init(&mta);
+    pthread_mutexattr_settype(&mta, PTHREAD_MUTEX_RECURSIVE);
+
+    pthread_mutex_init(&ret->get_mutex, &mta);
+
+    pthread_mutexattr_destroy(&mta);
+
+    return ret;
+}
+
+int uht_add_element(Uint16_Hash_t *table, const char *k, uint16_t v)
+{
+    khint_t hint;
+    int absent;
+    pthread_mutex_lock(&table->get_mutex);
+    hint = kh_put(u_table, table->h_t, k, &absent);
+    if(!absent) {
+        kh_del(u_table, table->h_t, hint);
+        pthread_mutex_unlock(&table->get_mutex);
+        return 0;
+    }
+    kh_key(table->h_t, hint) = strdup(k);
+    kh_value(table->h_t, hint) = v;
+    pthread_mutex_unlock(&table->get_mutex);
+    return 1;
+}
+
+static int uht_get_el(Uint16_Hash_t *table, const char *k, uint16_t *out,
+                      int del)
+{
+    int is_missing;
+    khint_t hint;
+    pthread_mutex_lock(&table->get_mutex);
+    hint = kh_get(u_table, table->h_t, k);
+    is_missing  = (hint == kh_end(table->h_t));
+    if(is_missing) {
+        kh_del(u_table, table->h_t, hint);
+        pthread_mutex_unlock(&table->get_mutex);
+        return 0;
+    }
+    if(out)
+        *out = kh_value(table->h_t, hint);
+    if(del) {
+        free((char *)kh_key(table->h_t, hint));
+        kh_del(u_table, table->h_t, hint);
+    }
+    pthread_mutex_unlock(&table->get_mutex);
+    return 1;
+}
+
+int uht_get_element(Uint16_Hash_t *table, const char *k, uint16_t *out)
+{
+    return uht_get_el(table, k, out, 0);
+}
+
+int uht_get_and_delete_element(Uint16_Hash_t *table, const char *k,
+                               uint16_t *out)
+{
+    return uht_get_el(table, k, out, 1);
+}
+
+void uht_free(Uint16_Hash_t *table)
+{
+    int k;
+    khash_t(u_table) *t = table->h_t;
+    if(kh_size(t)) {
+        for(k = 0; k < kh_end(t); k++) {
+            if(kh_exist(t, k)) {
+                free((char *)kh_key(t, k));
+            }
+        }
+    }
+    pthread_mutex_destroy(&table->get_mutex);
+    kh_destroy(u_table, t);
+    free(table);
+}
 
 KHASH_MAP_INIT_STR(h_table, void *)
 

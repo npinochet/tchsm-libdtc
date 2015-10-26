@@ -85,7 +85,7 @@ struct router_socket_handler_data {
 
 struct handle_store_key_data {
     Buffer_t *keys;
-    Hash_t *users_delivered;
+    Uint16_Hash_t *users_delivered;
     key_metainfo_t *meta_info;
 };
 
@@ -248,6 +248,10 @@ static int read_configuration_file(struct configuration *conf);
 static int send_pub_op(struct op_req *pub_op, void *socket);
 static int start_router_socket_handler(dtc_ctx_t *ctx);
 static int close_router_thread(void *zmq_ctx);
+static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
+                                  uint16_t cant_nodes,
+                                  key_metainfo_t **key_metainfo,
+                                  key_share_t **key_shares);
 
 int main(int argc, char **argv)
 {
@@ -345,9 +349,15 @@ void handle_store_key_req(void *zmq_ctx, const struct op_req *req,
     struct store_key_res store_key_res;
     struct op_req response;
     key_share_t *key_share;
+    uint16_t key_rejected = 0;
 
     struct store_key_req *store_key_req =
             (struct store_key_req *)&req->args->store_key_req;
+    // If key was not accepted.
+    if(store_key_req->key_id_accepted != 1) {
+        key_rejected = 1;
+
+    }
     //TODO check if it was accepted. And delete it if it wasn't
 
     response.op = OP_STORE_KEY_RES;
@@ -361,7 +371,7 @@ void handle_store_key_req(void *zmq_ctx, const struct op_req *req,
         return;
     }
 
-    if(!ht_add_element(data->users_delivered, user, NULL)) {
+    if(!uht_add_element(data->users_delivered, user, key_rejected)) {
         ht_unlock_get(expected_msgs);
         LOG_DEBUG(LOG_LVL_CRIT, "User %s trying to get a key more than once ",
                                 user)
@@ -381,7 +391,7 @@ void handle_store_key_req(void *zmq_ctx, const struct op_req *req,
     if(!send_router_msg(zmq_ctx, &response, user)) {
         LOG_DEBUG(LOG_LVL_ERRO, "Error sending msg to %s", user)
         put_nowait(data->keys, key_share);
-        ht_get_and_delete_element(data->users_delivered, user, NULL);
+        uht_get_and_delete_element(data->users_delivered, user, NULL);
     }
 
     ht_unlock_get(expected_msgs);
@@ -502,7 +512,7 @@ void *router_socket_handler(void *data_)
     items[0].events = items[1].events = items[2].events = ZMQ_POLLIN;
     while(1) {
         rc = zmq_poll(items, 3, poll_timeout);
-        if(rc == 0)
+        if(rc == 0) // Exit
             break;
         if(rc < 0) {
             LOG_DEBUG(LOG_LVL_LOG, "Poll failed:%s", zmq_strerror(errno))
@@ -546,12 +556,15 @@ void *router_socket_handler(void *data_)
             rc = zmq_msg_init(out_msg);
             if(rc != 0) {
                 LOG_DEBUG(LOG_LVL_ERRO, "Error initializing msg")
+                zmq_close(msg);
                 continue;
             }
 
             user = s_recv(data->inproc_socket);
             if(user == NULL) {
                 LOG_DEBUG(LOG_LVL_ERRO, "Error getting user.")
+                zmq_close(msg);
+                zmq_close(out_msg);
                 continue;
             }
 
@@ -559,40 +572,38 @@ void *router_socket_handler(void *data_)
             if(rc == -1) {
                 LOG_DEBUG(LOG_LVL_ERRO, "Error receiving msg")
                 free(user);
+                zmq_close(msg);
+                zmq_close(out_msg);
                 continue;
             }
 
             rc = zmq_msg_copy(out_msg, msg);
+            zmq_msg_close(msg);
             if(rc != 0) {
                 LOG_DEBUG(LOG_LVL_ERRO, "Error copying msg")
                 free(user);
-                zmq_msg_close(msg);
+                zmq_msg_close(out_msg);
                 continue;
             }
 
             rc = s_sendmore(data->router_socket, user);
+            free(user);
             if(rc == -1) {
                 LOG_DEBUG(LOG_LVL_ERRO, "Error sending msg router socket.")
-                free(user);
-                zmq_msg_close(msg);
                 zmq_msg_close(out_msg);
                 continue;
             }
 
             rc = zmq_msg_send(out_msg, data->router_socket, 0);
             if(rc == -1) {
-                free(user);
-                zmq_msg_close(msg);
                 zmq_msg_close(out_msg);
                 continue;
             }
-
-            free(user);
-            zmq_msg_close(msg);
         }
         if(items[2].revents) {
             aux = s_recv(data->close_thread_socket);
-            free(aux);
+            if(aux)
+                free(aux);
             poll_timeout = 0;
         }
     }
@@ -604,11 +615,35 @@ void *router_socket_handler(void *data_)
     return NULL;
 }
 
+
 int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
                             uint16_t threshold, uint16_t cant_nodes,
                             key_metainfo_t **key_metainfo)
 {
-    //TODO on error should send a delete key to the nodes.
+    key_share_t **key_shares = NULL;
+    int ret;
+
+    key_shares = tc_generate_keys(key_metainfo, bit_size, threshold,
+                                  cant_nodes);
+    if(!key_shares)
+        return DTC_ERR_INTERN;
+
+    ret = store_key_shares_nodes(ctx, key_id, cant_nodes, key_metainfo, key_shares);
+    if(ret != DTC_ERR_NONE) {
+        //TODO on error should send a delete key to the nodes??
+        ;
+    }
+
+    tc_clear_key_shares(key_shares, *key_metainfo);
+    return ret;
+
+}
+
+static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
+                                  uint16_t cant_nodes,
+                                  key_metainfo_t **key_metainfo,
+                                  key_share_t **key_shares)
+{
     struct op_req pub_op;
     struct store_key_pub store_key_pub;
     struct handle_store_key_data store_key_data;
@@ -617,37 +652,25 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
     void *remaining_key;
     Buffer_t *keys;
 
-    key_share_t **key_shares = NULL;
-
     pub_op.version = 1;
     pub_op.op = OP_STORE_KEY_PUB;
     store_key_pub.server_id = ctx->server_id;
     store_key_pub.key_id = key_id;
     pub_op.args = args;
 
-    key_shares = tc_generate_keys(key_metainfo, bit_size, threshold,
-                                  cant_nodes);
-    if(!key_shares) {
-        tc_clear_key_shares(key_shares, *key_metainfo);
-        return DTC_ERR_INTERN;
-    }
-
     keys = newBuffer(cant_nodes);
-    if(!keys) {
-        tc_clear_key_shares(key_shares, *key_metainfo);
+    if(!keys)
         return DTC_ERR_NOMEM;
-    }
 
     store_key_data.meta_info = *key_metainfo;
     store_key_data.keys = keys;
-    store_key_data.users_delivered = ht_init_hashtable();
+    store_key_data.users_delivered = uht_init_hashtable();
 
     ret = ht_add_element(ctx->expected_msgs[OP_STORE_KEY_REQ],
                          key_id, (void *)&store_key_data);
     if(ret == 0) {
-        tc_clear_key_shares(key_shares, *key_metainfo);
         free_buffer(keys);
-        ht_free(store_key_data.users_delivered);
+        uht_free(store_key_data.users_delivered);
         return DTC_ERR_INVALID_VAL;
     }
 
@@ -656,14 +679,13 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
 
     ret = send_pub_op(&pub_op, ctx->pub_socket);
     if(ret != DTC_ERR_NONE) {
-        tc_clear_key_shares(key_shares, *key_metainfo);
         ht_get_and_delete_element(ctx->expected_msgs[OP_STORE_KEY_REQ],
                                   key_id, NULL);
         //To free the buffer it must be empty.
         while(get_nowait(keys, (void **)&remaining_key) == 0)
             ;
         free_buffer(keys);
-        ht_free(store_key_data.users_delivered);
+        uht_free(store_key_data.users_delivered);
         return ret;
     }
 
@@ -675,11 +697,10 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
     ret = ht_get_and_delete_element(ctx->expected_msgs[OP_STORE_KEY_REQ],
                                     key_id, NULL);
     if(ret != 1) {
-        tc_clear_key_shares(key_shares, *key_metainfo);
         while(get_nowait(keys, (void **)&remaining_key) == 0)
             ;
         free_buffer(keys);
-        ht_free(store_key_data.users_delivered);
+        uht_free(store_key_data.users_delivered);
         return DTC_ERR_INTERN;
     }
 
@@ -687,9 +708,7 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
     while(get_nowait(keys, (void **)&remaining_key) == 0)
         ret = DTC_ERR_INTERN;
     free_buffer(keys);
-    ht_free(store_key_data.users_delivered);
-
-    tc_clear_key_shares(key_shares, *key_metainfo);
+    uht_free(store_key_data.users_delivered);
 
     return ret;
 }
