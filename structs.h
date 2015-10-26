@@ -1,11 +1,17 @@
 #ifndef DT_TCLIB_STRUCTS_H_
 #define DT_TCLIB_STRUCTS_H_
 
+#include <inttypes.h>
+
 struct buffer;
 typedef struct buffer Buffer_t;
 
 struct hash_table;
 typedef struct hash_table Hash_t;
+
+struct uint16_hash_table;
+typedef struct uint16_hash_table Uint16_Hash_t;
+
 //TODO Fix Buffer documentation.
 /**
  * Create a new concurrent buffer, size specify its capacity, not enough
@@ -90,8 +96,7 @@ Hash_t *ht_init_hashtable();
  *  @param table Table to add into.
  *  @param k Key, will be copied to be stored, so it's safe to delete it after
  *      this function returns.
- *  @param v Value of the element. Do not store NULL pointers, the behaviour is
- *      undefined.
+ *  @param v Value of the element.
  *
  *  @return 1 if the element could be added, 0 if it wasn't. An element won't be
  *      inserted if the key was already in the table.
@@ -145,5 +150,55 @@ int ht_get_and_delete_element(Hash_t *table, const char *k, void **out);
  *  table and the get funcion can not be lock by ht_get_lock.
  */
 void ht_free(Hash_t *table);
+
+/**
+ *  Alloc and create a hashtable to store (const char *, uint16_t) pairs.
+ */
+Uint16_Hash_t *uht_init_hashtable();
+
+/**
+ *  Add an element to the hashtable.
+ *
+ *  @param table Table to add into.
+ *  @param k Key, will be copied to be stored, so it's safe to delete it after
+ *      this function returns.
+ *  @param v Value of the element.
+ *
+ *  @return 1 if the element could be added, 0 if it wasn't. An element won't be
+ *      inserted if the key was already in the table.
+ */
+int uht_add_element(Uint16_Hash_t *table, const char *k, uint16_t v);
+
+/**
+ * Get a value from the table.
+ *
+ * @param table Table where to look for the element.
+ * @param k Key of the value to be returned.
+ * @param out If it isn't NULL and k exists, will point to the value of the
+ *      element stored with k.
+ *
+ * @return 1 if the element is present, 0 if it's not.
+ */
+int uht_get_element(Uint16_Hash_t *table, const char *k, uint16_t *out);
+
+/**
+ * Get a value from the table and remove it.
+ *
+ * @param table Table where to look for the element.
+ * @param k Key of the value to be returned.
+ * @param out If it isn't NULL and k exists, will point to the value of the
+ *      element stored with k.
+ *
+ * @return 1 if the element is present, 0 if it's not.
+ */
+int uht_get_and_delete_element(Uint16_Hash_t *table, const char *k, uint16_t *out);
+
+/**
+ *  Delete and deallocate the hashtable, if elements are present, will free the
+ *  keys and delete the values, the pointed memory of the value will not be free
+ *  by this function. To call this function no other thread should be using the
+ *  table and the get funcion can not be lock by ht_get_lock.
+ */
+void uht_free(Uint16_Hash_t *table);
 
 #endif
