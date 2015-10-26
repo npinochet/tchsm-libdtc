@@ -342,6 +342,15 @@ err_exit:
     return NULL;
 }
 
+void handle_sign_req(zmq_ctx, const struct op_req *req, const char *user,
+                     Hash_t *expected_msgs)
+{
+    struct handle_sign_req_data *data;
+    struct sign_req *sign_req = (struct sign_req *)&req->args->sign_req;
+
+
+}
+
 void handle_store_key_req(void *zmq_ctx, const struct op_req *req,
                           const char *user, Hash_t *expected_msgs)
 {
@@ -414,16 +423,21 @@ static void handle_router_rcvd_msg(void *zmq_ctx, zmq_msg_t *msg, int msg_size,
 
     if(req->op == OP_STORE_KEY_REQ) {
         handle_store_key_req(zmq_ctx, req, user, tables[OP_STORE_KEY_REQ]);
+        delete_op_req(req);
     }
     else if(req->op == OP_DELETE_KEY_SHARE_REQ) {
         handle_delete_key_share_req(zmq_ctx, req, user, tables[req->op]);
+        delete_op_req(req);
+    }
+    else if(req->op == OP_SIGN_REQ) {
+        handle_sign_req(zmq_ctx, req, user, tables[req->op]);
     }
     else {
         LOG_DEBUG(LOG_LVL_ERRO, "Not supported operation %d", req->op)
+        delete_op_req(req);
     }
 
     LOG_DEBUG(LOG_LVL_LOG, "TEST: %s", user)
-    delete_op_req(req);
 }
 
 void *router_socket_handler(void *data_);
@@ -736,8 +750,8 @@ void dtc_delete_key_shares(dtc_ctx_t *ctx, const char *key_id)
     send_pub_op(&pub_op, ctx->pub_socket);
 }
 
-bytes_t *dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
-                  const char *key_id, const uint8_t *message, size_t msg_len)
+int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
+             const char *key_id, bytes_t *message, bytes_t **out)
 {
     struct op_req pub_op;
     struct sign_pub sign_pub;
@@ -759,8 +773,10 @@ bytes_t *dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
     ret = send_pub_op(&pub_op, ctx->pub_socket);
     if(ret != DTC_ERR_NONE) {
         LOG_DEBUG(LOG_LVL_CRIT, "Send pub msg error")
-        return NULL;
+        return ret;
     }
+
+
 
     //signature = wait_signatures();
     //TODO
