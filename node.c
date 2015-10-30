@@ -529,7 +529,7 @@ const signature_share_t *sign(database_t *db_conn, const char *auth_user,
                               const char *key_id, const uint8_t *message,
                               size_t msg_len)
 {
-    //TODO chanfe brackets in the function definitions as this.
+    printf("auth_user %s\n", auth_user);
     return NULL;
 }
 

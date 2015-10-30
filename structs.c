@@ -15,7 +15,7 @@ typedef struct buffer{
     void **data;
     int in, out, cnt;
     pthread_mutex_t mutex;
-    pthread_cond_t noempty, nofull;;
+    pthread_cond_t noempty, nofull, wait_n_elements;
 } Buffer;
 
 /* Creates a new Concurrent buffer */
@@ -31,7 +31,8 @@ Buffer_t *newBuffer(int size)
         goto err_exit;
     if(pthread_mutex_init(&buf->mutex, NULL) ||
        pthread_cond_init(&buf->noempty, NULL) ||
-       pthread_cond_init(&buf->nofull, NULL)) {
+       pthread_cond_init(&buf->nofull, NULL) ||
+       pthread_cond_init(&buf->wait_n_elements, NULL)) {
         free(buf->data);
         goto err_exit;
     }
@@ -53,6 +54,7 @@ void put(Buffer_t *buf, void *value)
     buf->in = (buf->in + 1) % buf->size;
     buf->cnt++;
     pthread_cond_signal(&buf->noempty);
+    pthread_cond_broadcast(&buf->wait_n_elements);
     pthread_mutex_unlock(&buf->mutex);
 }
 
@@ -67,6 +69,7 @@ int put_nowait(Buffer_t *buf, void *value)
     buf->in = (buf->in + 1) % buf->size;
     buf->cnt++;
     pthread_cond_signal(&buf->noempty);
+    pthread_cond_broadcast(&buf->wait_n_elements);
     pthread_mutex_unlock(&buf->mutex);
 	return 0;
 }
@@ -80,6 +83,7 @@ void put_first(Buffer_t *buf, void *value)
 	buf->data[buf->out] = value;
 	buf->cnt++;
 	pthread_cond_signal(&buf->noempty);
+    pthread_cond_broadcast(&buf->wait_n_elements);
 	pthread_mutex_unlock(&buf->mutex);
 }
 
@@ -95,6 +99,7 @@ void *get(Buffer_t *buf)
     buf->out = (buf->out + 1) % buf->size;
     buf->cnt--;
     pthread_cond_signal(&buf->nofull);
+    pthread_cond_broadcast(&buf->wait_n_elements);
     pthread_mutex_unlock(&buf->mutex);
     return value;
 }
@@ -110,6 +115,7 @@ int get_nowait(Buffer_t *buf, void **out)
     buf->out = (buf->out + 1) % buf->size;
     buf->cnt--;
     pthread_cond_signal(&buf->nofull);
+    pthread_cond_broadcast(&buf->wait_n_elements);
     pthread_mutex_unlock(&buf->mutex);
     return 0;
 }
@@ -119,23 +125,22 @@ int wait_until_empty(Buffer_t *buf, unsigned timeout)
 {
     pthread_mutex_lock(&buf->mutex);
     while(buf->cnt != 0) {
-        pthread_cond_wait(&buf->nofull, &buf->mutex);
-        pthread_cond_signal(&buf->nofull);
+        pthread_cond_wait(&buf->wait_n_elements, &buf->mutex);
     }
     pthread_mutex_unlock(&buf->mutex);
-    return 0;
+    return 1;
 
 }
 
-void wait_n_elements(Buffer_t *buf, unsigned n)
+//TODO implement timeout
+int wait_n_elements(Buffer_t *buf, unsigned n, unsigned timeout)
 {
     pthread_mutex_lock(&buf->mutex);
-    while(buf->cnt <= n) {
-        pthread_cond_wait(&buf->noempty, &buf->mutex);
-        // If i'm not taking the new element, give the chance to another one.
-        pthread_cond_signal(&buf->noempty);
+    while(buf->cnt < n) {
+        pthread_cond_wait(&buf->wait_n_elements, &buf->mutex);
     }
     pthread_mutex_unlock(&buf->mutex);
+    return 1;
 }
 
 void free_buffer(Buffer_t *buf)
@@ -144,6 +149,10 @@ void free_buffer(Buffer_t *buf)
         fprintf(stderr, "Trying to free a non empty Buffer_t %d\n", buf->cnt);
 		return;
     }
+    pthread_cond_destroy(&buf->wait_n_elements);
+    pthread_cond_destroy(&buf->noempty);
+    pthread_cond_destroy(&buf->nofull);
+    pthread_mutex_destroy(&buf->mutex);
     free(buf->data);
     free(buf);
 }

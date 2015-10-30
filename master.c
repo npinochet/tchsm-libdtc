@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include <assert.h>
 #include <getopt.h>
 #include <inttypes.h>
 #include <pthread.h>
@@ -342,13 +343,31 @@ err_exit:
     return NULL;
 }
 
-void handle_sign_req(zmq_ctx, const struct op_req *req, const char *user,
+void handle_sign_req(void *zmq_ctx, const struct op_req *req, const char *user,
                      Hash_t *expected_msgs)
 {
-    struct handle_sign_req_data *data;
+    Buffer_t *signatures_buffer;
     struct sign_req *sign_req = (struct sign_req *)&req->args->sign_req;
 
+    ht_lock_get(expected_msgs);
+    if(!ht_get_element(expected_msgs, sign_req->signing_id,
+                       (void **)&signatures_buffer)) {
+        ht_unlock_get(expected_msgs);
+        LOG_DEBUG(LOG_LVL_NOTI, "User %s signing an unexpected key.", user)
+        return;
+    }
 
+    if(sign_req->status_code != 0) {
+        ht_unlock_get(expected_msgs);
+        LOG_DEBUG(LOG_LVL_ERRO, "Got a error (%u) from %s when signing.",
+                  sign_req->status_code)
+        return;
+    }
+
+    put_nowait(signatures_buffer, (void *)sign_req->signature);
+    // This is needed in order to not free the signature when req is freed.
+    sign_req->signature = NULL;
+    ht_unlock_get(expected_msgs);
 }
 
 void handle_store_key_req(void *zmq_ctx, const struct op_req *req,
@@ -757,6 +776,8 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
     struct sign_pub sign_pub;
     int ret;
     char signing_id[37];
+    int threshold = tc_key_meta_info_k(key_metainfo);
+    int cant_nodes = tc_key_meta_info_l(key_metainfo);
     //bytes_t *signature;
 
     get_uuid_as_char(signing_id);
@@ -767,8 +788,17 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
 
     sign_pub.signing_id = signing_id;
     sign_pub.key_id = key_id;
-    sign_pub.message = message;
-    sign_pub.msg_len = msg_len;
+    sign_pub.message = (uint8_t *)message->data;
+    sign_pub.msg_len = message->data_len;
+
+    Buffer_t *signatures = newBuffer(cant_nodes);
+
+    ret = ht_add_element(ctx->expected_msgs[OP_SIGN_REQ], signing_id,
+                         (void *)signatures);
+    if(ret == 0) {
+        free_buffer(signatures);
+        return DTC_ERR_INTERN;
+    }
 
     ret = send_pub_op(&pub_op, ctx->pub_socket);
     if(ret != DTC_ERR_NONE) {
@@ -776,11 +806,24 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
         return ret;
     }
 
+    ret = wait_n_elements(signatures, threshold, ctx->timeout);
+    assert(1 == ht_get_and_delete_element(ctx->expected_msgs[OP_SIGN_REQ],
+                                          signing_id, NULL));
+    // Returned on timeout.
+    if(ret == 0) {
+        //TODO
+        ;
+    }
+
+    while(
+
+
+
 
 
     //signature = wait_signatures();
     //TODO
-    return NULL;
+    return 0;
 }
 
 int dtc_destroy(dtc_ctx_t *ctx)

@@ -303,6 +303,22 @@ static int get_server_id(database_t *db, const char *sql_query, const char* key,
 
 }
 
+int db_get_key(database_t *db, const char *server_id, const char *key_id,
+               char **key_share, char **key_metainfo)
+{
+    int rc, step;
+    const char *server_id;
+    sqlite_stmt *stmt = NULL;
+
+    const char *sql_query = "SELECT key_share, key_metainfo\n"
+                            "FROM key\n"
+                            "WHERE key_id = ? and server_id = ?;";
+
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2, server_id, key_id);
+    if(rc != DTC_ERR_NONE)
+        return rc;
+}
+
 int db_get_server_id(database_t *db, const char *public_key, char **output) {
     static const char *sql_query = "SELECT server_id\n"
                                    "FROM server\n"
