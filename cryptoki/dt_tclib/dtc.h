@@ -38,8 +38,8 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
                             key_metainfo_t **info);
 //TODO Would be nice to provide a tc_clear_bytes in this header.
 // TODO Implement and document the API.
-bytes_t *dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
-                  const char *key_id, const uint8_t *message, size_t msg_len);
+int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
+                  const char *key_id, bytes_t *message, bytes_t **out);
 
 /**
  * This is a best effort deletion of the key in the nodes, the library will not

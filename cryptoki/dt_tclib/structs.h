@@ -60,7 +60,7 @@ int get_nowait(Buffer_t *buf, void **out);
  * @param buf The buffer.
  * @param timeout after timeout seg the function will exit on timeout.
  *
- * @return 0 if returned because an empty buffer, 1 if it returned on timeout.
+ * @return 1 if returned because an empty buffer, 0 if it returned on timeout.
  */
 int wait_until_empty(Buffer_t *buf, unsigned timeout);
 
@@ -77,8 +77,11 @@ int wait_until_empty(Buffer_t *buf, unsigned timeout);
  *
  * @param buf The buffer.
  * @param n The amount of elements to wait for.
+ *
+ * @return 1 if returned because the buffer has at least n elements, 0 if it
+ *      returned on timeout.
  */
-void wait_n_elements(Buffer_t *buf, unsigned n);
+int wait_n_elements(Buffer_t *buf, unsigned n, unsigned timeout);
 
 /** Try to free the buffer, if there are still some values in the buffer, will
  *  not free it, instead will print an error in the stderr.

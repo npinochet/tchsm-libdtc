@@ -152,6 +152,23 @@ int db_is_key_id_available(database_t *db, const char *server_id,
                            const char *key_id);
 
 /**
+ * Retrieve a stored key.
+ *
+ * @param db Active database connection.
+ * @param server_id Specify the server for the one we want to retrieve the key.
+ * @param key_id Id of the key to retrieve.
+ * @param key_share On succes *key_share will point to the key_share, this is
+ *      dynamic memory, should be freed by the caller. On error this parameter
+ *      won't be modified.
+ * @param key_metainfo On success *key_metainfo will point to the key_metainfo,
+ *      this is dynamic memory, should be freed by the caller. On error this
+ *      parameter won't be modified.
+ *
+ * @return DTC_ERR_NONE on success, a positive error code otherwise.
+ */
+int db_get_key(database_t *db, const char *server_id, const char *key_id,
+               char **key_share, char **key_metainfo);
+/**
  * Insert a new key in the database, a key is the metainfo of the key plus
  * the key share that belongs to thi node.
  *

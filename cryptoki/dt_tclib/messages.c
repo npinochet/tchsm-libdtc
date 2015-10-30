@@ -466,7 +466,8 @@ err_exit:
 static int delete_sign_req(union command_args *data){
     struct sign_req *sign_req = &data->sign_req;
     free((void *)sign_req->signing_id);
-    tc_clear_signature_share((signature_share_t *)sign_req->signature);
+    if(sign_req->signature)
+        tc_clear_signature_share((signature_share_t *)sign_req->signature);
     free(data);
     return 0;
 }
