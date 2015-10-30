@@ -164,7 +164,8 @@ int db_is_key_id_available(database_t *db, const char *server_id,
  *      this is dynamic memory, should be freed by the caller. On error this
  *      parameter won't be modified.
  *
- * @return DTC_ERR_NONE on success, a positive error code otherwise.
+ * @return DTC_ERR_NONE on success, -1 if the key wasn't present and a positive
+ *      error code otherwise.
  */
 int db_get_key(database_t *db, const char *server_id, const char *key_id,
                char **key_share, char **key_metainfo);

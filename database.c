@@ -299,24 +299,42 @@ static int get_server_id(database_t *db, const char *sql_query, const char* key,
 
     return DTC_ERR_NONE;
 
-    sqlite3_finalize(stmt);
-
 }
 
 int db_get_key(database_t *db, const char *server_id, const char *key_id,
                char **key_share, char **key_metainfo)
 {
     int rc, step;
-    const char *server_id;
-    sqlite_stmt *stmt = NULL;
+    sqlite3_stmt *stmt = NULL;
 
     const char *sql_query = "SELECT key_share, key_metainfo\n"
                             "FROM key\n"
                             "WHERE key_id = ? and server_id = ?;";
 
-    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2, server_id, key_id);
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2, key_id, server_id);
     if(rc != DTC_ERR_NONE)
         return rc;
+
+    step = sqlite3_blocking_step(stmt);
+    if(step == SQLITE_ROW) {
+        *key_share = strdup((const char *)sqlite3_column_text(stmt, 0));
+        *key_metainfo = strdup((const char *)sqlite3_column_text(stmt, 1));
+    }
+    else if(step == SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        return -1;
+    }
+    else {
+        LOG(LOG_LVL_ERRO, "sqlite3_step: %s", sqlite3_errmsg(db->ppDb));
+        sqlite3_finalize(stmt);
+        return DTC_ERR_DATABASE;
+    }
+
+    rc = sqlite3_finalize(stmt);
+    if(rc != SQLITE_OK)
+        LOG(LOG_LVL_ERRO, "sqlite3_finalize %s", sqlite3_errmsg(db->ppDb));
+
+    return DTC_ERR_NONE;
 }
 
 int db_get_server_id(database_t *db, const char *public_key, char **output) {
@@ -1084,6 +1102,43 @@ START_MY_TEST(test_store_key_simple) {
 }
 END_TEST
 
+START_MY_TEST(test_get_key) {
+    char *database_file = get_filepath("test_get_key");
+    char *keys[2][2];
+    char *key_share, *key_metainfo;
+
+    keys[0][0] = "key_metainfo_";
+    keys[0][1] = "key_share";
+
+    keys[1][0] = "metainfo_";
+    keys[1][1] = "share";
+
+    ck_assert_int_eq(-1, access(database_file, F_OK));
+
+    database_t *conn = db_init_connection(database_file);
+    ck_assert(conn != NULL);
+
+    ck_assert_int_eq(0, insert_server(conn->ppDb, "key" ,"s_id", "token"));
+
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_store_key(conn, "s_id", "k_1", keys[0][0], keys[0][1]));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_store_key(conn, "s_id", "k_2", keys[1][0], keys[1][1]));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_get_key(conn, "s_id", "k_1", &key_share,
+                                &key_metainfo));
+
+    ck_assert_int_eq(-1,
+                     db_get_key(conn, "s_id", "k_3", NULL, NULL));
+
+    ck_assert_str_eq(keys[0][0], key_metainfo);
+    ck_assert_str_eq(keys[0][1], key_share);
+    free(key_share);
+    free(key_metainfo);
+    close_and_remove_db(database_file, conn);
+}
+END_TEST
+
 START_TEST(test_delete_key_simple) {
     char *database_file = get_filepath("test_store_key_simple");
 
@@ -1135,6 +1190,8 @@ TCase *get_dt_tclib_database_c_test_case() {
     tcase_add_test(test_case, test_update_servers_mix_operations);
 
     tcase_add_test(test_case, test_store_key_simple);
+
+    tcase_add_test(test_case, test_get_key);
 
     tcase_add_test(test_case, test_delete_key_simple);
 

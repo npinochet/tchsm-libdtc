@@ -90,6 +90,12 @@ struct handle_store_key_data {
     key_metainfo_t *meta_info;
 };
 
+struct handle_sign_key_data {
+    Buffer_t *signatures;
+    const bytes_t *prepared_doc;
+    const key_metainfo_t *key_metainfo;
+};
+
 static void free_wrapper(void *data, void *hint)
 {
     void (*free_function)(void *) = (void (*)(void *))hint;
@@ -346,12 +352,14 @@ err_exit:
 void handle_sign_req(void *zmq_ctx, const struct op_req *req, const char *user,
                      Hash_t *expected_msgs)
 {
+    struct handle_sign_key_data *sign_key_data;
     Buffer_t *signatures_buffer;
+    int ret;
     struct sign_req *sign_req = (struct sign_req *)&req->args->sign_req;
 
     ht_lock_get(expected_msgs);
     if(!ht_get_element(expected_msgs, sign_req->signing_id,
-                       (void **)&signatures_buffer)) {
+                       (void **)&sign_key_data)) {
         ht_unlock_get(expected_msgs);
         LOG_DEBUG(LOG_LVL_NOTI, "User %s signing an unexpected key.", user)
         return;
@@ -364,7 +372,20 @@ void handle_sign_req(void *zmq_ctx, const struct op_req *req, const char *user,
         return;
     }
 
-    put_nowait(signatures_buffer, (void *)sign_req->signature);
+    signatures_buffer = sign_key_data->signatures;
+    ret = tc_verify_signature(
+            sign_req->signature, sign_key_data->prepared_doc,
+            sign_key_data->key_metainfo);
+    //TODO is this the right check? Ask Pancho.
+    if(!ret) {
+        ht_unlock_get(expected_msgs);
+        LOG_DEBUG(LOG_LVL_ERRO, "Got a error verifying a key from %s\n",
+                  user)
+        return;
+    }
+
+    ret = put_nowait(signatures_buffer, (void *)sign_req->signature);
+    assert(ret == 0);
     // This is needed in order to not free the signature when req is freed.
     sign_req->signature = NULL;
     ht_unlock_get(expected_msgs);
@@ -774,11 +795,16 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
 {
     struct op_req pub_op;
     struct sign_pub sign_pub;
-    int ret;
+    int ret, i = 0;
     char signing_id[37];
     int threshold = tc_key_meta_info_k(key_metainfo);
     int cant_nodes = tc_key_meta_info_l(key_metainfo);
-    //bytes_t *signature;
+    struct handle_sign_key_data sign_key_data;
+    signature_share_t *signature;
+    Buffer_t *signatures_buffer;
+    signature_share_t *signatures[cant_nodes];
+    bytes_t *prepared_doc = tc_prepare_document(
+            message, TC_SHA256, key_metainfo);
 
     get_uuid_as_char(signing_id);
 
@@ -788,15 +814,19 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
 
     sign_pub.signing_id = signing_id;
     sign_pub.key_id = key_id;
-    sign_pub.message = (uint8_t *)message->data;
-    sign_pub.msg_len = message->data_len;
+    sign_pub.message = (uint8_t *)prepared_doc->data;
+    sign_pub.msg_len = prepared_doc->data_len;
 
-    Buffer_t *signatures = newBuffer(cant_nodes);
+    signatures_buffer = newBuffer(cant_nodes);
+
+    sign_key_data.signatures = signatures_buffer;
+    sign_key_data.prepared_doc = prepared_doc;
+    sign_key_data.key_metainfo = key_metainfo;
 
     ret = ht_add_element(ctx->expected_msgs[OP_SIGN_REQ], signing_id,
-                         (void *)signatures);
+                         (void *)&sign_key_data);
     if(ret == 0) {
-        free_buffer(signatures);
+        free_buffer(signatures_buffer);
         return DTC_ERR_INTERN;
     }
 
@@ -806,7 +836,7 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
         return ret;
     }
 
-    ret = wait_n_elements(signatures, threshold, ctx->timeout);
+    ret = wait_n_elements(signatures_buffer, threshold, ctx->timeout);
     assert(1 == ht_get_and_delete_element(ctx->expected_msgs[OP_SIGN_REQ],
                                           signing_id, NULL));
     // Returned on timeout.
@@ -815,9 +845,11 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
         ;
     }
 
-    while(
+    while(get_nowait(signatures_buffer, (void **)&signature) == 0)
+        signatures[i++] = (signature_share_t *)signature;
 
-
+    tc_join_signatures((const signature_share_t **)signatures, prepared_doc,
+                       key_metainfo);
 
 
 
