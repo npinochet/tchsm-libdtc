@@ -337,7 +337,7 @@ void handle_sign_req(void *zmq_ctx, const struct op_req *req, const char *user,
 
     if(sign_req->status_code != 0) {
         ht_unlock_get(expected_msgs);
-        LOG_DEBUG(LOG_LVL_ERRO, "Got a error (%u) from %s when signing.",
+        LOG_DEBUG(LOG_LVL_ERRO, "Got an error (%u) from %s when signing.",
                   sign_req->status_code)
         return;
     }
@@ -806,9 +806,11 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
         return ret;
     }
 
+    printf("ASD1\n");
     ret = wait_n_elements(signatures_buffer, threshold, ctx->timeout);
     assert(1 == ht_get_and_delete_element(ctx->expected_msgs[OP_SIGN_REQ],
                                           signing_id, NULL));
+    printf("ASD2\n");
     // Returned on timeout.
     if(ret == 0) {
         //TODO
