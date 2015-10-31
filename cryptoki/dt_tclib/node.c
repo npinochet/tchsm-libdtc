@@ -525,12 +525,34 @@ err_exit:
     return;
 }
 
-const signature_share_t *sign(database_t *db_conn, const char *auth_user,
-                              const char *key_id, const uint8_t *message,
-                              size_t msg_len)
+const signature_share_t *sign(database_t *db_conn, const char *server_id,
+                              const char *key_id, const bytes_t *msg_bytes)
 {
-    printf("auth_user %s\n", auth_user);
-    return NULL;
+    signature_share_t *signature;
+    char *key_share;
+    char *key_metainfo;
+    key_share_t *k_share;
+    key_metainfo_t *k_metainfo;
+    int ret;
+
+    ret = db_get_key(db_conn, server_id, key_id, &key_share, &key_metainfo);
+    if(ret != DTC_ERR_NONE) {
+        LOG(LOG_LVL_NOTI, "Error getting keys for server %s and key %s.",
+            server_id, key_id)
+        return NULL;
+    }
+
+    k_metainfo = tc_deserialize_key_metainfo(key_metainfo);
+    k_share = tc_deserialize_key_share(key_share);
+
+    signature = tc_node_sign(k_share, msg_bytes, k_metainfo);
+
+    tc_clear_key_share(k_share);
+    tc_clear_key_metainfo(k_metainfo);
+    free(key_metainfo);
+    free(key_share);
+
+    return signature;
 }
 
 void handle_sign_pub(database_t *db_conn, void *router_socket,
@@ -539,13 +561,22 @@ void handle_sign_pub(database_t *db_conn, void *router_socket,
     const char *signing_id;
     const char *key_id;
     const uint8_t *message;
+    struct op_req req;
+    struct sign_req sign_req;
     size_t msg_len;
+    char *server_id;
     const signature_share_t *signature;
-    //zmq_msg_t msg_;
-    //zmq_msg_t *msg = &msg_;
+    bytes_t *msg_bytes;
+    int ret;
 
     if(pub_op->version != 1) {
         LOG(LOG_LVL_ERRO, "version %" PRIu16 " not supported.")
+        return;
+    }
+
+    ret = db_get_server_id_from_pub_token(db_conn, auth_user, &server_id);
+    if(ret != DTC_ERR_NONE) {
+        LOG(LOG_LVL_NOTI, "Error getting server id %d.", ret)
         return;
     }
 
@@ -554,10 +585,26 @@ void handle_sign_pub(database_t *db_conn, void *router_socket,
     message = pub_op->args->sign_pub.message;
     msg_len = pub_op->args->sign_pub.msg_len;
 
-    signature = sign(db_conn, auth_user, key_id, message, msg_len);
+    msg_bytes = tc_init_bytes((void *)message, msg_len);
 
+    signature = sign(db_conn, server_id, key_id, msg_bytes);
+    free(msg_bytes);
 
+    //TODO send status code.
+    if(!signature) {
+        free(server_id);
+        return;
+    }
 
+    req.op = OP_SIGN_REQ;
+    req.version = 1;
+    req.args = (union command_args *)&sign_req;
+    sign_req.status_code = 0;
+    sign_req.signing_id = signing_id;
+    sign_req.signature = signature;
+
+    send_op(server_id, &req, router_socket);
+    free(server_id);
 }
 
 void handle_store_key_pub(database_t *db_conn, void *router_socket,
