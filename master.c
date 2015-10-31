@@ -5,7 +5,6 @@
 #include <inttypes.h>
 #include <pthread.h>
 #include <string.h>
-#include <unistd.h> // TODO Just for the sleep, remove it.
 
 #include <libconfig.h>
 #include <zmq.h>
@@ -260,36 +259,6 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
                                   key_metainfo_t **key_metainfo,
                                   key_share_t **key_shares);
 
-int main(int argc, char **argv)
-{
-    int ret_val = 0;
-    key_metainfo_t *info = NULL;
-
-    logger_init_stream(stderr);
-    LOG(LOG_LVL_NOTI, "Logger started for %s", argv[0]);
-
-    dtc_ctx_t *ctx = dtc_init(NULL, &ret_val);
-
-    printf("Init ret: %d\n", ret_val);
-    if(ret_val != DTC_ERR_NONE)
-        return 1;
-
-    sleep(1);
-
-    ret_val = dtc_generate_key_shares(ctx, "hola_id", 512, 2, 2, &info);
-    printf("Generate: %d\n", ret_val);
-    if(ret_val != DTC_ERR_NONE)
-        return 1;
-
-    tc_clear_key_metainfo(info);
-
-    dtc_delete_key_shares(ctx, "hola_id");
-
-    printf("Destroy: %d\n", dtc_destroy(ctx));
-
-    return 0;
-}
-
 dtc_ctx_t *dtc_init(const char *config_file, int *err)
 {
     struct configuration conf;
@@ -356,6 +325,7 @@ void handle_sign_req(void *zmq_ctx, const struct op_req *req, const char *user,
     Buffer_t *signatures_buffer;
     int ret;
     struct sign_req *sign_req = (struct sign_req *)&req->args->sign_req;
+    printf("ASDASD\n");
 
     ht_lock_get(expected_msgs);
     if(!ht_get_element(expected_msgs, sign_req->signing_id,
