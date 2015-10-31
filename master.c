@@ -325,7 +325,6 @@ void handle_sign_req(void *zmq_ctx, const struct op_req *req, const char *user,
     Buffer_t *signatures_buffer;
     int ret;
     struct sign_req *sign_req = (struct sign_req *)&req->args->sign_req;
-    printf("ASDASD\n");
 
     ht_lock_get(expected_msgs);
     if(!ht_get_element(expected_msgs, sign_req->signing_id,
@@ -347,10 +346,10 @@ void handle_sign_req(void *zmq_ctx, const struct op_req *req, const char *user,
             sign_req->signature, sign_key_data->prepared_doc,
             sign_key_data->key_metainfo);
     //TODO is this the right check? Ask Pancho.
-    if(!ret) {
+    if(ret) {
         ht_unlock_get(expected_msgs);
-        LOG_DEBUG(LOG_LVL_ERRO, "Got a error verifying a key from %s\n",
-                  user)
+        LOG_DEBUG(LOG_LVL_ERRO, "Got a error (%d) verifying a key from %s\n",
+                  ret, user)
         return;
     }
 
@@ -806,11 +805,9 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
         return ret;
     }
 
-    printf("ASD1\n");
     ret = wait_n_elements(signatures_buffer, threshold, ctx->timeout);
     assert(1 == ht_get_and_delete_element(ctx->expected_msgs[OP_SIGN_REQ],
                                           signing_id, NULL));
-    printf("ASD2\n");
     // Returned on timeout.
     if(ret == 0) {
         //TODO
