@@ -380,6 +380,9 @@ void store_key(database_t *db_conn, const char *server_id,
     int rc;
     char *key_metainfo = tc_serialize_key_metainfo(res_op->meta_info);
     char *key_share = tc_serialize_key_share(res_op->key_share);
+    printf("Storing:\n");
+    printf("Metainfo:%s\n", key_metainfo);
+    printf("Keyshare:%s\n", key_share);
     rc = db_store_key(
             db_conn, server_id, res_op->key_id, key_metainfo, key_share);
     free(key_metainfo);
@@ -546,6 +549,10 @@ const signature_share_t *sign(database_t *db_conn, const char *server_id,
     k_share = tc_deserialize_key_share(key_share);
 
     signature = tc_node_sign(k_share, msg_bytes, k_metainfo);
+    hexDump("Prepared doc:", msg_bytes->data, msg_bytes->data_len);
+    printf("Signature:%s\n", tc_serialize_signature_share(signature));
+    printf("Metainfo:%s\n",key_metainfo);
+    printf("Verify: %d\n", tc_verify_signature(signature, msg_bytes, k_metainfo));
 
     tc_clear_key_share(k_share);
     tc_clear_key_metainfo(k_metainfo);

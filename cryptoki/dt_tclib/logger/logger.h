@@ -113,4 +113,5 @@ enum {
         } \
     } while(0);
 
+void hexDump (char *desc, void *addr, int len);
 #endif

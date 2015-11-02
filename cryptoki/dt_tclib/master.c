@@ -65,7 +65,7 @@ struct configuration {
 
     uint16_t timeout;
 
-    uint32_t cant_nodes;
+    uint32_t nodes_cant;
     struct node_info *nodes;
 
     char *server_id;
@@ -101,12 +101,12 @@ static void free_wrapper(void *data, void *hint)
     free_function(data);
 }
 
-static void free_nodes(unsigned int cant_nodes, struct node_info *node)
+static void free_nodes(unsigned int nodes_cant, struct node_info *node)
 {
     unsigned int i;
     if(!node)
         return;
-    for(i = 0; i < cant_nodes; i++){
+    for(i = 0; i < nodes_cant; i++){
         if(node[i].ip)
             free(node[i].ip);
     }
@@ -118,11 +118,11 @@ static void free_conf(struct configuration *conf)
     unsigned i;
     if(!conf)
         return;
-    for(i = 0; i < conf->cant_nodes; i++)
+    for(i = 0; i < conf->nodes_cant; i++)
         if(conf->nodes[i].public_key)
             free(conf->nodes[i].public_key);
-    free_nodes(conf->cant_nodes, conf->nodes);
-    conf->cant_nodes = 0;
+    free_nodes(conf->nodes_cant, conf->nodes);
+    conf->nodes_cant = 0;
     if(conf->public_key)
         free(conf->public_key);
     if(conf->private_key) {
@@ -162,7 +162,7 @@ static char* configuration_to_string(const struct configuration *conf)
                            conf->configuration_file, conf->timeout,
                            conf->server_id);
 
-    for(i = 0; i < conf->cant_nodes; i++) {
+    for(i = 0; i < conf->nodes_cant; i++) {
         space_left -= snprintf(buff + (BUFF_SIZE - space_left), space_left,
                                "\n\t\t\t%s:{%" PRIu16 ",%" PRIu16 "}",
                                conf->nodes[i].ip, conf->nodes[i].sub_port,
@@ -244,7 +244,7 @@ err_exit:
     return 0;
 }
 
-static void free_nodes(unsigned int cant_nodes, struct node_info *node);
+static void free_nodes(unsigned int nodes_cant, struct node_info *node);
 static int set_client_socket_security(void *socket,
                                       const char *client_secret_key,
                                       const char *client_public_key);
@@ -255,7 +255,7 @@ static int send_pub_op(struct op_req *pub_op, void *socket);
 static int start_router_socket_handler(dtc_ctx_t *ctx);
 static int close_router_thread(void *zmq_ctx);
 static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
-                                  uint16_t cant_nodes,
+                                  uint16_t nodes_cant,
                                   key_metainfo_t **key_metainfo,
                                   key_share_t **key_shares);
 
@@ -270,7 +270,7 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err)
     else
         conf.configuration_file = default_conf_file;
 
-    conf.cant_nodes = 0;
+    conf.nodes_cant = 0;
     conf.nodes = NULL;
     conf.public_key = NULL;
     conf.private_key = NULL;
@@ -342,13 +342,16 @@ void handle_sign_req(void *zmq_ctx, const struct op_req *req, const char *user,
     }
 
     signatures_buffer = sign_key_data->signatures;
+    hexDump("Prepared doc:", sign_key_data->prepared_doc->data,
+            sign_key_data->prepared_doc->data_len);
+    printf("Signature:%s\n", tc_serialize_signature_share(sign_req->signature));
+    printf("Metainfo:%s\n", tc_serialize_key_metainfo(sign_key_data->key_metainfo));
     ret = tc_verify_signature(
             sign_req->signature, sign_key_data->prepared_doc,
             sign_key_data->key_metainfo);
-    //TODO is this the right check? Ask Pancho.
-    if(ret) {
+    if(ret != 1) {
         ht_unlock_get(expected_msgs);
-        LOG_DEBUG(LOG_LVL_ERRO, "Got a error (%d) verifying a key from %s\n",
+        LOG_DEBUG(LOG_LVL_ERRO, "Got an error (%d) verifying a key from %s\n",
                   ret, user)
         return;
     }
@@ -401,6 +404,9 @@ void handle_store_key_req(void *zmq_ctx, const struct op_req *req,
     }
 
     store_key_res.meta_info = data->meta_info;
+    printf("handle store\n");
+    printf("Metainfo:%s\n", tc_serialize_key_metainfo(data->meta_info));
+
     store_key_res.key_id = store_key_req->key_id;
     store_key_res.key_share = key_share;
 
@@ -638,18 +644,18 @@ void *router_socket_handler(void *data_)
 
 
 int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
-                            uint16_t threshold, uint16_t cant_nodes,
+                            uint16_t threshold, uint16_t nodes_cant,
                             key_metainfo_t **key_metainfo)
 {
     key_share_t **key_shares = NULL;
     int ret;
 
     key_shares = tc_generate_keys(key_metainfo, bit_size, threshold,
-                                  cant_nodes);
+                                  nodes_cant);
     if(!key_shares)
         return DTC_ERR_INTERN;
 
-    ret = store_key_shares_nodes(ctx, key_id, cant_nodes, key_metainfo, key_shares);
+    ret = store_key_shares_nodes(ctx, key_id, nodes_cant, key_metainfo, key_shares);
     if(ret != DTC_ERR_NONE) {
         dtc_delete_key_shares(ctx, key_id);
     }
@@ -660,7 +666,7 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
 }
 
 static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
-                                  uint16_t cant_nodes,
+                                  uint16_t nodes_cant,
                                   key_metainfo_t **key_metainfo,
                                   key_share_t **key_shares)
 {
@@ -680,7 +686,7 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
     store_key_pub.key_id = key_id;
     pub_op.args = args;
 
-    keys = newBuffer(cant_nodes);
+    keys = newBuffer(nodes_cant);
     if(!keys)
         return DTC_ERR_NOMEM;
 
@@ -696,7 +702,7 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
         return DTC_ERR_INVALID_VAL;
     }
 
-    for(i = 0; i < cant_nodes; i++)
+    for(i = 0; i < nodes_cant; i++)
         put(keys, (void *)key_shares[i]);
 
     ret = send_pub_op(&pub_op, ctx->pub_socket);
@@ -767,11 +773,11 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
     int ret, i = 0;
     char signing_id[37];
     int threshold = tc_key_meta_info_k(key_metainfo);
-    int cant_nodes = tc_key_meta_info_l(key_metainfo);
+    int nodes_cant = tc_key_meta_info_l(key_metainfo);
     struct handle_sign_key_data sign_key_data;
     signature_share_t *signature;
     Buffer_t *signatures_buffer;
-    signature_share_t *signatures[cant_nodes];
+    signature_share_t *signatures[nodes_cant];
     bytes_t *prepared_doc = tc_prepare_document(
             message, TC_SHA256, key_metainfo);
 
@@ -786,7 +792,7 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
     sign_pub.message = (uint8_t *)prepared_doc->data;
     sign_pub.msg_len = prepared_doc->data_len;
 
-    signatures_buffer = newBuffer(cant_nodes);
+    signatures_buffer = newBuffer(nodes_cant);
 
     sign_key_data.signatures = signatures_buffer;
     sign_key_data.prepared_doc = prepared_doc;
@@ -817,8 +823,8 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
     while(get_nowait(signatures_buffer, (void **)&signature) == 0)
         signatures[i++] = (signature_share_t *)signature;
 
-    tc_join_signatures((const signature_share_t **)signatures, prepared_doc,
-                       key_metainfo);
+    *out = tc_join_signatures((const signature_share_t **)signatures,
+                              prepared_doc, key_metainfo);
 
 
 
@@ -945,8 +951,8 @@ static int create_connect_sockets(const struct configuration *conf,
         ret = DTC_ERR_ZMQ_CURVE;
         goto err_exit;
     }
-    for(i = 0; i < conf->cant_nodes; i++) {
-    //for(i = conf->cant_nodes -1; i >= 0; i--) {
+    for(i = 0; i < conf->nodes_cant; i++) {
+    //for(i = conf->nodes_cant -1; i >= 0; i--) {
         ret_val = zmq_setsockopt(pub_socket, ZMQ_CURVE_SERVERKEY,
                                  conf->nodes[i].public_key,
                                  strlen(conf->nodes[i].public_key));
@@ -1055,7 +1061,7 @@ static int read_configuration_file(struct configuration *conf)
 {
     config_t cfg;
     config_setting_t *root, *master, *nodes, *element;
-    int cant_nodes = 0, rc;
+    int nodes_cant = 0, rc;
     unsigned int i = 0;
     int ret = DTC_ERR_CONFIG_FILE;
 
@@ -1081,15 +1087,15 @@ static int read_configuration_file(struct configuration *conf)
         goto err_exit;
     }
 
-    cant_nodes = config_setting_length(nodes);
-    if(cant_nodes == 0) {
+    nodes_cant = config_setting_length(nodes);
+    if(nodes_cant == 0) {
         LOG_DEBUG(LOG_LVL_CRIT, "0 nodes specified for master");
         goto err_exit;
     }
 
-    conf->cant_nodes = cant_nodes;
+    conf->nodes_cant = nodes_cant;
     conf->nodes =
-            (struct node_info *) malloc(sizeof(struct node_info) * cant_nodes);
+            (struct node_info *) malloc(sizeof(struct node_info) * nodes_cant);
     if(conf->nodes == NULL) {
         ret = DTC_ERR_NOMEM;
         goto err_exit;
@@ -1115,7 +1121,7 @@ static int read_configuration_file(struct configuration *conf)
         conf->timeout = DEFAULT_TIMEOUT;
     }
 
-    for(i = 0; i < cant_nodes; i++) {
+    for(i = 0; i < nodes_cant; i++) {
         conf->nodes[i].ip = NULL;
         element = config_setting_get_elem(nodes, i);
         if(element == NULL) {
@@ -1149,8 +1155,8 @@ static int read_configuration_file(struct configuration *conf)
     return DTC_ERR_NONE;
 
 err_exit:
-    free_nodes(cant_nodes, conf->nodes);
-    cant_nodes = 0;
+    free_nodes(nodes_cant, conf->nodes);
+    nodes_cant = 0;
     config_destroy(&cfg);
     return ret;
 }

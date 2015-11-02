@@ -52,7 +52,7 @@ struct delete_key_share_req {
 struct sign_pub {
     const char *signing_id;
     const char *key_id;
-    const uint8_t *message;
+    uint8_t *message;
     size_t msg_len;
 };
 
