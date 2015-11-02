@@ -34,6 +34,8 @@ int main(int argc, char **argv)
     ret_val = dtc_sign(ctx, info, "hola_id", msg, &signature);
     printf("%d\n", ret_val);
 
+    printf("Verify: %d\n", tc_rsa_verify(signature, msg, info, TC_SHA256));
+
     tc_clear_key_metainfo(info);
 
     dtc_delete_key_shares(ctx, "hola_id");

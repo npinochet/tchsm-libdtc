@@ -317,6 +317,10 @@ static struct json_object *serialize_sign_pub(
 
     if(version != 1)
         return NULL;
+    bytes_t b = {.data=(void *)sign_pub->message,
+                 .data_len=sign_pub->msg_len};
+
+    const char *serialized_msg = tc_bytes_b64(&b);
 
     ret = json_object_new_object();
 
@@ -324,14 +328,8 @@ static struct json_object *serialize_sign_pub(
                            json_object_new_string(sign_pub->signing_id));
     json_object_object_add(ret, "key_id",
                            json_object_new_string(sign_pub->key_id));
-    json_object_object_add(
-            ret, "message",
-            json_object_new_string_len((const char *) sign_pub->message,
-                                                      sign_pub->msg_len));
-    json_object_object_add(ret, "signing_id",
-                           json_object_new_string(sign_pub->signing_id));
-    json_object_object_add(ret, "msg_len",
-                           json_object_new_int64(sign_pub->msg_len));
+    json_object_object_add(ret, "message",
+                           json_object_new_string(serialized_msg));
 
     return ret;
 }
@@ -343,15 +341,10 @@ static union command_args *unserialize_sign_pub(
     union command_args *ret_union =
         (union command_args *) malloc(sizeof(union command_args));
     struct sign_pub *ret = &ret_union->sign_pub;
+    bytes_t *msg;
 
     if(version != 1)
         goto err_exit;
-
-    if(!json_object_object_get_ex(in, "msg_len", &temp)) {
-        LOG(LOG_LVL_CRIT, "Key \"msg_len\" does not exists.");
-        goto err_exit;
-    }
-    ret->msg_len = (size_t) json_object_get_int64(temp);
 
     if(!json_object_object_get_ex(in, "key_id", &temp)) {
         LOG(LOG_LVL_CRIT, "Key \"key_id\" does not exists.")
@@ -366,14 +359,18 @@ static union command_args *unserialize_sign_pub(
     }
     ret->signing_id = strdup(json_object_get_string(temp));
 
-
     if(!json_object_object_get_ex(in, "message", &temp)) {
         LOG(LOG_LVL_CRIT, "Key \"message\" does not exists.")
         free((void *)ret->key_id);
         free((void *)ret->signing_id);
         goto err_exit;
     }
-    ret->message = (uint8_t *)strdup(json_object_get_string(temp));
+
+    msg = tc_b64_bytes(json_object_get_string(temp));
+    ret->message = (uint8_t *)msg->data;
+    ret->msg_len = msg->data_len;
+
+    free(msg);
 
     return ret_union;
 
@@ -876,8 +873,8 @@ START_TEST(serialize_unserialize_sign_pub) {
 
     com_args.sign_pub.signing_id = "signing_id";
     com_args.sign_pub.key_id = "key_id";
-    com_args.sign_pub.message = (uint8_t *) "message";
-    com_args.sign_pub.msg_len = strlen("message") + 1;
+    com_args.sign_pub.message = (uint8_t *) "me\0ssage";
+    com_args.sign_pub.msg_len = 8;
 
     operation_request.version = 1;
     operation_request.op = OP_SIGN_PUB;
@@ -895,14 +892,15 @@ START_TEST(serialize_unserialize_sign_pub) {
                      com_args.sign_pub.msg_len);
     ck_assert_str_eq(unserialized_op_req->args->sign_pub.signing_id,
                      com_args.sign_pub.signing_id);
-    ck_assert_str_eq((const char *)unserialized_op_req->args->sign_pub.message,
-                     (const char *)com_args.sign_pub.message);
+    ck_assert_int_eq(0,
+                     memcmp(unserialized_op_req->args->sign_pub.message,
+                            com_args.sign_pub.message,
+                            com_args.sign_pub.msg_len));
     ck_assert_str_eq(unserialized_op_req->args->sign_pub.key_id,
                      com_args.sign_pub.key_id);
 
     free(output);
     delete_op_req(unserialized_op_req);
-
 }
 END_TEST
 
@@ -958,6 +956,55 @@ START_TEST(serialize_unserialize_sign_req) {
 }
 END_TEST
 
+
+START_TEST(sign_serialized_input) {
+
+    //const char *serialized_signature =
+    //        "AAEAAQAAAAAAAAAge/LxwNtKrBmtspxhDLsVK4KrBDI2w7YWR78RUzvqGaMAAACAG6"
+    //        "7fQKYt3eYP1kQJW1bRUMvqqcYD1JoukbwuEoF/Jm5QUEViSman8e3+vX+NsuaU2TO4"
+    //        "C06+JJ1GCYql4NxErNuHwfvAAIaVjN7KDJ9gfWuC0We+8QrKU4vheUr6g0sgxCOu+a"
+    //        "bzSGSIsEWOJW1IGYX6QXZ+cAB3dDOUdcNNNtI=";
+    const char *serialized_key_share =
+            "AAEAAQAAAECQeE2qK3r7DmxFRyYl7s8u8mOxGF77XWwCDD+znxdHY79sFexNXfXqUj"
+            "LB5QhlKpbIO4TSuC3ObcZnms+uEGf9AAAAQBTriNKPIos7kM/c4FAuo0uQ78D3rpxf"
+            "cDohMDHIZDhy50TuXVMeA088CSGxsY+jG0tUCNR3r9TQIkB9Py98UmQ=";
+    const char *serialized_metainfo =
+            "AAEAAABLAAAAQJB4TaorevsObEVHJiXuzy7yY7EYXvtdbAIMP7OfF0djv2wV7E1d9epSMsHlCGUqlsg7hNK4Lc5txmeaz64QZ/0AAAADAQABAAIAAgAAAEAcSdb2HBHbzwd4sr19DUvUbD/rzSlBfBqg0KmNx9romEor8GSTumYj2vcTBkdKt+TqGGQnQXrXJOPCqO2nqQljAAAAQIpb4BEWBPObgmuhnK06Y2OWWwRH00eg58tUIyG8IOZuQ2dD75kTeLIaufZ0Yw4RUtvbI/OWsfY42oOegLVelCMAAABAilvgERYE85uCa6GcrTpjY5ZbBEfTR6Dny1QjIbwg5m5DZ0PvmRN4shq59nRjDhFS29sj85ax9g56AtV6UIw==";
+            //"AAEAAABLAAAAQJB4TaorevsObEVHJiXuzy7yY7EYXvtdbAIMP7OfF0djv2wV7E1d9epSMsHlCGUqlsg7hNK4Lc5txmeaz64QZ/0AAAADAQABAAIAAgAAAEAcSdb2HBHbzwd4sr19DUvUbD/rzSlBfBqg0KmNx9romEor8GSTumYj2vcTBkdKt+TqGGQnQXrXJOPCqO2nqQljAAAAQIpb4BEWBPObgmuhnK06Y2OWWwRH00eg58tUIyG8IOZuQ2dD75kTeLIaufZ0Yw4RUtvbI/OWsfY42oOegLVelCMAAABAilvgERYE85uCa6GcrTpjY5ZbBEfTR6Dny1QjIbwg5m5DZ0PvmRN4shq59nRjDhFS29sj85ax9g56AtV6UIw==";
+//            "AAEAAABLAAAAQJB4TaorevsObEVHJiXuzy7yY7EYXvtdbAIMP7OfF0djv2wV7E1d9e"
+//            "pSMsHlCGUqlsg7hNK4Lc5txmeaz64QZ/0AAAADAQABAAIAAgAAAEAcSdb2HBHbzwd4"
+//            "sr19DUvUbD/rzSlBfBqg0KmNx9romEor8GSTumYj2vcTBkdKt+TqGGQnQXrXJOPCqO"
+//            "2nqQljAAAAQIpb4BEWBPObgmuhnK06Y2OWWwRH00eg58tUIyG8IOZuQ2dD75kTeLIa"
+//            "ufZ0Yw4RUtvbI/OWsfY42oOegLVelCMAAABAilvgERYE85uCa6GcrTpjY5ZbBEfTR6"
+//            "Dny1QjIbwg5m5DZ0PvmRN4shq59nRjDhFS29sj85ax9g56AtV6UIw==";
+
+    //const signature_share_t *sig =
+    //        tc_deserialize_signature_share(serialized_signature);
+    const key_share_t *key_share =
+            tc_deserialize_key_share(serialized_key_share);
+    const key_metainfo_t *metainfo =
+            tc_deserialize_key_metainfo(strdup(serialized_metainfo));
+
+    char *msg = "this is my msg";
+
+    ck_assert_ptr_ne(NULL, (void *)metainfo);
+    ck_assert_ptr_ne(NULL, (void *)key_share);
+
+    bytes_t *doc = tc_init_bytes((void *)strdup(msg), strlen(msg));
+    bytes_t *prep_doc = tc_prepare_document(doc, TC_SHA256, metainfo);
+
+    const signature_share_t *signature = tc_node_sign(key_share,
+                                                      prep_doc,
+                                                      metainfo);
+
+    ck_assert_ptr_ne(NULL, (void *)signature);
+    //ck_assert_int_eq(1, tc_verify_signature(signature, prep_doc, metainfo));
+
+
+}
+END_TEST
+
+
 TCase* get_dt_tclib_messages_c_test_case(){
     TCase *test_case = tcase_create("messages_c");
 
@@ -980,6 +1027,9 @@ TCase* get_dt_tclib_messages_c_test_case(){
 
     tcase_add_test(test_case, serialize_unserialize_sign_pub);
     tcase_add_test(test_case, serialize_unserialize_sign_req);
+
+    tcase_add_test(test_case, sign_serialized_input);
+
     return test_case;
 }
 

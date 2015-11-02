@@ -1,6 +1,6 @@
 LIBSODIUM=/home/fmontoto/Resources/libsodium-1.0.3/install
 ZMQ=/home/fmontoto/Resources/zeromq-4.1.3/install
-TCLIB=/home/fmontoto/Resources/tclib/install
+TCLIB=/home/fmontoto/Resources/tclib
 LIBCONFIG=/home/fmontoto/Resources/libconfig-1.5/install
 JSONC=/home/fmontoto/Resources/json-c/install
 
