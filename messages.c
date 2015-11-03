@@ -331,6 +331,7 @@ static struct json_object *serialize_sign_pub(
     json_object_object_add(ret, "message",
                            json_object_new_string(serialized_msg));
 
+    free((void *)serialized_msg);
     return ret;
 }
 
@@ -956,54 +957,130 @@ START_TEST(serialize_unserialize_sign_req) {
 }
 END_TEST
 
+START_TEST(serialize_unserialized_sign) {
+    // Test the complete stack of serialization/unserialization involved during
+    // the store and sign process.
 
-START_TEST(sign_serialized_input) {
+    size_t bit_size = 512;
+    uint16_t nodes_cant = 5;
+    uint16_t threshold = 3;
+    const char *key_id = "key_";
+    const char *msg = "12345";
+    const char *signing_id = "id";
+    int i;
+    char *stored_msgs[nodes_cant];
+    size_t stored_msgs_size[nodes_cant];
+    char *sign_req_msgs[nodes_cant];
+    size_t sign_req_msgs_size[nodes_cant];
+    const signature_share_t *signatures[nodes_cant];
+    char *pub_msg;
+    size_t pub_msg_size;
+    bytes_t doc = {.data=(void *)msg,
+                   .data_len=5};
+    bytes_t *prep_doc, *to_sign_doc, *final_signature;
+    signature_share_t *signature;
 
-    //const char *serialized_signature =
-    //        "AAEAAQAAAAAAAAAge/LxwNtKrBmtspxhDLsVK4KrBDI2w7YWR78RUzvqGaMAAACAG6"
-    //        "7fQKYt3eYP1kQJW1bRUMvqqcYD1JoukbwuEoF/Jm5QUEViSman8e3+vX+NsuaU2TO4"
-    //        "C06+JJ1GCYql4NxErNuHwfvAAIaVjN7KDJ9gfWuC0We+8QrKU4vheUr6g0sgxCOu+a"
-    //        "bzSGSIsEWOJW1IGYX6QXZ+cAB3dDOUdcNNNtI=";
-    const char *serialized_key_share =
-            "AAEAAQAAAECQeE2qK3r7DmxFRyYl7s8u8mOxGF77XWwCDD+znxdHY79sFexNXfXqUj"
-            "LB5QhlKpbIO4TSuC3ObcZnms+uEGf9AAAAQBTriNKPIos7kM/c4FAuo0uQ78D3rpxf"
-            "cDohMDHIZDhy50TuXVMeA088CSGxsY+jG0tUCNR3r9TQIkB9Py98UmQ=";
-    const char *serialized_metainfo =
-            "AAEAAABLAAAAQJB4TaorevsObEVHJiXuzy7yY7EYXvtdbAIMP7OfF0djv2wV7E1d9epSMsHlCGUqlsg7hNK4Lc5txmeaz64QZ/0AAAADAQABAAIAAgAAAEAcSdb2HBHbzwd4sr19DUvUbD/rzSlBfBqg0KmNx9romEor8GSTumYj2vcTBkdKt+TqGGQnQXrXJOPCqO2nqQljAAAAQIpb4BEWBPObgmuhnK06Y2OWWwRH00eg58tUIyG8IOZuQ2dD75kTeLIaufZ0Yw4RUtvbI/OWsfY42oOegLVelCMAAABAilvgERYE85uCa6GcrTpjY5ZbBEfTR6Dny1QjIbwg5m5DZ0PvmRN4shq59nRjDhFS29sj85ax9g56AtV6UIw==";
-            //"AAEAAABLAAAAQJB4TaorevsObEVHJiXuzy7yY7EYXvtdbAIMP7OfF0djv2wV7E1d9epSMsHlCGUqlsg7hNK4Lc5txmeaz64QZ/0AAAADAQABAAIAAgAAAEAcSdb2HBHbzwd4sr19DUvUbD/rzSlBfBqg0KmNx9romEor8GSTumYj2vcTBkdKt+TqGGQnQXrXJOPCqO2nqQljAAAAQIpb4BEWBPObgmuhnK06Y2OWWwRH00eg58tUIyG8IOZuQ2dD75kTeLIaufZ0Yw4RUtvbI/OWsfY42oOegLVelCMAAABAilvgERYE85uCa6GcrTpjY5ZbBEfTR6Dny1QjIbwg5m5DZ0PvmRN4shq59nRjDhFS29sj85ax9g56AtV6UIw==";
-//            "AAEAAABLAAAAQJB4TaorevsObEVHJiXuzy7yY7EYXvtdbAIMP7OfF0djv2wV7E1d9e"
-//            "pSMsHlCGUqlsg7hNK4Lc5txmeaz64QZ/0AAAADAQABAAIAAgAAAEAcSdb2HBHbzwd4"
-//            "sr19DUvUbD/rzSlBfBqg0KmNx9romEor8GSTumYj2vcTBkdKt+TqGGQnQXrXJOPCqO"
-//            "2nqQljAAAAQIpb4BEWBPObgmuhnK06Y2OWWwRH00eg58tUIyG8IOZuQ2dD75kTeLIa"
-//            "ufZ0Yw4RUtvbI/OWsfY42oOegLVelCMAAABAilvgERYE85uCa6GcrTpjY5ZbBEfTR6"
-//            "Dny1QjIbwg5m5DZ0PvmRN4shq59nRjDhFS29sj85ax9g56AtV6UIw==";
+    struct op_req op_store_key_res, op_sign_pub, op_sign_req;
+    struct op_req *rcvd_store_key, *rcvd_sign_pub, *rcvd_sign_req;
+    struct store_key_res store_key_res;
+    struct sign_pub sign_pub;
+    struct sign_req sign_req;
 
-    //const signature_share_t *sig =
-    //        tc_deserialize_signature_share(serialized_signature);
-    const key_share_t *key_share =
-            tc_deserialize_key_share(serialized_key_share);
-    const key_metainfo_t *metainfo =
-            tc_deserialize_key_metainfo(strdup(serialized_metainfo));
+    op_store_key_res.version = op_sign_pub.version = op_sign_req.version = 1;
+    op_store_key_res.op = OP_STORE_KEY_RES;
+    op_sign_pub.op = OP_SIGN_PUB;
+    op_sign_req.op = OP_SIGN_REQ;
 
-    char *msg = "this is my msg";
+    op_store_key_res.args = (union command_args *)&store_key_res;
+    op_sign_pub.args = (union command_args *)&sign_pub;
+    op_sign_req.args = (union command_args *)&sign_req;
 
-    ck_assert_ptr_ne(NULL, (void *)metainfo);
-    ck_assert_ptr_ne(NULL, (void *)key_share);
+    store_key_res.key_id = key_id;
+    sign_req.status_code = 0;
+    sign_req.signing_id = signing_id;
 
-    bytes_t *doc = tc_init_bytes((void *)strdup(msg), strlen(msg));
-    bytes_t *prep_doc = tc_prepare_document(doc, TC_SHA256, metainfo);
+    key_metainfo_t *metainfo;
+    key_share_t **key_shares;
 
-    const signature_share_t *signature = tc_node_sign(key_share,
-                                                      prep_doc,
-                                                      metainfo);
+    key_shares = tc_generate_keys(&metainfo, bit_size, threshold, nodes_cant);
+    ck_assert_ptr_ne(NULL, (void *)key_shares);
 
-    ck_assert_ptr_ne(NULL, (void *)signature);
-    //ck_assert_int_eq(1, tc_verify_signature(signature, prep_doc, metainfo));
+    prep_doc = tc_prepare_document(&doc, TC_SHA256, metainfo);
 
+    //Store key
+    store_key_res.meta_info = metainfo;
+    for(i = 0; i < nodes_cant; i++) {
+        store_key_res.key_share = key_shares[i];
+        stored_msgs_size[i] = serialize_op_req(&op_store_key_res,
+                                               &stored_msgs[i]);
+        ck_assert_int_ne(0, stored_msgs_size[i]);
+        ck_assert_ptr_ne(NULL, (void *)stored_msgs[i]);
+    }
 
+    //Sign request
+    sign_pub.signing_id = signing_id;
+    sign_pub.key_id = key_id;
+    sign_pub.message = (uint8_t *)prep_doc->data;
+    sign_pub.msg_len = prep_doc->data_len;
+    pub_msg_size = serialize_op_req(&op_sign_pub, (void *)&pub_msg);
+    ck_assert_int_ne(0, pub_msg_size);
+
+    //Sign
+    rcvd_sign_pub = unserialize_op_req(pub_msg, pub_msg_size);
+    ck_assert_ptr_ne(NULL, (void *) rcvd_sign_pub);
+    to_sign_doc = tc_init_bytes((void *)rcvd_sign_pub->args->sign_pub.message,
+                                rcvd_sign_pub->args->sign_pub.msg_len);
+    for(i = 0; i < nodes_cant; i++) {
+        rcvd_store_key = unserialize_op_req(stored_msgs[i], stored_msgs_size[i]);
+        ck_assert_ptr_ne(NULL, (void *)rcvd_store_key);
+        signature = tc_node_sign(rcvd_store_key->args->store_key_res.key_share,
+                                 to_sign_doc,
+                                 rcvd_store_key->args->store_key_res.meta_info);
+        ck_assert_int_eq(
+                1, tc_verify_signature(
+                        signature, to_sign_doc,
+                        rcvd_store_key->args->store_key_res.meta_info));
+        sign_req.signature = signature;
+        sign_req_msgs_size[i] = serialize_op_req(&op_sign_req,
+                                                 &sign_req_msgs[i]);
+        tc_clear_signature_share(signature);
+        delete_op_req(rcvd_store_key);
+    }
+
+    for(i = 0; i < nodes_cant; i++) {
+        rcvd_sign_req = unserialize_op_req(sign_req_msgs[i],
+                                           sign_req_msgs_size[i]);
+
+        ck_assert_ptr_ne(NULL, (void *)rcvd_sign_req);
+        ck_assert_int_eq(
+                1, tc_verify_signature(
+                        rcvd_sign_req->args->sign_req.signature, prep_doc,
+                        metainfo));
+        signatures[i] = rcvd_sign_req->args->sign_req.signature;
+
+        rcvd_sign_req->args->sign_req.signature = NULL;
+        delete_op_req(rcvd_sign_req);
+    }
+
+    final_signature = tc_join_signatures(signatures, prep_doc, metainfo);
+
+    ck_assert_int_eq(
+            1, tc_rsa_verify(final_signature, &doc, metainfo, TC_SHA256));
+
+    for(i = 0; i < nodes_cant; i++) {
+        free((void *)stored_msgs[i]);
+        free((void *)sign_req_msgs[i]);
+        tc_clear_signature_share((signature_share_t *)signatures[i]);
+    }
+    tc_clear_bytes(prep_doc);
+    free(to_sign_doc);
+    tc_clear_bytes(final_signature);
+    tc_clear_key_shares(key_shares, metainfo);
+    tc_clear_key_metainfo(metainfo);
+    delete_op_req(rcvd_sign_pub);
+    free(pub_msg);
 }
 END_TEST
-
 
 TCase* get_dt_tclib_messages_c_test_case(){
     TCase *test_case = tcase_create("messages_c");
@@ -1028,7 +1105,7 @@ TCase* get_dt_tclib_messages_c_test_case(){
     tcase_add_test(test_case, serialize_unserialize_sign_pub);
     tcase_add_test(test_case, serialize_unserialize_sign_req);
 
-    tcase_add_test(test_case, sign_serialized_input);
+    tcase_add_test(test_case, serialize_unserialized_sign);
 
     return test_case;
 }
