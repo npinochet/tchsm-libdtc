@@ -8,6 +8,7 @@
 
 #include "logger/logger.h"
 #include "messages.h"
+#include <tc_internal.h>
 
 // TODO(fmontoto) Helper method to check valid versions.
 
@@ -1036,6 +1037,9 @@ START_TEST(serialize_unserialized_sign) {
         signature = tc_node_sign(rcvd_store_key->args->store_key_res.key_share,
                                  to_sign_doc,
                                  rcvd_store_key->args->store_key_res.meta_info);
+        hexDump("signature:",
+                (void *)signature->x_i->data,
+                signature->x_i->data_len);
         ck_assert_int_eq(
                 1, tc_verify_signature(
                         signature, to_sign_doc,
@@ -1052,6 +1056,11 @@ START_TEST(serialize_unserialized_sign) {
                                            sign_req_msgs_size[i]);
 
         ck_assert_ptr_ne(NULL, (void *)rcvd_sign_req);
+        hexDump("signature:",
+                (void *)rcvd_sign_req->args->sign_req.signature->x_i->data,
+                rcvd_sign_req->args->sign_req.signature->x_i->data_len);
+
+
         ck_assert_int_eq(
                 1, tc_verify_signature(
                         rcvd_sign_req->args->sign_req.signature, prep_doc,
