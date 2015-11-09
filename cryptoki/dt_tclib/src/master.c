@@ -342,10 +342,6 @@ void handle_sign_req(void *zmq_ctx, const struct op_req *req, const char *user,
     }
 
     signatures_buffer = sign_key_data->signatures;
-    hexDump("Prepared doc:", sign_key_data->prepared_doc->data,
-            sign_key_data->prepared_doc->data_len);
-    printf("Signature:%s\n", tc_serialize_signature_share(sign_req->signature));
-    printf("Metainfo:%s\n", tc_serialize_key_metainfo(sign_key_data->key_metainfo));
     ret = tc_verify_signature(
             sign_req->signature, sign_key_data->prepared_doc,
             sign_key_data->key_metainfo);
@@ -404,8 +400,6 @@ void handle_store_key_req(void *zmq_ctx, const struct op_req *req,
     }
 
     store_key_res.meta_info = data->meta_info;
-    printf("handle store\n");
-    printf("Metainfo:%s\n", tc_serialize_key_metainfo(data->meta_info));
 
     store_key_res.key_id = store_key_req->key_id;
     store_key_res.key_share = key_share;
@@ -438,19 +432,17 @@ static void handle_router_rcvd_msg(void *zmq_ctx, zmq_msg_t *msg, int msg_size,
 
     if(req->op == OP_STORE_KEY_REQ) {
         handle_store_key_req(zmq_ctx, req, user, tables[OP_STORE_KEY_REQ]);
-        delete_op_req(req);
     }
     else if(req->op == OP_DELETE_KEY_SHARE_REQ) {
         handle_delete_key_share_req(zmq_ctx, req, user, tables[req->op]);
-        delete_op_req(req);
     }
     else if(req->op == OP_SIGN_REQ) {
         handle_sign_req(zmq_ctx, req, user, tables[req->op]);
     }
     else {
         LOG_DEBUG(LOG_LVL_ERRO, "Not supported operation %d", req->op)
-        delete_op_req(req);
     }
+    delete_op_req(req);
 
     LOG_DEBUG(LOG_LVL_LOG, "TEST: %s", user)
 }
@@ -770,7 +762,7 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
 {
     struct op_req pub_op;
     struct sign_pub sign_pub;
-    int ret, i = 0;
+    int ret, j, i = 0;
     char signing_id[37];
     int threshold = tc_key_meta_info_k(key_metainfo);
     int nodes_cant = tc_key_meta_info_l(key_metainfo);
@@ -778,8 +770,6 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
     signature_share_t *signature;
     Buffer_t *signatures_buffer;
     signature_share_t *signatures[nodes_cant];
-    bytes_t *prepared_doc = tc_prepare_document(
-            message, TC_SHA256, key_metainfo);
 
     get_uuid_as_char(signing_id);
 
@@ -789,13 +779,13 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
 
     sign_pub.signing_id = signing_id;
     sign_pub.key_id = key_id;
-    sign_pub.message = (uint8_t *)prepared_doc->data;
-    sign_pub.msg_len = prepared_doc->data_len;
+    sign_pub.message = (uint8_t *)message->data;
+    sign_pub.msg_len = message->data_len;
 
     signatures_buffer = newBuffer(nodes_cant);
 
     sign_key_data.signatures = signatures_buffer;
-    sign_key_data.prepared_doc = prepared_doc;
+    sign_key_data.prepared_doc = message;
     sign_key_data.key_metainfo = key_metainfo;
 
     ret = ht_add_element(ctx->expected_msgs[OP_SIGN_REQ], signing_id,
@@ -808,6 +798,7 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
     ret = send_pub_op(&pub_op, ctx->pub_socket);
     if(ret != DTC_ERR_NONE) {
         LOG_DEBUG(LOG_LVL_CRIT, "Send pub msg error")
+        free_buffer(signatures_buffer);
         return ret;
     }
 
@@ -818,16 +809,19 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
     if(ret == 0) {
         //TODO
         ;
+        free_buffer(signatures_buffer);
     }
 
     while(get_nowait(signatures_buffer, (void **)&signature) == 0)
         signatures[i++] = (signature_share_t *)signature;
 
     *out = tc_join_signatures((const signature_share_t **)signatures,
-                              prepared_doc, key_metainfo);
+                              message, key_metainfo);
 
+    for(j = 0; j < i; j++)
+        tc_clear_signature_share(signatures[j]);
 
-
+    free_buffer(signatures_buffer);
     //signature = wait_signatures();
     //TODO
     return 0;

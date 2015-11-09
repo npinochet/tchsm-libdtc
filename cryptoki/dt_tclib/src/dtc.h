@@ -33,12 +33,26 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err);
  *
  * @return -1 if key_id is already used. //TODO
  */
-// TODO Do we move the key_id to uint{32-64}_t ?
 int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
                             uint16_t threshold, uint16_t cant_nodes,
                             key_metainfo_t **info);
-//TODO Would be nice to provide a tc_clear_bytes in this header.
-// TODO Implement and document the API.
+
+/**
+ * Ask the nodes to sign the message using the key_id specified.
+ *
+ * @param ctx Active dtc context.
+ * @param key_metainfo Metainfo of the key referenced by key_id, this struct is
+ *      obtained after a successful call to dtc_generate_key_shares and
+ *      contains info about the key.
+ * @param key_id Id of the key to be used to generate the signature.
+ * @param message Message to be signed, the message must be already prepared,
+ *      see tc_prepare_document.
+ * @param out The signature will be stored at *out. On success the user is
+ *      responsible for the memory and should call tc_clear_bytes it order to
+ *      avoid a memory leak. On error out is not changed.
+ *
+ * @return DTC_ERR_NONE on success, a proper error code otherwise.
+ */
 int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
                   const char *key_id, bytes_t *message, bytes_t **out);
 
