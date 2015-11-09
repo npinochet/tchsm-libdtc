@@ -58,7 +58,7 @@ master.o: master.c err.h
 	$(CC) $(CFLAGS) $(TCLIB_I) $(ZMQ_I) -c master.c
 
 utilities.o: utilities.h utilities.c logger/logger.h
-	$(CC) $(CFLAGS) $(LIBCONFIG_I) -c utilities.c
+	$(CC) $(CFLAGS) $(ZMQ_I) $(LIBCONFIG_I) -c utilities.c
 
 structs.o: structs.c structs.h
 	$(CC) $(CFLAGS) -c structs.c

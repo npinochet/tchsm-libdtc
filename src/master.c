@@ -17,20 +17,10 @@
 #include "structs.h"
 #include "utilities.h"
 
-#ifndef NDEBUG
-    #include "logger/logger.h"
-    #define LOG_DEBUG(level, format, ...) \
-        LOG(level, format, ## __VA_ARGS__)
-#else
-    #define LOG_DEBUG(level, format, ...) \
-        do {}while(0);
-#endif
-
 #define SEND_ROUTER_INPROC_BINDING "inproc://send_router"
 #define CLOSE_SOCKET_ROUTER_THREAD_BINDING "inproc://close_router_thread"
 
 const uint16_t DEFAULT_TIMEOUT = 10;
-
 
 struct dtc_ctx {
 
@@ -95,18 +85,12 @@ struct handle_sign_key_data {
     const key_metainfo_t *key_metainfo;
 };
 
-static void free_wrapper(void *data, void *hint)
-{
-    void (*free_function)(void *) = (void (*)(void *))hint;
-    free_function(data);
-}
-
 static void free_nodes(unsigned int nodes_cant, struct node_info *node)
 {
     unsigned int i;
     if(!node)
         return;
-    for(i = 0; i < nodes_cant; i++){
+    for(i = 0; i < nodes_cant; i++) {
         if(node[i].ip)
             free(node[i].ip);
     }
@@ -131,17 +115,6 @@ static void free_conf(struct configuration *conf)
     }
     if(conf->server_id)
         free(conf->server_id);
-}
-
-static int s_send(void *socket, const char *string)
-{
-    return zmq_send(socket, string, strlen(string), 0);
-}
-
-static int s_sendmore(void *socket, const char *string)
-{
-    int size = zmq_send (socket, string, strlen(string), ZMQ_SNDMORE);
-    return size;
 }
 
 /* Return a human readable version of the configuration */
@@ -174,18 +147,6 @@ static char* configuration_to_string(const struct configuration *conf)
     }
 
     return &buff[0];
-}
-
-static char *s_recv (void *socket)
-{
-    char buffer [256];
-    int size = zmq_recv(socket, buffer, 255, 0);
-    if (size == -1)
-        return NULL;
-    if (size > 255)
-        size = 255;
-    buffer[size] = 0;
-    return strdup(buffer);
 }
 
 static int send_router_msg(void *zmq_ctx, const struct op_req *op,
@@ -244,7 +205,6 @@ err_exit:
     return 0;
 }
 
-static void free_nodes(unsigned int nodes_cant, struct node_info *node);
 static int set_client_socket_security(void *socket,
                                       const char *client_secret_key,
                                       const char *client_public_key);

@@ -4,20 +4,14 @@
 #include <string.h>
 #include <uuid/uuid.h>
 
+#include <zmq.h>
+
 #include "err.h"
 #include "utilities.h"
 
-#ifndef NDEBUG
-    #include "logger/logger.h"
-    #define LOG_DEBUG(level, format, ...) \
-        LOG(level, format, ## __VA_ARGS__)
-#else
-    #define LOG_DEBUG(level, format, ...) \
-        do {}while(0);
-#endif
-
 int lookup_uint16_conf_element(const config_setting_t *setting,
-                                      const char *name, uint16_t *out) {
+                                      const char *name, uint16_t *out)
+{
     int ret;
     long long aux;
 
@@ -38,7 +32,8 @@ int lookup_uint16_conf_element(const config_setting_t *setting,
 }
 
 int lookup_string_conf_element(const config_setting_t *setting,
-                               const char *name, char **value) {
+                               const char *name, char **value)
+{
 
     int ret;
     const char *char_aux;
@@ -58,10 +53,45 @@ int lookup_string_conf_element(const config_setting_t *setting,
 /**
  * Generate and dump into ret a uuid, ret must point to at least 37 bytes.
  */
-char *get_uuid_as_char(char *ret) {
+char *get_uuid_as_char(char *ret)
+{
     uuid_t uuid;
     uuid_generate(uuid);
     uuid_unparse(uuid, ret);
 
     return ret;
 }
+
+void free_wrapper(void *data, void *hint)
+{
+    void (*free_function)(void *) = (void (*)(void *))hint;
+    free_function(data);
+}
+
+static int s_send_str(void *socket, const char *string, int flags)
+{
+    return zmq_send(socket, string, strlen(string), flags);
+}
+
+int s_send(void *socket, const char *string)
+{
+    return s_send_str(socket, string, 0);
+}
+
+int s_sendmore(void *socket, const char *string)
+{
+    return s_send_str(socket, string, ZMQ_SNDMORE);
+}
+
+char *s_recv(void *socket)
+{
+    char buffer [256];
+    int size = zmq_recv(socket, buffer, 255, 0);
+    if (size == -1)
+        return NULL;
+    if (size > 255)
+        size = 255;
+    buffer[size] = 0;
+    return strdup(buffer);
+}
+

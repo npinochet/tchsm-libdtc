@@ -76,41 +76,6 @@ struct zap_handler_data {
 
 /* Utils */
 
-//  Receive 0MQ string from socket and convert into C string
-//
-//  Caller must free returned string. Returns NULL if the context
-//  is being terminated.
-static char *s_recv (void *socket)
-{
-    char buffer [256];
-    int size = zmq_recv(socket, buffer, 255, 0);
-    if (size == -1)
-        return NULL;
-    if (size > 255)
-        size = 255;
-    buffer[size] = 0;
-    return strdup(buffer);
-}
-//  Convert C string to 0MQ string and send to socket
-int s_send(void *socket, const char *string)
-{
-    int size = zmq_send(socket, string, strlen(string), 0);
-    return size;
-}
-
-//  Sends string as 0MQ string, as multipart non-terminal
-int s_sendmore(void *socket, const char *string)
-{
-    int size = zmq_send (socket, string, strlen(string), ZMQ_SNDMORE);
-    return size;
-}
-
-static void free_wrapper(void *data, void *hint)
-{
-    void (*free_function)(void *) = (void (*)(void *))hint;
-    free_function(data);
-}
-
 /* Safe conversion from str to uint16_t */
 int str_to_uint16(const char *str, uint16_t *res)
 {
