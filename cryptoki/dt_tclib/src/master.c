@@ -261,7 +261,6 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err)
     printf("%s\n", configuration_to_string(&conf));
 
     ret->server_id = conf.server_id;
-    conf.server_id = NULL;
 
     *err = create_connect_sockets(&conf, ret);
     if(*err != DTC_ERR_NONE)
@@ -271,10 +270,13 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err)
 
     if(DTC_ERR_NONE != start_router_socket_handler(ret)) {
         *err = DTC_ERR_INTERN;
+        zmq_close(ret->pub_socket);
+        zmq_close(ret->router_socket);
+        zmq_ctx_term(ret->zmq_ctx);
         goto err_exit;
-        //TODO free connections on error
     }
 
+    conf.server_id = NULL;
     free_conf(&conf);
 
     return ret;
