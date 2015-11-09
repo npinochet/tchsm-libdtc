@@ -261,6 +261,7 @@ static int read_configuration_file(struct configuration *conf)
         EXIT_ON_FALSE(ret == DTC_ERR_NONE, "Exit.");
     }
 
+    config_destroy(&cfg);
     return DTC_ERR_NONE;
 }
 
@@ -380,9 +381,6 @@ void store_key(database_t *db_conn, const char *server_id,
     int rc;
     char *key_metainfo = tc_serialize_key_metainfo(res_op->meta_info);
     char *key_share = tc_serialize_key_share(res_op->key_share);
-    printf("Storing:\n");
-    printf("Metainfo:%s\n", key_metainfo);
-    printf("Keyshare:%s\n", key_share);
     rc = db_store_key(
             db_conn, server_id, res_op->key_id, key_metainfo, key_share);
     free(key_metainfo);
@@ -404,8 +402,6 @@ void handle_store_key_res(database_t *db_conn, void *router_socket,
     zmq_msg_t msg_;
     zmq_msg_t *msg = &msg_;
     struct op_req *res_op;
-
-    printf("handle_store_key_res\n");
 
     if(zmq_msg_init(msg) != 0) {
         LOG(LOG_LVL_ERRO, "Error initializing msg: %s", zmq_strerror(errno));
@@ -484,6 +480,7 @@ void handle_delete_key_share_pub(database_t *db_conn, void *router_socket,
 
     key_id = pub_op->args->delete_key_share_pub.key_id;
 
+    delete_key_share.key_id = key_id;
     delete_key_share.deleted = db_delete_key(db_conn, server_id, key_id);
     if(delete_key_share.deleted == DTC_ERR_NONE)
         LOG(LOG_LVL_LOG, "Successfully deleted key %s from server %s",
@@ -549,9 +546,7 @@ const signature_share_t *sign(database_t *db_conn, const char *server_id,
     k_share = tc_deserialize_key_share(key_share);
 
     signature = tc_node_sign(k_share, msg_bytes, k_metainfo);
-    hexDump("Prepared doc:", msg_bytes->data, msg_bytes->data_len);
-    printf("Signature:%s\n", tc_serialize_signature_share(signature));
-    printf("Metainfo:%s\n",key_metainfo);
+    //TODO log on error?
     printf("Verify: %d\n", tc_verify_signature(signature, msg_bytes, k_metainfo));
 
     tc_clear_key_share(k_share);
@@ -611,6 +606,7 @@ void handle_sign_pub(database_t *db_conn, void *router_socket,
     sign_req.signature = signature;
 
     send_op(server_id, &req, router_socket);
+    tc_clear_signature_share((signature_share_t *)signature);
     free(server_id);
 }
 

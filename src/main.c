@@ -30,17 +30,22 @@ int main(int argc, char **argv)
         return 1;
 
     bytes_t *msg = tc_init_bytes((void *)char_msg, strlen(char_msg));
+    bytes_t *prep_msg = tc_prepare_document(msg, TC_SHA256, info);
 
-    ret_val = dtc_sign(ctx, info, "hola_id", msg, &signature);
+    ret_val = dtc_sign(ctx, info, "hola_id", prep_msg, &signature);
     printf("%d\n", ret_val);
 
     printf("Verify: %d\n", tc_rsa_verify(signature, msg, info, TC_SHA256));
 
     tc_clear_key_metainfo(info);
+    tc_clear_bytes(signature);
+    tc_clear_bytes(prep_msg);
+    free(msg);
 
     dtc_delete_key_shares(ctx, "hola_id");
 
     printf("Destroy: %d\n", dtc_destroy(ctx));
+
 
     return 0;
 }
