@@ -2,6 +2,15 @@
 
 #include "structs.h"
 
+START_TEST(buffer_simple_timeout)
+{
+    Buffer_t *buf = newBuffer(10);
+    ck_assert_int_eq(0,
+                     wait_n_elements(buf, 1, 1));
+    free_buffer(buf);
+}
+END_TEST
+
 START_TEST(hash_init_destroy)
 {
     Hash_t *h = ht_init_hashtable();
@@ -77,6 +86,8 @@ void add_test_cases(Suite *s)
     tcase_add_test(test_case, hash_add);
     tcase_add_test(test_case, hash_put_get);
     tcase_add_test(test_case, hash_lock_unlock_get);
+
+    tcase_add_test(test_case, buffer_simple_timeout);
     suite_add_tcase(s, test_case);
 }
 

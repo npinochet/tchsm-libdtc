@@ -11,7 +11,8 @@ const char *err_msgs[] = {
     "Error in the serialization.",
     "Sqlite error.",
     "Intern library error.",
-    "Invalid parameter,",
+    "Invalid parameter.",
+    "Timed out",
 
     "Wrong errno.",  // Keep at the end.
 };

@@ -616,12 +616,14 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
     if(!key_shares)
         return DTC_ERR_INTERN;
 
-    ret = store_key_shares_nodes(ctx, key_id, nodes_cant, key_metainfo, key_shares);
+    ret = store_key_shares_nodes(ctx, key_id, nodes_cant, key_metainfo,
+                                 key_shares);
+    tc_clear_key_shares(key_shares, *key_metainfo);
     if(ret != DTC_ERR_NONE) {
         dtc_delete_key_shares(ctx, key_id);
+        tc_clear_key_metainfo(*key_metainfo);
     }
 
-    tc_clear_key_shares(key_shares, *key_metainfo);
     return ret;
 
 }
@@ -635,7 +637,7 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
     struct store_key_pub store_key_pub;
     struct handle_store_key_data store_key_data;
     union command_args *args = (union command_args *) &store_key_pub;
-    int ret, i;
+    int ret, i, return_on_timeout;
     void *remaining_key;
     unsigned prev;
     uint16_t val;
@@ -678,10 +680,7 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
         return ret;
     }
 
-    if(wait_until_empty(keys, ctx->timeout)) {
-        //TODO on timeout
-        ;
-    }
+    return_on_timeout = wait_until_empty(keys, ctx->timeout) == 0;
 
     ret = ht_get_and_delete_element(ctx->expected_msgs[OP_STORE_KEY_REQ],
                                     key_id, NULL);
@@ -698,8 +697,12 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
         ret = DTC_ERR_INTERN;
     free_buffer(keys);
 
-    if(ret != DTC_ERR_NONE)
+    if(ret != DTC_ERR_NONE || return_on_timeout) {
         uht_free(store_key_data.users_delivered);
+        if(return_on_timeout)
+            return DTC_ERR_TIMED_OUT;
+        return ret;
+    }
 
     //Check that all the nodes did accept the key.
     prev = 0;
@@ -731,7 +734,7 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
 {
     struct op_req pub_op;
     struct sign_pub sign_pub;
-    int ret, j, i = 0;
+    int ret, return_on_timeout, j, i = 0;
     char signing_id[37];
     int threshold = tc_key_meta_info_k(key_metainfo);
     int nodes_cant = tc_key_meta_info_l(key_metainfo);
@@ -771,28 +774,26 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
         return ret;
     }
 
-    ret = wait_n_elements(signatures_buffer, threshold, ctx->timeout);
+    return_on_timeout = wait_n_elements(signatures_buffer,
+                                        threshold, ctx->timeout) == 0;
     assert(1 == ht_get_and_delete_element(ctx->expected_msgs[OP_SIGN_REQ],
                                           signing_id, NULL));
-    // Returned on timeout.
-    if(ret == 0) {
-        //TODO
-        ;
-        free_buffer(signatures_buffer);
-    }
 
     while(get_nowait(signatures_buffer, (void **)&signature) == 0)
         signatures[i++] = (signature_share_t *)signature;
 
-    *out = tc_join_signatures((const signature_share_t **)signatures,
-                              message, key_metainfo);
+    if(!return_on_timeout) {
+        *out = tc_join_signatures((const signature_share_t **)signatures,
+                                  message, key_metainfo);
+    }
 
     for(j = 0; j < i; j++)
         tc_clear_signature_share(signatures[j]);
 
     free_buffer(signatures_buffer);
-    //signature = wait_signatures();
-    //TODO
+    if(return_on_timeout)
+        return DTC_ERR_TIMED_OUT;
+
     return 0;
 }
 
@@ -877,6 +878,7 @@ static int create_connect_sockets(const struct configuration *conf,
     int i = 0;
     char *protocol = "tcp";
     const int BUFF_SIZE = 200;
+    const int linger = 1000;
     char buff[BUFF_SIZE];
     int ret = DTC_ERR_NONE;
 
@@ -897,6 +899,13 @@ static int create_connect_sockets(const struct configuration *conf,
     if(!router_socket) {
         LOG_DEBUG(LOG_LVL_CRIT, "Unable to create router socket.");
         return DTC_ERR_ZMQ_ERROR;
+    }
+
+    ret = zmq_setsockopt(pub_socket, ZMQ_LINGER, &linger, sizeof(int));
+    ret += zmq_setsockopt(router_socket, ZMQ_LINGER, &linger, sizeof(int));
+    if(ret != 0) {
+        ret = DTC_ERR_ZMQ_ERROR;
+        goto err_exit;
     }
 
     ret = set_client_socket_security(pub_socket, conf->private_key,
