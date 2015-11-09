@@ -2,6 +2,7 @@
 #define DT_TCLIB_STRUCTS_H_
 
 #include <inttypes.h>
+#include <sys/time.h>
 
 struct buffer;
 typedef struct buffer Buffer_t;
@@ -65,7 +66,6 @@ int get_nowait(Buffer_t *buf, void **out);
 int wait_until_empty(Buffer_t *buf, unsigned timeout);
 
 /**
- * NOT IMPLEMENTED
  * Wait until there are at least n element in the buffer.
  * This will return iff there are at least n elements in the buffer, but it's
  * not guaranteed that every time that there are n or more elements it will

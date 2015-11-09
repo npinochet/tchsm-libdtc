@@ -1,7 +1,8 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include <string.h>
+#include <errno.h>
 #include <pthread.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -17,6 +18,21 @@ typedef struct buffer{
     pthread_mutex_t mutex;
     pthread_cond_t noempty, nofull, wait_n_elements;
 } Buffer;
+
+static void get_wait_timespec(time_t secs, suseconds_t microsec,
+                              struct timespec *out)
+{
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    long nanosecs;
+    // now microsecs * 1000 + timeout microsecs * 1000
+    nanosecs = now.tv_usec * 1000 + microsec * 1000;
+
+    // 1 000 000 000 nanosecs are one sec.
+    // now secs + time out secs + secs in nanosecs
+    out->tv_sec = now.tv_sec + secs + nanosecs / (1000 * 1000 * 1000);
+    out->tv_nsec = nanosecs % (1000 * 1000 * 1000);
+}
 
 /* Creates a new Concurrent buffer */
 Buffer_t *newBuffer(int size)
@@ -120,24 +136,36 @@ int get_nowait(Buffer_t *buf, void **out)
     return 0;
 }
 
-//TODO implement timeout.
 int wait_until_empty(Buffer_t *buf, unsigned timeout)
 {
+    struct timespec ts;
+    get_wait_timespec(timeout, 0, &ts);
+    int ret;
     pthread_mutex_lock(&buf->mutex);
     while(buf->cnt != 0) {
-        pthread_cond_wait(&buf->wait_n_elements, &buf->mutex);
+        ret = pthread_cond_timedwait(&buf->wait_n_elements, &buf->mutex, &ts);
+        if(ret == ETIMEDOUT) {
+            pthread_mutex_unlock(&buf->mutex);
+            return 0;
+        }
     }
     pthread_mutex_unlock(&buf->mutex);
     return 1;
-
 }
 
-//TODO implement timeout
 int wait_n_elements(Buffer_t *buf, unsigned n, unsigned timeout)
 {
+    struct timespec ts;
+    get_wait_timespec(timeout, 0, &ts);
+    int ret;
+
     pthread_mutex_lock(&buf->mutex);
     while(buf->cnt < n) {
-        pthread_cond_wait(&buf->wait_n_elements, &buf->mutex);
+        ret = pthread_cond_timedwait(&buf->wait_n_elements, &buf->mutex, &ts);
+        if(ret == ETIMEDOUT) {
+            pthread_mutex_unlock(&buf->mutex);
+            return 0;
+        }
     }
     pthread_mutex_unlock(&buf->mutex);
     return 1;
