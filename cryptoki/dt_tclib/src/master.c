@@ -34,6 +34,8 @@ struct dtc_ctx {
     void *pub_socket;
     void *router_socket;
 
+    // Thread to protect pub_socket, as zmq sockets are not thread safe.
+    pthread_mutex_t pub_socket_mutex;
     //Router socket thread
     pthread_t router_socket_thr_pid;
 
@@ -211,7 +213,7 @@ static int set_client_socket_security(void *socket,
 static int create_connect_sockets(const struct configuration *conf,
                                   struct dtc_ctx *ctx);
 static int read_configuration_file(struct configuration *conf);
-static int send_pub_op(struct op_req *pub_op, void *socket);
+static int send_pub_op(dtc_ctx_t *ctx, struct op_req *pub_op);
 static int start_router_socket_handler(dtc_ctx_t *ctx);
 static int close_router_thread(void *zmq_ctx);
 static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
@@ -245,6 +247,11 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err)
     if(!ret) {
         *err = DTC_ERR_NOMEM;
         return NULL;
+    }
+
+    if(pthread_mutex_init(&ret->pub_socket_mutex, NULL) != 0) {
+        *err = DTC_ERR_INTERN;
+        goto err_exit;
     }
 
     *err = read_configuration_file(&conf);
@@ -657,7 +664,7 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
     for(i = 0; i < nodes_cant; i++)
         put(keys, (void *)key_shares[i]);
 
-    ret = send_pub_op(&pub_op, ctx->pub_socket);
+    ret = send_pub_op(ctx, &pub_op);
     if(ret != DTC_ERR_NONE) {
         ht_get_and_delete_element(ctx->expected_msgs[OP_STORE_KEY_REQ],
                                   key_id, NULL);
@@ -714,7 +721,7 @@ void dtc_delete_key_shares(dtc_ctx_t *ctx, const char *key_id)
 
     delete_key_share.key_id = key_id;
 
-    send_pub_op(&pub_op, ctx->pub_socket);
+    send_pub_op(ctx, &pub_op);
 }
 
 int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
@@ -755,7 +762,7 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
         return DTC_ERR_INTERN;
     }
 
-    ret = send_pub_op(&pub_op, ctx->pub_socket);
+    ret = send_pub_op(ctx, &pub_op);
     if(ret != DTC_ERR_NONE) {
         LOG_DEBUG(LOG_LVL_CRIT, "Send pub msg error")
         free_buffer(signatures_buffer);
@@ -827,7 +834,7 @@ static int close_router_thread(void *zmq_ctx)
     return ret;
 }
 
-static int send_pub_op(struct op_req *pub_op, void *socket)
+static int send_pub_op(dtc_ctx_t *ctx, struct op_req *pub_op)
 {
     size_t msg_size = 0;
     char *msg_data = NULL;
@@ -848,9 +855,9 @@ static int send_pub_op(struct op_req *pub_op, void *socket)
         return DTC_ERR_INTERN;
     }
 
-    //TODO sockets are not thread safe, a mutex should be used here if we want
-    //to accept calls from different threads.
-    ret = zmq_msg_send(msg, socket, 0);
+    pthread_mutex_lock(&ctx->pub_socket_mutex);
+    ret = zmq_msg_send(msg, ctx->pub_socket, 0);
+    pthread_mutex_unlock(&ctx->pub_socket_mutex);
     if(ret == 1) {
         LOG_DEBUG(LOG_LVL_CRIT, "Error sending the msg: %s", zmq_strerror(errno))
         zmq_msg_close(msg);
