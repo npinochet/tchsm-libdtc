@@ -156,7 +156,6 @@ int main(int argc, char **argv)
     return node_loop(communication_objs);
 }
 
-
 /**
  * Read the configuration file an load its definitions into conf.
  *
@@ -242,7 +241,7 @@ static int read_configuration_file(struct configuration *conf)
  *  1 on unrecoverable error, 0 otherwise.
  */
 static int read_configuration(int argc, char *argv[],
-                               struct configuration *conf)
+                              struct configuration *conf)
 {
     int option_index = 0;
     char c;
@@ -379,7 +378,6 @@ void handle_store_key_res(database_t *db_conn, void *router_socket,
         zmq_msg_close(msg);
         return;
     }
-    printf("handle_store_key_res received a msg\n");
 
     rc = zmq_msg_recv(msg, router_socket, 0);
     if(rc == -1) {
@@ -405,14 +403,14 @@ void handle_store_key_res(database_t *db_conn, void *router_socket,
     if(strcmp(req_op->args->store_key_req.key_id,
               res_op->args->store_key_res.key_id) != 0) {
         LOG(LOG_LVL_ERRO, "Received a different key id from %s.", identity);
+        delete_op_req(res_op);
         goto err_exit;
     }
 
     store_key(db_conn, identity, &res_op->args->store_key_res);
 
-    //printf("Res: %.*s\n", rc, zmq_msg_data(msg));
-
     delete_op_req(res_op);
+
 err_exit:
     free(identity);
     zmq_msg_close(msg);
@@ -511,13 +509,17 @@ const signature_share_t *sign(database_t *db_conn, const char *server_id,
     k_share = tc_deserialize_key_share(key_share);
 
     signature = tc_node_sign(k_share, msg_bytes, k_metainfo);
-    //TODO log on error?
-    printf("Verify: %d\n", tc_verify_signature(signature, msg_bytes, k_metainfo));
+    ret = tc_verify_signature(signature, msg_bytes, k_metainfo);
 
     tc_clear_key_share(k_share);
     tc_clear_key_metainfo(k_metainfo);
     free(key_metainfo);
     free(key_share);
+
+    if(ret != 1) {
+        LOG(LOG_LVL_ERRO, "Error verifying the signature.")
+        return NULL;
+    }
 
     return signature;
 }
@@ -923,7 +925,7 @@ static int node_loop(struct communication_objects *communication_objs)
             continue;
         }
 
-        LOG(LOG_LVL_DEBG, "Sub msg from:%s", zmq_msg_gets(rcvd_msg, "User-Id"))
+        LOG(LOG_LVL_DEBG, "Sub msg from:%s", user_id)
 
         rc = s_sendmore(communication_objs->classifier_main_thread_socket,
                         user_id);

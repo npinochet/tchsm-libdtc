@@ -94,4 +94,3 @@ char *s_recv(void *socket)
     buffer[size] = 0;
     return strdup(buffer);
 }
-

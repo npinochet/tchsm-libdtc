@@ -151,6 +151,76 @@ static char* configuration_to_string(const struct configuration *conf)
     return &buff[0];
 }
 
+static int wait_n_connections(void *monitor1, void *monitor2,
+                              int expected_connections, int timeout)
+{
+    zmq_msg_t msg;
+    char *data, *address;
+    size_t size;
+    uint16_t event;
+    uint16_t *event_ptr;
+    int remaining_connections[2];
+    Uint16_Hash_t *connected[2];
+    int rc, i, it, poll_items = 2;
+    zmq_pollitem_t items[2];
+
+    remaining_connections[0] = remaining_connections[1] = expected_connections;
+
+    items[0].socket = monitor1;
+    items[1].socket = monitor2;
+    items[0].events = items[1].events = ZMQ_POLLIN;
+
+    connected[0] = uht_init_hashtable();
+    connected[1] = uht_init_hashtable();
+
+    while(remaining_connections[0] > 0 || remaining_connections[1] > 0) {
+        rc = zmq_poll(items, poll_items, timeout);
+        if(rc == 0)
+            break;
+        if(rc < 0) {
+            LOG_DEBUG(LOG_LVL_CRIT, "Poll failed: %s", zmq_strerror(errno))
+            break;
+        }
+
+        for(i = 0; i < poll_items; i++)
+            if(items[i].revents)
+                it = i;
+        zmq_msg_init(&msg);
+        if(zmq_msg_recv(&msg, monitor, 0) == -1)
+            break;
+
+        event_ptr = (uint16_t *)zmq_msg_data(&msg);
+        event = *event_ptr;
+        if(value)
+            *value = *(uint32_t)(event_ptr + 1);
+
+        zmq_msg_close(&msg);
+        zmq_msg_init(&msg);
+
+        if(zmq_msg_recv(&msg, monitor, 0) == -1)
+            break;
+
+        if(event != ZMQ_EVENT_CONNECTED) {
+            zmq_msg_close(&msg);
+            continue;
+        }
+
+        data = (char *)zmq_msg_data(&msg);
+        size = zmq_msg_size(&msg);
+        address = (char *)malloc(size + 1);
+        address[size] = 0;
+        memcpy(address, data, size);
+        printf("addr:%s\n", address);
+        if(uht_add_element(connected[it], address, 1))
+            remaining_connections[it]--;
+        free(address);
+    }
+
+    uht_free(connected[0]);
+    uht_free(connected[1]);
+    return event;
+}
+
 static int send_router_msg(void *zmq_ctx, const struct op_req *op,
                            const char *user)
 {
@@ -258,7 +328,7 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err)
     if(*err != DTC_ERR_NONE)
         goto err_exit;
 
-    printf("%s\n", configuration_to_string(&conf));
+    LOG_DEBUG(LOG_LVL_DEBG, "%s\n", configuration_to_string(&conf))
 
     ret->server_id = conf.server_id;
 
