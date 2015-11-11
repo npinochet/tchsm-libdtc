@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
 
 #include "logger/logger.h"
 
@@ -18,14 +17,12 @@ int main(int argc, char **argv)
 
     dtc_ctx_t *ctx = dtc_init(NULL, &ret_val);
 
-    printf("Init ret: %d\n", ret_val);
+    printf("Init ret: %d:%s\n", ret_val, dtc_get_error_msg(ret_val));
     if(ret_val != DTC_ERR_NONE)
         return 1;
 
-    sleep(1);
-
     ret_val = dtc_generate_key_shares(ctx, "hola_id", 512, 2, 2, &info);
-    printf("Generate: %d\n", ret_val);
+    printf("Generate: %d:%s\n", ret_val, dtc_get_error_msg(ret_val));
     if(ret_val != DTC_ERR_NONE) {
         printf("Destroy: %d\n", dtc_destroy(ctx));
         return 1;
@@ -33,8 +30,6 @@ int main(int argc, char **argv)
 
     bytes_t *msg = tc_init_bytes((void *)char_msg, strlen(char_msg));
     bytes_t *prep_msg = tc_prepare_document(msg, TC_SHA256, info);
-    printf("Before signing\n");
-    sleep(5);
 
     ret_val = dtc_sign(ctx, info, "hola_id", prep_msg, &signature);
     printf("Sign: %d\n", ret_val);

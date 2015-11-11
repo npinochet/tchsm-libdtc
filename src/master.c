@@ -5,6 +5,7 @@
 #include <inttypes.h>
 #include <pthread.h>
 #include <string.h>
+#include <sys/time.h>
 
 #include <libconfig.h>
 #include <zmq.h>
@@ -17,8 +18,11 @@
 #include "structs.h"
 #include "utilities.h"
 
+//TODO change this to const char* ?
 #define SEND_ROUTER_INPROC_BINDING "inproc://send_router"
 #define CLOSE_SOCKET_ROUTER_THREAD_BINDING "inproc://close_router_thread"
+#define ZMQ_MONITOR_PUB_SOCKET "inproc://monitor_pub"
+#define ZMQ_MONITOR_ROUTER_SOCKET "inproc://monitor_router"
 
 const uint16_t DEFAULT_TIMEOUT = 10;
 
@@ -151,7 +155,7 @@ static char* configuration_to_string(const struct configuration *conf)
     return &buff[0];
 }
 
-static int wait_n_connections(void *monitor1, void *monitor2,
+int wait_n_connections(void **monitors, int monitors_cant,
                               int expected_connections, int timeout)
 {
     zmq_msg_t msg;
@@ -159,21 +163,28 @@ static int wait_n_connections(void *monitor1, void *monitor2,
     size_t size;
     uint16_t event;
     uint16_t *event_ptr;
-    int remaining_connections[2];
-    Uint16_Hash_t *connected[2];
-    int rc, i, it, poll_items = 2;
-    zmq_pollitem_t items[2];
+    int remaining_connections[monitors_cant];
+    Uint16_Hash_t *connected[monitors_cant];
+    int rc, i, it, poll_items = monitors_cant;
+    zmq_pollitem_t items[monitors_cant];
+    struct timeval before, now;
+    long elapsed_milisecs;
 
-    remaining_connections[0] = remaining_connections[1] = expected_connections;
+    for(i = 0; i < monitors_cant; i ++) {
+        remaining_connections[i] = expected_connections;
+        items[i].socket = monitors[i];
+        items[i].events = ZMQ_POLLIN;
+        connected[i] = uht_init_hashtable();
+    }
 
-    items[0].socket = monitor1;
-    items[1].socket = monitor2;
-    items[0].events = items[1].events = ZMQ_POLLIN;
+    while(1) {
+        for(i = 0; i < monitors_cant; i++)
+            if(remaining_connections[i] > 0)
+                break;
+        if(i == monitors_cant)
+            break;
 
-    connected[0] = uht_init_hashtable();
-    connected[1] = uht_init_hashtable();
-
-    while(remaining_connections[0] > 0 || remaining_connections[1] > 0) {
+        assert(0 == gettimeofday(&before, NULL));
         rc = zmq_poll(items, poll_items, timeout);
         if(rc == 0)
             break;
@@ -181,23 +192,31 @@ static int wait_n_connections(void *monitor1, void *monitor2,
             LOG_DEBUG(LOG_LVL_CRIT, "Poll failed: %s", zmq_strerror(errno))
             break;
         }
+        assert(0 == gettimeofday(&now, NULL));
+        elapsed_milisecs = ((now.tv_sec - before.tv_sec) * 1000) +
+                           ((now.tv_usec - before.tv_usec) / 1000.0);
+        timeout -= elapsed_milisecs;
+        if(timeout <= 0)
+            break;
 
         for(i = 0; i < poll_items; i++)
             if(items[i].revents)
                 it = i;
         zmq_msg_init(&msg);
-        if(zmq_msg_recv(&msg, monitor, 0) == -1)
+        if(zmq_msg_recv(&msg, monitors[it], 0) == -1)
             break;
 
         event_ptr = (uint16_t *)zmq_msg_data(&msg);
         event = *event_ptr;
-        if(value)
-            *value = *(uint32_t)(event_ptr + 1);
+
+        //TODO Is the value relevant?
+        //if(value)
+        //    *value = *(uint32_t)(event_ptr + 1);
 
         zmq_msg_close(&msg);
         zmq_msg_init(&msg);
 
-        if(zmq_msg_recv(&msg, monitor, 0) == -1)
+        if(zmq_msg_recv(&msg, monitors[it], 0) == -1)
             break;
 
         if(event != ZMQ_EVENT_CONNECTED) {
@@ -210,15 +229,22 @@ static int wait_n_connections(void *monitor1, void *monitor2,
         address = (char *)malloc(size + 1);
         address[size] = 0;
         memcpy(address, data, size);
-        printf("addr:%s\n", address);
+        LOG_DEBUG(LOG_LVL_NOTI, "Connection stablished with %s", address)
         if(uht_add_element(connected[it], address, 1))
             remaining_connections[it]--;
+        zmq_msg_close(&msg);
         free(address);
     }
 
     uht_free(connected[0]);
     uht_free(connected[1]);
-    return event;
+
+    if(timeout <= 0|| rc == 0)
+        return DTC_ERR_TIMED_OUT;
+    if(remaining_connections[0] == 0 && remaining_connections[1] == 0) {
+        return DTC_ERR_NONE;
+    }
+    return DTC_ERR_INTERN;
 }
 
 static int send_router_msg(void *zmq_ctx, const struct op_req *op,
@@ -331,12 +357,11 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err)
     LOG_DEBUG(LOG_LVL_DEBG, "%s\n", configuration_to_string(&conf))
 
     ret->server_id = conf.server_id;
+    ret->timeout = conf.timeout;
 
     *err = create_connect_sockets(&conf, ret);
     if(*err != DTC_ERR_NONE)
         goto err_exit;
-
-    ret->timeout = conf.timeout;
 
     if(DTC_ERR_NONE != start_router_socket_handler(ret)) {
         *err = DTC_ERR_INTERN;
@@ -944,10 +969,14 @@ static int create_connect_sockets(const struct configuration *conf,
                                   struct dtc_ctx *ctx)
 {
     void *pub_socket, *router_socket;
+    void *monitors[2];
     int ret_val = 0;
     int i = 0;
     char *protocol = "tcp";
     const int BUFF_SIZE = 200;
+    // This is the max time, in milisecs, between the socket is asked to close
+    // and it does really close, during this time it try to send all the
+    // messages queued.
     const int linger = 1000;
     char buff[BUFF_SIZE];
     int ret = DTC_ERR_NONE;
@@ -959,21 +988,31 @@ static int create_connect_sockets(const struct configuration *conf,
     }
 
     pub_socket = zmq_socket(zmq_ctx, ZMQ_PUB);
-    if(!pub_socket) {
-        LOG_DEBUG(LOG_LVL_CRIT, "Unable to create pub socket %s.",
-                  zmq_strerror(errno));
-        return DTC_ERR_ZMQ_ERROR;
-    }
-
+    monitors[0] = zmq_socket(zmq_ctx, ZMQ_PAIR);
     router_socket = zmq_socket(zmq_ctx, ZMQ_ROUTER);
-    if(!router_socket) {
-        LOG_DEBUG(LOG_LVL_CRIT, "Unable to create router socket.");
+    monitors[1] = zmq_socket(zmq_ctx, ZMQ_PAIR);
+    if(!pub_socket || !monitors[0] || !router_socket || !monitors[1]) {
+        LOG_DEBUG(LOG_LVL_CRIT, "Unable to create sockets %s.",
+                  zmq_strerror(errno))
         return DTC_ERR_ZMQ_ERROR;
     }
 
-    ret = zmq_setsockopt(pub_socket, ZMQ_LINGER, &linger, sizeof(int));
+    ret = zmq_socket_monitor(pub_socket, ZMQ_MONITOR_PUB_SOCKET,
+                             ZMQ_EVENT_ALL);
+    ret += zmq_socket_monitor(router_socket, ZMQ_MONITOR_ROUTER_SOCKET,
+                              ZMQ_EVENT_ALL);
+    ret += zmq_setsockopt(pub_socket, ZMQ_LINGER, &linger, sizeof(int));
     ret += zmq_setsockopt(router_socket, ZMQ_LINGER, &linger, sizeof(int));
     if(ret != 0) {
+        ret = DTC_ERR_ZMQ_ERROR;
+        goto err_exit;
+    }
+
+    ret = zmq_connect(monitors[0], ZMQ_MONITOR_PUB_SOCKET);
+    ret += zmq_connect(monitors[1], ZMQ_MONITOR_ROUTER_SOCKET);
+    if(ret != 0) {
+        LOG_DEBUG(LOG_LVL_CRIT, "Error connecting monitors sockets:%s",
+                  zmq_strerror(errno))
         ret = DTC_ERR_ZMQ_ERROR;
         goto err_exit;
     }
@@ -993,6 +1032,7 @@ static int create_connect_sockets(const struct configuration *conf,
         ret = DTC_ERR_ZMQ_CURVE;
         goto err_exit;
     }
+
     for(i = 0; i < conf->nodes_cant; i++) {
     //for(i = conf->nodes_cant -1; i >= 0; i--) {
         ret_val = zmq_setsockopt(pub_socket, ZMQ_CURVE_SERVERKEY,
@@ -1053,15 +1093,25 @@ static int create_connect_sockets(const struct configuration *conf,
         LOG_DEBUG(LOG_LVL_NOTI, "ROUTER socket connected to %s", &buff[0]);
     }
 
+    ret = wait_n_connections(monitors, 2, conf->nodes_cant,
+                             conf->timeout * 1000);
+    if(ret != DTC_ERR_NONE)
+        goto err_exit;
+
     ctx->zmq_ctx = zmq_ctx;
     ctx->pub_socket = pub_socket;
     ctx->router_socket = router_socket;
+
+    zmq_close(monitors[0]);
+    zmq_close(monitors[1]);
 
     return ret;
 
 err_exit:
     zmq_close(pub_socket);
     zmq_close(router_socket);
+    zmq_close(monitors[0]);
+    zmq_close(monitors[1]);
     zmq_ctx_destroy(zmq_ctx);
     return ret;
 }
