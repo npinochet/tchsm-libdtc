@@ -591,6 +591,7 @@ void handle_store_key_pub(database_t *db_conn, void *router_socket,
     }
 
     server_id = pub_op->args->store_key_pub.server_id;
+    printf("Authuser:%s\n", auth_user);
     if(!auth_pub(db_conn, server_id, auth_user)) {
         LOG(LOG_LVL_NOTI, "Unauthorized user (%s) dropped at store_key_pub.",
             server_id);
@@ -639,6 +640,7 @@ void classify_and_handle_operation(database_t *db_conn, void *router_socket,
         LOG(LOG_LVL_ERRO, "Operation %" PRIu16 " not supported.", op->op);
         return;
     }
+    LOG(LOG_LVL_DEBG, "Got an op %u", i)
 
     (op_handlers[i])(db_conn, router_socket, op, auth_user);
 
@@ -687,6 +689,7 @@ void *classifier_thr(void *classifier_thread_data)
             LOG(LOG_LVL_ERRO, "User id is null: %s", zmq_strerror(errno));
             continue;
         }
+        LOG(LOG_LVL_DEBG, "Received msg from %s", user_id)
 
         rc = zmq_msg_recv(msg, inproc_socket, 0);
         if(rc == -1){

@@ -220,6 +220,7 @@ int wait_n_connections(void **monitors, int monitors_cant,
             break;
 
         if(event != ZMQ_EVENT_CONNECTED) {
+            printf("Event:%d\n", event);
             zmq_msg_close(&msg);
             continue;
         }
