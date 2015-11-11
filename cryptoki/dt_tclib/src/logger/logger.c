@@ -35,9 +35,9 @@ void logger_log(int level, const char *file, int line, const char *format, ...)
                             current_tm);
 
     // This is not thread safe, use a mutex or one call to write to make it TS.
-    fprintf(output, "%s at %s:%d %s: ", buff, file, line, levels[level]);
+    fprintf(output, "%s at %s: ", buff, levels[level]);
     vfprintf(output, format, args);
-    fprintf(output, "\n");
+    fprintf(output, " at %s:%d\n", file, line);
 
 }
 

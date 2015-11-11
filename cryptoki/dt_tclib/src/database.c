@@ -6,8 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-//TODO do not use this anymore.
 #include "database.h"
+//TODO do not use this anymore.
 #include "blocking_sql3.h"
 #include "err.h"
 #include "logger/logger.h"
@@ -158,6 +158,7 @@ database_t *db_init_connection(const char *path){
         db_close_and_free_connection(ret);
         return NULL;
     }
+    sqlite3_busy_timeout(ret->ppDb, 500);
     return ret;
 }
 
@@ -542,18 +543,9 @@ int db_is_an_authorized_key(database_t *db, const char *key) {
     static const char *sql_query = "SELECT server_id\n"
                                    "FROM server\n"
                                    "WHERE public_key=?;";
-    //TODO use the prepare wrapper.
-    rc = sqlite3_blocking_prepare_v2(db->ppDb, sql_query, -1, &stmt, 0);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "sqlite3_prepare_v2: %s", sqlite3_errmsg(db->ppDb));
-        goto err_exit;
-    }
-
-    rc = sqlite3_bind_text(stmt, 1, key, -1, SQLITE_STATIC);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "sqlite3_bind_text: %s", sqlite3_errmsg(db->ppDb));
-        goto err_exit;
-    }
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 1, key);
+    if(rc != DTC_ERR_NONE)
+        return rc;
 
     step = sqlite3_blocking_step(stmt);
     if(step == SQLITE_ROW) {

@@ -23,8 +23,8 @@ static void get_wait_timespec(time_t secs, suseconds_t microsec,
                               struct timespec *out)
 {
     struct timeval now;
-    gettimeofday(&now, NULL);
     long nanosecs;
+    gettimeofday(&now, NULL);
     // now microsecs * 1000 + timeout microsecs * 1000
     nanosecs = now.tv_usec * 1000 + microsec * 1000;
 
