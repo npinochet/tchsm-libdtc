@@ -2,7 +2,23 @@
 #define DT_TCLIB_DTC_H_
 
 #include <tc.h>
-#include "err.h"
+
+enum {
+    DTC_ERR_NONE,   // Not an error.
+    DTC_ERR_NOMEM,  // Not enough memory.
+    DTC_ERR_CONFIG_FILE,
+    DTC_ERR_ZMQ_ERROR,
+    DTC_ERR_ZMQ_CURVE,
+    DTC_ERR_CONNECTION,
+    DTC_ERR_COMMUNICATION,
+    DTC_ERR_SERIALIZATION,
+    DTC_ERR_DATABASE,
+    DTC_ERR_INTERN,
+    DTC_ERR_INVALID_VAL,
+    DTC_ERR_TIMED_OUT,
+
+    DTC_ERR_MAX_ // Keep at the end!!
+};
 
 struct dtc_ctx;
 typedef struct dtc_ctx dtc_ctx_t;

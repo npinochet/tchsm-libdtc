@@ -10,10 +10,10 @@
 #include <zmq.h>
 
 #include "database.h"
-#include "err.h"
 #include "logger/logger.h"
 #include "messages.h"
 #include "utilities.h"
+#include "dtc.h"
 
 struct master_info {
     // master_id.
@@ -108,7 +108,7 @@ static int read_configuration(int argc, char *argv[], struct configuration *conf
 static struct communication_objects *init_node(const struct configuration *conf);
 static struct communication_objects *create_and_bind_sockets(
         const struct configuration *conf);
-static int node_loop();
+static int node_loop(struct communication_objects *communication_objs);
 static int set_server_socket_security(void *socket, char *server_secret_key);
 static void zap_handler (void *handler);
 
