@@ -34,15 +34,17 @@ find_package(LibUUID REQUIRED)
 include_directories(${LibUUID_INCLUDE_DIRS})
 
 # TODO: A TCLIB find_package module
-#find_package(TCLIB REQUIRED) 
+#find_package(TCLIB REQUIRED)
 #include_directories(${TCLIB_INCLUDE_DIRS})
 
 find_path(TCLIB_INCLUDE_DIR tc.h
           HINTS "${TCLIB_PREFIX}/include" "${CMAKE_PREFIX_PATH}/tclib/include")
 include_directories(${TCLIB_INCLUDE_DIR})
-    
+
 find_library(TCLIB_LIBRARY NAMES libtc.so
              HINTS "${TCLIB_PREFIX}/lib" "${CMAKE_PREFIX_PATH}/tclib/lib")
+
+message(${TCLIB_LIBRARY})
 
 set(NODE_FILES
     blocking_sql3.h

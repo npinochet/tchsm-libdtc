@@ -24,6 +24,8 @@
 #define ZMQ_MONITOR_PUB_SOCKET "inproc://monitor_pub"
 #define ZMQ_MONITOR_ROUTER_SOCKET "inproc://monitor_router"
 
+#define PRINT_CONFIGURATION_BUFF_SIZE 500
+
 const uint16_t DEFAULT_TIMEOUT = 10;
 
 struct dtc_ctx {
@@ -130,9 +132,8 @@ static char* configuration_to_string(const struct configuration *conf)
      * should be called just once or the memory of the previous calls might get
      * corrupted.
      */
-    static const int BUFF_SIZE = 500;
-    static char buff[BUFF_SIZE];
-    int space_left = BUFF_SIZE;
+    static char buff[PRINT_CONFIGURATION_BUFF_SIZE];
+    int space_left = PRINT_CONFIGURATION_BUFF_SIZE;
     unsigned int i;
 
     space_left -= snprintf(buff, space_left,
@@ -142,10 +143,11 @@ static char* configuration_to_string(const struct configuration *conf)
                            conf->server_id);
 
     for(i = 0; i < conf->nodes_cant; i++) {
-        space_left -= snprintf(buff + (BUFF_SIZE - space_left), space_left,
-                               "\n\t\t\t%s:{%" PRIu16 ",%" PRIu16 "}",
-                               conf->nodes[i].ip, conf->nodes[i].sub_port,
-                               conf->nodes[i].dealer_port);
+        space_left -= snprintf(
+                        buff + (PRINT_CONFIGURATION_BUFF_SIZE - space_left),
+                        space_left, "\n\t\t\t%s:{%" PRIu16 ",%" PRIu16 "}",
+                        conf->nodes[i].ip, conf->nodes[i].sub_port,
+                        conf->nodes[i].dealer_port);
         if(space_left <= 0) {
             LOG(LOG_LVL_ERRO, "Not enough space in the buff to dump the conf");
             break;
