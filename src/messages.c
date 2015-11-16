@@ -8,7 +8,6 @@
 
 #include "logger/logger.h"
 #include "messages.h"
-#include <tc_internal.h>
 
 // TODO(fmontoto) Helper method to check valid versions.
 
