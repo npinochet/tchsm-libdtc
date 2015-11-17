@@ -19,7 +19,6 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef HSM_DATABASE_H
 #define HSM_DATABASE_H
 
-#include <TokenSerializer.h>
 #include "Configuration.h"
 #include <sqlite3.h>
 
@@ -27,7 +26,7 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace hsm {
 
-class Database : public hsm::TokenSerializer
+class Database
 {
     // TODO: GET MAX CRYPTO OBJECT ID
     sqlite3 * db_;    

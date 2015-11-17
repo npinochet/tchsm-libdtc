@@ -16,8 +16,6 @@ You should have received a copy of the GNU Lesser General Public License
 along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <ResponseMessage.h>
-
 #include "Slot.h"
 #include "Session.h"
 #include "Token.h"

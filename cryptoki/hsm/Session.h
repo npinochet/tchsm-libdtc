@@ -56,8 +56,12 @@ class Session
     std::vector<CK_OBJECT_HANDLE>::iterator foundObjectsIterator_;
     std::vector<CK_OBJECT_HANDLE>::iterator foundObjectsEnd_;
 
-    // Signing
+    // Signing (remotely)
+    dtc_ctx_t * dtc_ctx_;
     bool signInitialized_ = false;
+    CK_MECHANISM_TYPE signMechanism_;
+    std::string signHandler_;
+    key_metainfo_t * keyMetainfo_;
 
     // Digest
     bool digestInitialized_ = false;

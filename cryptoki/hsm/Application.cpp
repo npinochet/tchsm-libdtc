@@ -23,11 +23,7 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 #include "Slot.h"
 #include "Token.h"
 #include "TcbError.h"
-#include "TokenSerializer.h"
 
-#include <base64.h>
-
-#include <stdexcept>
 #include <cstdlib> // getenv
 #include <ostream>
 #include <iostream>
@@ -47,14 +43,6 @@ Application::Application ( std::ostream& out )
     }
 
     configuration_.load( configPath );
-
-    // Using move semantics...
-    rpcManager_ =
-        RPCManager<ZeroConnection>(
-            configuration_.getConnectionConf().host,
-            configuration_.getConnectionConf().port
-        );
-
     database_ =
         Database(
             configuration_.getDatabaseConf().path
@@ -124,10 +112,4 @@ Slot & Application::getSessionSlot ( CK_SESSION_HANDLE handle )
 Database& Application::getDatabase()
 {
     return database_;
-}
-
-
-AbstractRPCManager & Application::getRPCManager()
-{
-    return rpcManager_;
 }

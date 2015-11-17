@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 2.8)
 project (CryptographicFrontend)
 
 set(CryptographicFrontend_VERSION_MAJOR 1)
@@ -13,21 +13,20 @@ configure_file (
   )
   
 include_directories("${PROJECT_BINARY_DIR}/hsm")  
-  
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 include(FindSqlite3)
-include(FindZeroMQ)
+include(FindBotan)
 
 set(Boost_USE_STATIC_LIBS OFF)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
 
 find_package(Boost 1.53 REQUIRED)
-find_package(Sqlite3)
-find_package(ZeroMQ)
+find_package(Sqlite3 REQUIRED)
+find_package(Botan REQUIRED)
 
 if (Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
@@ -41,40 +40,21 @@ if (SQLITE3_FOUND)
     message(FATAL_ERROR "Cannot find sqlite3 library")
 endif()
 
-if (ZEROMQ_FOUND)
-    include_directories(${ZEROMQ_INCLUDE_DIRS})
-  else()
-    message(FATAL_ERROR "Cannot find zeromq library")
+if (BOTAN_FOUND)
+    include_directories(${BOTAN_INCLUDE_DIRS})
+else()
+    message(FATAL_ERROR "Cannot find botan library")
 endif()
 
+find_path(DTCLIB_INCLUDE_DIR dtc.h
+        HINTS "${TCLIB_PREFIX}/include" "${CMAKE_PREFIX_PATH}/tclib/include")
+include_directories(${DTCLIB_INCLUDE_DIR})
+
+find_library(DTCLIB_LIBRARY NAMES libdt_tc.so
+        HINTS "${TCLIB_PREFIX}/lib" "${CMAKE_PREFIX_PATH}/tclib/lib")
+
 include_directories("cryptoki_compat")
-include_directories("base64")
-include_directories("jsoncpp")
-include_directories("communication")
 include_directories("hsm")
-
-set(BASE64_SRC 
-  base64/base64.cpp
-  base64/base64.h
-  )
-
-set(JSONCPP_SRC 
-  jsoncpp/jsoncpp.cpp
-  )
-  
-set(COMMUNICATION_SRC
-  communication/Method.cpp
-  communication/Method.h
-  communication/MethodFactory.cpp
-  communication/MethodFactory.h
-  communication/Message.cpp
-  communication/Message.h
-  communication/ResponseMessage.h
-  communication/ResponseMessage.cpp
-  communication/Argument.h
-  communication/RPC.h
-  communication/ZeroConnection.cpp
-  )  
   
 set(HSM_SRC   
   hsm/Database.cpp 
@@ -87,10 +67,8 @@ set(HSM_SRC
   hsm/TcbError.h
   hsm/Token.cpp
   hsm/Token.h
-  hsm/TokenSerializer.h
   hsm/Configuration.cpp
   hsm/Configuration.h
-  hsm/RPCManager.h 
   hsm/CryptoObject.cpp
   hsm/CryptoObject.h
   hsm/Application.cpp
@@ -98,8 +76,9 @@ set(HSM_SRC
   )
   
   
-add_library(pkcs11 SHARED pkcs11.cpp ${BASE64_SRC} ${JSONCPP_SRC} ${COMMUNICATION_SRC} ${HSM_SRC})
-target_link_libraries(pkcs11 ${RABBITMQ-C_LIBRARIES} ${SQLITE3_LIBRARIES} ${ZEROMQ_LIBRARIES})
+add_library(pkcs11 SHARED pkcs11.cpp ${HSM_SRC})
+target_link_libraries(pkcs11 ${DTC_LIBRARY})
 
-add_executable(test test.c)
-target_link_libraries(test pkcs11)
+
+add_executable(pkcs11_test test.c)
+target_link_libraries(pkcs11_test pkcs11)
