@@ -49,7 +49,8 @@ void *get(Buffer_t *buf);
 int get_nowait(Buffer_t *buf, void **out);
 
 /**
- * Wait until the buffer has no elements.
+ * Wait until the buffer has no elements. It also can bound the duration of the
+ * wait and return after the specified timeout.
  *
  * This will wait until the buffer has no elements to return, however
  * there is no guaranteed that every time that the buffer gets empty it will
@@ -57,13 +58,18 @@ int get_nowait(Buffer_t *buf, void **out);
  * There is also not guaranteed that after this function returns the buffer
  * will be still empty. If there are no threads adding elements this function
  * will return any time the buffer gets empty.
+ * The timeout is defined by timeout_sec + timeout_usec.
  *
  * @param buf The buffer.
- * @param timeout after timeout seg the function will exit on timeout.
+ * @param timeout_sec segs of timeout, if it is 0 and timeout_usec is 0, it will
+ *      wait forever.
+ * @param timeout_usec microsecs of timeout, if it is 0 and timeout_sec is 0,
+ *      it will wait forever.
  *
  * @return 1 if returned because an empty buffer, 0 if it returned on timeout.
  */
-int wait_until_empty(Buffer_t *buf, unsigned timeout);
+int wait_until_empty(Buffer_t *buf, unsigned timeout_sec,
+                     unsigned timeout_usec);
 
 /**
  * Wait until there are at least n element in the buffer.

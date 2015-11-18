@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include<unistd.h> // sleep
-
 #include "logger/logger.h"
 
 #include "dtc.h"
@@ -23,8 +21,6 @@ int main(int argc, char **argv)
     if(ret_val != DTC_ERR_NONE)
         return 1;
 
-    sleep(1);
-
     ret_val = dtc_generate_key_shares(ctx, "hola_id", 512, 2, 2, &info);
     printf("Generate: %d:%s\n", ret_val, dtc_get_error_msg(ret_val));
     if(ret_val != DTC_ERR_NONE) {
@@ -36,7 +32,7 @@ int main(int argc, char **argv)
     bytes_t *prep_msg = tc_prepare_document(msg, TC_SHA256, info);
 
     ret_val = dtc_sign(ctx, info, "hola_id", prep_msg, &signature);
-    printf("Sign: %d\n", ret_val);
+    printf("Sign: %d: %s\n", ret_val, dtc_get_error_msg(ret_val));
 
     if(ret_val == DTC_ERR_NONE) {
         printf("Verify: %d\n", tc_rsa_verify(signature, msg, info, TC_SHA256));

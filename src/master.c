@@ -104,6 +104,9 @@ static void free_nodes(unsigned int nodes_cant, struct node_info *node)
     free(node);
 }
 
+/* Release the memory allocated within the configuration struct, do not
+ * release the struct.
+ */
 static void free_conf(struct configuration *conf)
 {
     unsigned i;
@@ -221,7 +224,6 @@ int wait_n_connections(void **monitors, int monitors_cant,
             break;
 
         if(event != ZMQ_EVENT_CONNECTED) {
-            printf("Event:%d\n", event);
             zmq_msg_close(&msg);
             continue;
         }
@@ -736,8 +738,9 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
     union command_args *args = (union command_args *) &store_key_pub;
     int ret, i, return_on_timeout;
     void *remaining_key;
-    unsigned prev;
+    unsigned prev, timeout_sec, timeout_usec, retries = 2;
     uint16_t val;
+    double timeout;
     Buffer_t *keys;
 
     pub_op.version = 1;
@@ -745,6 +748,10 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
     store_key_pub.server_id = ctx->server_id;
     store_key_pub.key_id = key_id;
     pub_op.args = args;
+
+    timeout = ((double)ctx->timeout) / retries;
+    timeout_sec = (unsigned)timeout;
+    timeout_usec = (timeout-timeout_sec) * 1000000; // Secs to microsecs
 
     keys = newBuffer(nodes_cant);
     if(!keys)
@@ -765,19 +772,23 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
     for(i = 0; i < nodes_cant; i++)
         put(keys, (void *)key_shares[i]);
 
-    ret = send_pub_op(ctx, &pub_op);
-    if(ret != DTC_ERR_NONE) {
-        ht_get_and_delete_element(ctx->expected_msgs[OP_STORE_KEY_REQ],
-                                  key_id, NULL);
-        //To free the buffer it must be empty.
-        while(get_nowait(keys, (void **)&remaining_key) == 0)
-            ;
-        free_buffer(keys);
-        uht_free(store_key_data.users_delivered);
-        return ret;
-    }
+    do{
+        ret = send_pub_op(ctx, &pub_op);
+        if(ret != DTC_ERR_NONE) {
+            ht_get_and_delete_element(ctx->expected_msgs[OP_STORE_KEY_REQ],
+                                      key_id, NULL);
+            while(get_nowait(keys, (void **)&remaining_key) == 0)
+                ;
+            free_buffer(keys);
+            uht_free(store_key_data.users_delivered);
+            return ret;
+        }
 
-    return_on_timeout = wait_until_empty(keys, ctx->timeout) == 0;
+        return_on_timeout = wait_until_empty(keys, timeout_sec, timeout_usec) == 0;
+        if(!return_on_timeout)
+            break;
+    }while(retries--);
+
 
     ret = ht_get_and_delete_element(ctx->expected_msgs[OP_STORE_KEY_REQ],
                                     key_id, NULL);
