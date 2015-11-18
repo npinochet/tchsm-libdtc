@@ -624,13 +624,14 @@ void classify_and_handle_operation(database_t *db_conn, void *router_socket,
                                                           OP_SIGN_PUB,
                                                           OP_DELETE_KEY_SHARE_PUB};
     static void (*const op_handlers[TOTAL_SUPPORTED_OPS]) (
-            database_t *db_conn,
-            void *router_socket,
-            struct op_req *op,
-            const char *auth_user) = {
-                                    handle_store_key_pub,
-                                    handle_sign_pub,
-                                    handle_delete_key_share_pub};
+                                                    database_t *db_conn,
+                                                    void *router_socket,
+                                                    struct op_req *op,
+                                                    const char *auth_user) = {
+            handle_store_key_pub,
+            handle_sign_pub,
+            handle_delete_key_share_pub
+    };
 
     for(i = 0; i < TOTAL_SUPPORTED_OPS; i++) {
         if(op->op == supported_operations[i])
@@ -640,7 +641,7 @@ void classify_and_handle_operation(database_t *db_conn, void *router_socket,
         LOG(LOG_LVL_ERRO, "Operation %" PRIu16 " not supported.", op->op);
         return;
     }
-    LOG(LOG_LVL_DEBG, "Got an op %u", i)
+    LOG(LOG_LVL_DEBG, "Got an op %u", supported_operations[i])
 
     (op_handlers[i])(db_conn, router_socket, op, auth_user);
 
@@ -977,10 +978,10 @@ static void zap_handler(void *zap_data_)
         char *mechanism = s_recv(sock);
         int size = zmq_recv(sock, client_key, 32, 0);
 
-        LOG(LOG_LVL_DEBG, "Message of size: %d, sequence number: %s,"
-                          "domain: %s, address: %s, identity: %s, "
-                          "mechanism: %s. received.",size, sequence, domain,
-                          address, identity, mechanism);
+        //LOG(LOG_LVL_DEBG, "Message of size: %d, sequence number: %s,"
+        //                  "domain: %s, address: %s, identity: %s, "
+        //                  "mechanism: %s. received.",size, sequence, domain,
+        //                  address, identity, mechanism);
 
         char client_key_text [42];
         zmq_z85_encode(client_key_text, client_key, 32);

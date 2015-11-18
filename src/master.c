@@ -498,6 +498,8 @@ static void handle_router_rcvd_msg(void *zmq_ctx, zmq_msg_t *msg, int msg_size,
         return;
     }
 
+    LOG_DEBUG(LOG_LVL_LOG, "Received at router socket:%d %s", req->op, user)
+
     if(req->op == OP_STORE_KEY_REQ) {
         handle_store_key_req(zmq_ctx, req, user, tables[OP_STORE_KEY_REQ]);
     }
@@ -512,7 +514,6 @@ static void handle_router_rcvd_msg(void *zmq_ctx, zmq_msg_t *msg, int msg_size,
     }
     delete_op_req(req);
 
-    LOG_DEBUG(LOG_LVL_LOG, "TEST: %s", user)
 }
 
 void *router_socket_handler(void *data_);
@@ -766,6 +767,7 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
     if(ret == 0) {
         free_buffer(keys);
         uht_free(store_key_data.users_delivered);
+        printf("ASD111 \n");
         return DTC_ERR_INVALID_VAL;
     }
 
@@ -811,6 +813,7 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
             return DTC_ERR_TIMED_OUT;
         return ret;
     }
+    printf("ASD22 \n");
 
     //Check that all the nodes did accept the key.
     prev = 0;
@@ -902,7 +905,7 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
     if(return_on_timeout)
         return DTC_ERR_TIMED_OUT;
 
-    return 0;
+    return DTC_ERR_NONE;
 }
 
 int dtc_destroy(dtc_ctx_t *ctx)
