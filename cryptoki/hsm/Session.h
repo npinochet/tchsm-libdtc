@@ -28,86 +28,98 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 #include <vector>
 #include <utility>
 
-namespace hsm
-{
+namespace hsm {
 
-using KeyPair = std::pair<CK_OBJECT_HANDLE, CK_OBJECT_HANDLE>; // (Private, Public)
+    using KeyPair = std::pair<CK_OBJECT_HANDLE, CK_OBJECT_HANDLE>; // (Private, Public)
 
-class Configuration;
-class Slot;
-class CryptoObject;
+    class Configuration;
+
+    class Slot;
+
+    class CryptoObject;
 
 // Sessions are enclosed in operations with objects, Tokens on containing objects.
-class Session
-{
-    // Parent..
-    Slot & slot_;    
-    
-    std::string uuid_;
-    const CK_SESSION_HANDLE handle_;
-    const CK_FLAGS flags_;
-    
-    // Future use
-    const CK_VOID_PTR application_;
-    const CK_NOTIFY notify_;
+    class Session {
+        // Parent..
+        Slot &slot_;
 
-    // Object Search
-    bool findInitialized_ = false;
-    std::vector<CK_OBJECT_HANDLE> foundObjects_;
-    std::vector<CK_OBJECT_HANDLE>::iterator foundObjectsIterator_;
-    std::vector<CK_OBJECT_HANDLE>::iterator foundObjectsEnd_;
+        const CK_SESSION_HANDLE handle_;
+        const CK_FLAGS flags_;
 
-    // Signing (remotely)
-    bool signInitialized_ = false;
-    CK_MECHANISM_TYPE signMechanism_;
-    std::string signHandler_;
-    key_metainfo_t * keyMetainfo_;
+        // Future use
+        const CK_VOID_PTR application_;
+        const CK_NOTIFY notify_;
 
-    // Digest
-    bool digestInitialized_ = false;
-    CK_ULONG digestSize_;    
-    
-public:
-    Session ( CK_FLAGS flags, CK_VOID_PTR pApplication,
-              CK_NOTIFY notify, Slot & currentSlot );
+        // Object Search
+        bool findInitialized_ = false;
+        std::vector<CK_OBJECT_HANDLE> foundObjects_;
+        std::vector<CK_OBJECT_HANDLE>::iterator foundObjectsIterator_;
+        std::vector<CK_OBJECT_HANDLE>::iterator foundObjectsEnd_;
 
-    virtual ~Session();
+        // Signing (remotely)
+        bool signInitialized_ = false;
+        CK_MECHANISM_TYPE signMechanism_;
+        std::string signHandler_;
+        key_metainfo_t *keyMetainfo_;
 
-    virtual CK_SESSION_HANDLE getHandle() const;
-    virtual std::string const & getUuid();
-    virtual CK_STATE getState() const;
-    virtual CK_FLAGS getFlags() const;
+        // Digest
+        Botan::HashFunction *hashFunction_;
+        bool digestInitialized_ = false;
 
-    virtual void getSessionInfo ( CK_SESSION_INFO_PTR pInfo ) const;
-    virtual bool isReadOnly() const;
-    virtual Slot & getCurrentSlot();
+    public:
+        Session(CK_FLAGS flags, CK_VOID_PTR pApplication,
+                CK_NOTIFY notify, Slot &currentSlot);
 
-    virtual void login ( CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinLen );
-    virtual void logout();
+        virtual ~Session();
 
-    // Cryptographic functions
-    virtual KeyPair generateKeyPair ( CK_MECHANISM_PTR pMechanism,
-                                      CK_ATTRIBUTE_PTR pPublicKeyTemplate,
-                                      CK_ULONG ulPublicKeyAttributeCount,
-                                      CK_ATTRIBUTE_PTR pPrivateKeyTemplate,
-                                      CK_ULONG ulPrivateKeyAttributeCount );
-    virtual void signInit ( CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey );
-    virtual void sign ( CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pSignature,
-                CK_ULONG_PTR pulSignatureLen );
-    virtual void digestInit ( CK_MECHANISM_PTR pMechanism );
-    virtual void digest ( CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pDigest,
-                  CK_ULONG_PTR pulDigestLen );
-    virtual void seedRandom ( CK_BYTE_PTR pSeed, CK_ULONG ulSeedLen );
-    virtual void generateRandom ( CK_BYTE_PTR pRandomData, CK_ULONG ulRandomLen );
+        virtual CK_SESSION_HANDLE getHandle() const;
 
-    virtual CK_OBJECT_HANDLE createObject ( CK_ATTRIBUTE_PTR pTemplate,
-                                    CK_ULONG ulCount ); // throws exception
-    virtual void destroyObject ( CK_OBJECT_HANDLE hObject ); // throws exception
-    virtual void findObjectsInit ( CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount );
-    virtual std::vector<CK_OBJECT_HANDLE> findObjects ( CK_ULONG maxObjectCount );
-    virtual void findObjectsFinal();
-    virtual CryptoObject & getObject ( CK_OBJECT_HANDLE objectHandle ); // throws exception
-};
+        virtual CK_STATE getState() const;
+
+        virtual CK_FLAGS getFlags() const;
+
+        virtual void getSessionInfo(CK_SESSION_INFO_PTR pInfo) const;
+
+        virtual bool isReadOnly() const;
+
+        virtual Slot &getCurrentSlot();
+
+        virtual void login(CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinLen);
+
+        virtual void logout();
+
+        // Cryptographic functions
+        virtual KeyPair generateKeyPair(CK_MECHANISM_PTR pMechanism,
+                                        CK_ATTRIBUTE_PTR pPublicKeyTemplate,
+                                        CK_ULONG ulPublicKeyAttributeCount,
+                                        CK_ATTRIBUTE_PTR pPrivateKeyTemplate,
+                                        CK_ULONG ulPrivateKeyAttributeCount);
+
+        virtual void signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey);
+
+        virtual void sign(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pSignature,
+                          CK_ULONG_PTR pulSignatureLen);
+
+        virtual void digestInit(CK_MECHANISM_PTR pMechanism);
+
+        virtual void digest(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pDigest,
+                            CK_ULONG_PTR pulDigestLen);
+
+        virtual void seedRandom(CK_BYTE_PTR pSeed, CK_ULONG ulSeedLen);
+
+        virtual void generateRandom(CK_BYTE_PTR pRandomData, CK_ULONG ulRandomLen);
+
+        virtual CK_OBJECT_HANDLE createObject(CK_ATTRIBUTE_PTR pTemplate,
+                                              CK_ULONG ulCount); // throws exception
+        virtual void destroyObject(CK_OBJECT_HANDLE hObject); // throws exception
+        virtual void findObjectsInit(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount);
+
+        virtual std::vector<CK_OBJECT_HANDLE> findObjects(CK_ULONG maxObjectCount);
+
+        virtual void findObjectsFinal();
+
+        virtual CryptoObject &getObject(CK_OBJECT_HANDLE objectHandle); // throws exception
+    };
 
 }
 

@@ -280,11 +280,8 @@ extern "C" {
 
     pInfo->flags = 0;
 
-    // TODO: Delete this.
-    pInfo->libraryVersion.major = 0;
-    pInfo->libraryVersion.minor = 1;
-    //pInfo->libraryVersion.major = VERSION_MAJOR;
-    //pInfo->libraryVersion.minor = VERSION_MINOR;
+    pInfo->libraryVersion.major = VERSION_MAJOR;
+    pInfo->libraryVersion.minor = VERSION_MINOR;
 
     return CKR_OK;
   }

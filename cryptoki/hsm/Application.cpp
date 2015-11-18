@@ -26,6 +26,7 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 #include <cstdlib> // getenv
 #include <ostream>
 #include <iostream>
+#include <unistd.h>
 
 using namespace hsm;
 
@@ -60,6 +61,9 @@ Application::Application(std::ostream &out)
     if (!dtcCtx_) {
         throw TcbError("Application::Application", "DTC not initialized.", CKR_DEVICE_ERROR);
     }
+
+    // TODO: Slow joiner!
+    sleep(1);
 
 
 }

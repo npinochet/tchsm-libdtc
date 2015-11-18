@@ -92,8 +92,12 @@ namespace {
 
 Session::Session(CK_FLAGS flags, CK_VOID_PTR pApplication,
                  CK_NOTIFY notify, Slot &currentSlot)
-        : handle_(++actualHandle), flags_(flags), application_(pApplication), notify_(notify), slot_(currentSlot) {
-    // TODO: Set Uuid
+        : handle_(++actualHandle),
+          flags_(flags),
+          application_(pApplication),
+          notify_(notify),
+          slot_(currentSlot) {
+
 }
 
 Session::~Session() {
@@ -113,18 +117,13 @@ Session::~Session() {
                 // If a keypair is stored, then each the public and the private key
                 // will be deleted.
                 // Neitherless if it's only one instance stored in the backend.
-                char *value = static_cast<char *> ( handlerAttribute->pValue );
-                string handler(value, handlerAttribute->ulValueLen);
-                // TODO: Delete Key
+                string handler(static_cast<char *> ( handlerAttribute->pValue ), handlerAttribute->ulValueLen);
+                dtc_delete_key_shares(getCurrentSlot().getApplication().getDtcContext(), handler.c_str());
             }
 
             objects.erase(objectPair.first);
         }
     }
-}
-
-const string &Session::getUuid() {
-    return uuid_;
 }
 
 CK_SESSION_HANDLE Session::getHandle() const {
@@ -235,14 +234,12 @@ void Session::destroyObject(CK_OBJECT_HANDLE hObject) {
     auto it = objectContainer.find(hObject);
     if (it != objectContainer.end()) {
 
-        // Verifico que el objeto no sea una llave, y si lo es, la elimino del TCB.
+        // Verifico que el objeto no sea una llave, y si lo es, la elimino de los nodos.
         CK_ATTRIBUTE tmpl = {.type=CKA_VENDOR_DEFINED};
         const CK_ATTRIBUTE *handlerAttribute = it->second->findAttribute(&tmpl);
         if (handlerAttribute != nullptr) {
-            string handler((char *) handlerAttribute->pValue,
-                           handlerAttribute->ulValueLen);
-            // TODO: Delete Key
-
+            string handler(static_cast<char *> ( handlerAttribute->pValue ), handlerAttribute->ulValueLen);
+            dtc_delete_key_shares(getCurrentSlot().getApplication().getDtcContext(), handler.c_str());
         }
 
         objectContainer.erase(it);
@@ -401,8 +398,8 @@ namespace {
         };
 
         CK_ATTRIBUTE aMetainfo = {
-                .type=CKA_VENDOR_DEFINED+1,
-                .pValue= (void*) metainfo.c_str(),
+                .type=CKA_VENDOR_DEFINED + 1,
+                .pValue= (void *) metainfo.c_str(),
                 .ulValueLen=metainfo.size()
         };
 
@@ -549,8 +546,8 @@ namespace {
         };
 
         CK_ATTRIBUTE aMetainfo = {
-                .type=CKA_VENDOR_DEFINED+1,
-                .pValue= (void*) metainfo.c_str(),
+                .type=CKA_VENDOR_DEFINED + 1,
+                .pValue= (void *) metainfo.c_str(),
                 .ulValueLen=metainfo.size()
         };
 
@@ -751,8 +748,8 @@ void Session::signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
         throw TcbError("Session::signInit", "El object handle no contiene keymetainfos", CKR_ARGUMENTS_BAD);
     }
 
-    string metainfo(static_cast<char*>(keyMetainfoAttribute->pValue), keyMetainfoAttribute->ulValueLen);
-    string keyHandler(static_cast<char*>(keyName->pValue), keyName->ulValueLen);
+    string metainfo(static_cast<char *>(keyMetainfoAttribute->pValue), keyMetainfoAttribute->ulValueLen);
+    string keyHandler(static_cast<char *>(keyName->pValue), keyName->ulValueLen);
     signMechanism_ = pMechanism->mechanism;
     signHandler_ = keyHandler;
 
@@ -839,7 +836,7 @@ void Session::sign(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pSignature
         dtc_ctx_t *ctx = getCurrentSlot().getApplication().getDtcContext();
 
         bytes_t *signature;
-        std::cout << "signHandler: " << signHandler_ <<std::endl;
+        std::cout << "signHandler: " << signHandler_ << std::endl;
         int sign_err = dtc_sign(ctx, keyMetainfo_, signHandler_.c_str(), paddedDataBytes, &signature);
         if (sign_err != DTC_ERR_NONE) {
             throw TcbError("Session::sign", dtc_get_error_msg(sign_err), CKR_GENERAL_ERROR);
@@ -872,42 +869,27 @@ void Session::digestInit(CK_MECHANISM_PTR pMechanism) {
         throw TcbError("Session::digestInit", "pMechanism == nullptr.", CKR_ARGUMENTS_BAD);
     }
 
-    string mechanism;
-    CK_ULONG mechSize = 0;
     switch (pMechanism->mechanism) {
         case CKM_MD5:
-            mechSize = 16;
-            mechanism = "MD5";
+            hashFunction_ = new Botan::MD5;
             break;
-            //       case CKM_RIPEMD160:
-            //         mechSize = 20;
-            //         hashFunc = new Botan::RIPEMD_160;
-            //         break;
         case CKM_SHA_1:
-            mechSize = 20;
-            mechanism = "SHA1";
+            hashFunction_ = new Botan::SHA_160;
             break;
         case CKM_SHA256:
-            mechSize = 32;
-            mechanism = "SHA256";
+            hashFunction_ = new Botan::SHA_256;
             break;
         case CKM_SHA384:
-            mechSize = 48;
-            mechanism = "SHA384";
+            hashFunction_ = new Botan::SHA_384;
             break;
         case CKM_SHA512:
-            mechSize = 64;
-            mechanism = "SHA512";
+            hashFunction_ = new Botan::SHA_512;
             break;
         default:
-            throw TcbError("Session::digestInit", "mechanism invalid.", CKR_MECHANISM_INVALID);
-            break;
+            throw TcbError("Session::digestInit", "Mechanism invalid.", CKR_MECHANISM_INVALID);
     }
 
-    // TODO: Digest Initialization
-
     digestInitialized_ = true;
-    digestSize_ = mechSize;
 }
 
 void Session::digest(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pDigest, CK_ULONG_PTR pulDigestLen) {
@@ -919,13 +901,15 @@ void Session::digest(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pDigest,
         throw TcbError("Session::digest", "pulDigestLen == nulllptr", CKR_ARGUMENTS_BAD);
     }
 
+    size_t digestSize = hashFunction_->output_length();
+
     if (pDigest == nullptr) {
-        *pulDigestLen = digestSize_;
+        *pulDigestLen = digestSize;
         return;
     }
 
-    if (*pulDigestLen < digestSize_) {
-        *pulDigestLen = digestSize_;
+    if (*pulDigestLen < digestSize) {
+        *pulDigestLen = digestSize;
         throw TcbError("Session::digest", "buffer too small.", CKR_BUFFER_TOO_SMALL);
     }
 
@@ -934,14 +918,14 @@ void Session::digest(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pDigest,
     }
 
     // TODO: Digest generation
-    vector<CK_BYTE> digest; // ( base64::decode ( encodedDigest ) );
-    // unsigned long size = digest.size();
-    *pulDigestLen = digestSize_;
+    hashFunction_->update(pData, ulDataLen);
 
-    CK_BYTE_PTR data = digest.data();
-    std::copy(data, data + *pulDigestLen, pDigest);
+    *pulDigestLen = digestSize;
+
+    hashFunction_->final(pDigest);
     digestInitialized_ = false;
-    digestSize_ = 0;
+    delete hashFunction_;
+    hashFunction_ = nullptr;
 }
 
 void Session::generateRandom(CK_BYTE_PTR pRandomData, CK_ULONG ulRandomLen) {
