@@ -157,15 +157,19 @@ int wait_until_empty(Buffer_t *buf, unsigned timeout_sec,
     return 1;
 }
 
-int wait_n_elements(Buffer_t *buf, unsigned n, unsigned timeout)
+int wait_n_elements(Buffer_t *buf, unsigned n, unsigned timeout_sec,
+                    unsigned timeout_usec)
 {
     struct timespec ts;
-    get_wait_timespec(timeout, 0, &ts);
+    get_wait_timespec(timeout_sec, timeout_usec, &ts);
     int ret;
 
     pthread_mutex_lock(&buf->mutex);
     while(buf->cnt < n) {
-        ret = pthread_cond_timedwait(&buf->wait_n_elements, &buf->mutex, &ts);
+        if(!timeout_sec && !timeout_usec)
+            ret = pthread_cond_wait(&buf->wait_n_elements, &buf->mutex);
+        else
+            ret = pthread_cond_timedwait(&buf->wait_n_elements, &buf->mutex, &ts);
         if(ret == ETIMEDOUT) {
             pthread_mutex_unlock(&buf->mutex);
             return 0;

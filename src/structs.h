@@ -83,11 +83,16 @@ int wait_until_empty(Buffer_t *buf, unsigned timeout_sec,
  *
  * @param buf The buffer.
  * @param n The amount of elements to wait for.
+ * @param timeout_sec segs of timeout, if it is 0 and timeout_usec is 0, it will
+ *      wait forever.
+ * @param timeout_usec microsecs of timeout, if it is 0 and timeout_sec is 0,
+ *      it will wait forever.
  *
  * @return 1 if returned because the buffer has at least n elements, 0 if it
  *      returned on timeout.
  */
-int wait_n_elements(Buffer_t *buf, unsigned n, unsigned timeout);
+int wait_n_elements(Buffer_t *buf, unsigned n, unsigned timeout_sec,
+                    unsigned timeout_usec);
 
 /** Try to free the buffer, if there are still some values in the buffer, will
  *  not free it, instead will print an error in the stderr.

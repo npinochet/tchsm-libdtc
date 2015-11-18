@@ -127,6 +127,14 @@ static void free_conf(struct configuration *conf)
         free(conf->server_id);
 }
 
+void divide_timeout(uint16_t ctx_timeout, unsigned retries,
+                    unsigned *timeout_secs, unsigned *timeout_usecs)
+{
+    double timeout = ((double)ctx_timeout) / retries;
+    *timeout_secs = (unsigned)timeout;
+    *timeout_usecs = (timeout - *timeout_secs) * 1000000; // Secs to microsecs
+}
+
 /* Return a human readable version of the configuration */
 static char* configuration_to_string(const struct configuration *conf)
 {
@@ -739,7 +747,7 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
     union command_args *args = (union command_args *) &store_key_pub;
     int ret, i, return_on_timeout;
     void *remaining_key;
-    unsigned prev, timeout_sec, timeout_usec, retries = 2;
+    unsigned prev, timeout_secs, timeout_usecs, retries = 2;
     uint16_t val;
     double timeout;
     Buffer_t *keys;
@@ -750,9 +758,7 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
     store_key_pub.key_id = key_id;
     pub_op.args = args;
 
-    timeout = ((double)ctx->timeout) / retries;
-    timeout_sec = (unsigned)timeout;
-    timeout_usec = (timeout-timeout_sec) * 1000000; // Secs to microsecs
+    divide_timeout(ctx->timeout, retries, &timeout_secs, &timeout_usecs);
 
     keys = newBuffer(nodes_cant);
     if(!keys)
@@ -786,7 +792,8 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
             return ret;
         }
 
-        return_on_timeout = wait_until_empty(keys, timeout_sec, timeout_usec) == 0;
+        return_on_timeout = wait_until_empty(keys, timeout_secs,
+                                             timeout_usecs) == 0;
         if(!return_on_timeout)
             break;
     }while(retries--);
@@ -850,9 +857,12 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
     int threshold = tc_key_meta_info_k(key_metainfo);
     int nodes_cant = tc_key_meta_info_l(key_metainfo);
     struct handle_sign_key_data sign_key_data;
+    unsigned timeout, timeout_secs, timeout_usecs, retries = 2;
     signature_share_t *signature;
     Buffer_t *signatures_buffer;
     signature_share_t *signatures[nodes_cant];
+
+    divide_timeout(ctx->timeout, retries, &timeout_secs, &timeout_usecs);
 
     get_uuid_as_char(signing_id);
 
@@ -878,15 +888,20 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
         return DTC_ERR_INTERN;
     }
 
-    ret = send_pub_op(ctx, &pub_op);
-    if(ret != DTC_ERR_NONE) {
-        LOG_DEBUG(LOG_LVL_CRIT, "Send pub msg error")
-        free_buffer(signatures_buffer);
-        return ret;
-    }
+    do{
+        ret = send_pub_op(ctx, &pub_op);
+        if(ret != DTC_ERR_NONE) {
+            LOG_DEBUG(LOG_LVL_CRIT, "Send pub msg error")
+            free_buffer(signatures_buffer);
+            return ret;
+        }
 
-    return_on_timeout = wait_n_elements(signatures_buffer,
-                                        threshold, ctx->timeout) == 0;
+        return_on_timeout = wait_n_elements(signatures_buffer,
+                threshold, timeout_secs, timeout_usecs) == 0;
+        if(!return_on_timeout)
+            break;
+    }while(retries--);
+
     assert(1 == ht_get_and_delete_element(ctx->expected_msgs[OP_SIGN_REQ],
                                           signing_id, NULL));
 
@@ -993,7 +1008,7 @@ static int create_connect_sockets(const struct configuration *conf,
     // This is the max time, in milisecs, between the socket is asked to close
     // and it does really close, during this time it try to send all the
     // messages queued.
-    const int linger = 1000;
+    const int linger = 1500;
     char buff[BUFF_SIZE];
     int ret = DTC_ERR_NONE;
 

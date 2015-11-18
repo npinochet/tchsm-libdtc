@@ -311,7 +311,7 @@ static int send_op(const char *server_id, const struct op_req *op, void *socket)
     zmq_msg_t msg_;
     zmq_msg_t *msg = &msg_;
 
-    printf("Sending to %s\n", server_id);
+    printf("Sending %d to %s\n", op->op, server_id);
     msg_size = serialize_op_req(op, &msg_data);
     if(!msg_size) {
         LOG(LOG_LVL_CRIT, "Serialize error at send_op")
@@ -453,7 +453,6 @@ void handle_delete_key_share_pub(database_t *db_conn, void *router_socket,
     req_op.op = OP_DELETE_KEY_SHARE_REQ;
     req_op.args = (union command_args *)&delete_key_share;
 
-    printf("sending2 to %s\n", auth_user);
     ret = zmq_send(router_socket, auth_user, strlen(auth_user), ZMQ_SNDMORE);
     if(ret == -1) {
         LOG(LOG_LVL_ERRO, "Unable to send msg, zmq_send:%s",
