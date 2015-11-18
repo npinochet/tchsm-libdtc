@@ -27,19 +27,11 @@ namespace hsm
 class Configuration
 {
 public:
-
-    struct ConnectionConf {
-	std::string host;
-	std::string port;
-    };
     struct SlotConf {
         std::string label;
     };
 
-    struct DatabaseConf { // TODO: review this.
-        std::string path;
-    };
-    
+
     Configuration() = default;
     Configuration ( std::string configurationPath );
     Configuration ( Configuration const & ) = default;
@@ -48,15 +40,20 @@ public:
     Configuration & operator=(Configuration &&) = default;
 
     virtual std::vector<SlotConf> const & getSlotConf() const;
-    virtual DatabaseConf const & getDatabaseConf() const;
-    virtual ConnectionConf const & getConnectionConf() const;
+    virtual const std::string & getDtcConfigPath() const;
+    virtual const int getNodesNumber() const;
+    virtual const int getThreshold() const;
+    virtual const std::string & getDatabasePath() const;
     virtual void load(std::string configurationPath);
 
     virtual ~Configuration() = default;
 private:
     std::vector<SlotConf> slotConf_;
-    DatabaseConf databaseConf_;
-    ConnectionConf connectionConf_;
+    std::string dtcConfigPath_;
+    std::string databasePath_;
+    int nodesNumber_;
+    int threshold_;
+
 };
 }
 

@@ -75,10 +75,11 @@ set(HSM_SRC
   hsm/Application.h
   )
   
-  
+
+message(STATUS "DTC_LIBRARY: ${DTCLIB_LIBRARY}")
 add_library(pkcs11 SHARED pkcs11.cpp ${HSM_SRC})
-target_link_libraries(pkcs11 ${DTC_LIBRARY})
+target_link_libraries(pkcs11 ${DTCLIB_LIBRARY} ${Boost_LIBRARIES} ${SQLITE3_LIBRARIES} ${BOTAN_LIBRARIES})
 
 
 add_executable(pkcs11_test test.c)
-target_link_libraries(pkcs11_test pkcs11)
+target_link_libraries(pkcs11_test pkcs11 ${Boost_LIBRARIES} ${SQLITE3_LIBRARIES} ${BOTAN_LIBRARIES})

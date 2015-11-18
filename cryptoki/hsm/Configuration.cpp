@@ -28,49 +28,53 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 
 using namespace hsm;
 
-Configuration::Configuration ( std::string configurationPath )
-{
+Configuration::Configuration(std::string configurationPath) {
     this->Configuration::load(configurationPath);
 }
 
-void Configuration::load(std::string configurationPath)
-{
+void Configuration::load(std::string configurationPath) {
     using std::string;
     using boost::property_tree::ptree;
     using namespace boost::property_tree::json_parser;
-    ptree root;    
-    
+    ptree root;
+
     try {
-	read_json(configurationPath, root);        
-    } catch (json_parser_error & e) {
-	throw TcbError("Configuration::load", e.what(), CKR_GENERAL_ERROR);
+        read_json(configurationPath, root);
+    } catch (json_parser_error &e) {
+        throw TcbError("Configuration::load", e.what(), CKR_GENERAL_ERROR);
     }
 
-    ptree database = root.get_child("database");          
-    databaseConf_.path = database.get<string>("path");
+    databasePath_ = root.get<std::string>("database_path");
+
+    dtcConfigPath_ = root.get<std::string>("dtc_config_path");
+    nodesNumber_ = root.get<int>("nodes_number");
+    threshold_ = root.get<int>("threshold");
+
 
     ptree slots = root.get_child("slots");
-    for (ptree::value_type & v: slots) {
-	ptree & token = v.second;
-	slotConf_.push_back({ token.get<string>("label") });
+    for (ptree::value_type &v: slots) {
+        ptree &token = v.second;
+        slotConf_.push_back({token.get<string>("label")});
     }
-    
-    ptree connection = root.get_child("connection");
-    connectionConf_.host = connection.get<string>("host");
-    connectionConf_.port = connection.get<string>("port");
+
 }
 
-std::vector<Configuration::SlotConf> const & Configuration::getSlotConf() const
-{
+std::vector<Configuration::SlotConf> const &Configuration::getSlotConf() const {
     return slotConf_;
 }
 
-Configuration::DatabaseConf const & Configuration::getDatabaseConf() const
-{
-    return databaseConf_;
+const std::string &Configuration::getDtcConfigPath() const {
+    return dtcConfigPath_;
 }
 
-const Configuration::ConnectionConf& Configuration::getConnectionConf() const
-{
-    return connectionConf_;
+const int Configuration::getNodesNumber() const {
+    return nodesNumber_;
+}
+
+const int Configuration::getThreshold() const {
+    return threshold_;
+}
+
+const std::string &Configuration::getDatabasePath() const {
+    return databasePath_;
 }

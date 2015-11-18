@@ -25,7 +25,8 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 // sqlite3 serializer
 
 namespace hsm {
-
+class Token;
+    class CryptoObject;
 class Database
 {
     // TODO: GET MAX CRYPTO OBJECT ID

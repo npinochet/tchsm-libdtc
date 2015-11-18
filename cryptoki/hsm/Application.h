@@ -25,6 +25,7 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 #include <string>
 #include <memory>
 #include <iosfwd>
+#include <dtc.h>
 
 #include "pkcs11.h"
 #include "Database.h"
@@ -50,6 +51,8 @@ public:
     virtual Slot & getSessionSlot ( CK_SESSION_HANDLE handle );
     virtual Session & getSession ( CK_SESSION_HANDLE session ); // throws exception
     virtual Database & getDatabase ();
+    virtual const Configuration & getConfiguration() const;
+    virtual dtc_ctx_t * getDtcContext();
 
     virtual void errorLog ( std::string message ) const;
 
@@ -61,6 +64,8 @@ private:
 
     // An application can have a variable number of slots...
     std::vector<SlotPtr> slots_;
+
+    dtc_ctx_t * dtcCtx_;
 
 };
 }

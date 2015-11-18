@@ -22,6 +22,7 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 #include "config.h"
 
 #include "pkcs11.h"
+#include <dtc.h>
 
 #include <memory>
 #include <vector>
@@ -57,7 +58,6 @@ class Session
     std::vector<CK_OBJECT_HANDLE>::iterator foundObjectsEnd_;
 
     // Signing (remotely)
-    dtc_ctx_t * dtc_ctx_;
     bool signInitialized_ = false;
     CK_MECHANISM_TYPE signMechanism_;
     std::string signHandler_;

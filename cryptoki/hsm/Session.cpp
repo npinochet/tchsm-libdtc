@@ -33,6 +33,7 @@
 
 #include <pkcs11.h>
 #include <dtc.h>
+#include <iostream>
 
 #include "Session.h"
 #include "Slot.h"
@@ -60,7 +61,7 @@ namespace {
 
             case CKS_RO_USER_FUNCTIONS:
                 if (isTokenObject == CK_TRUE) {
-                    return userAction == false; // Es más explicito así
+                    return !userAction; // Es más explicito así
                 } else {
                     return true;
                 }
@@ -72,7 +73,7 @@ namespace {
 
             case CKS_RO_PUBLIC_SESSION:
                 if (isPrivateObject == CK_FALSE) {
-                    return (isTokenObject != CK_TRUE) || (userAction == false);
+                    return (isTokenObject != CK_TRUE) || !userAction;
                 } else {
                     return false;
                 }
@@ -358,9 +359,10 @@ namespace {
     CK_OBJECT_HANDLE createPublicKey(Session &session,
                                      CK_ATTRIBUTE_PTR pPublicKeyTemplate,
                                      CK_ULONG ulPublicKeyAttributeCount,
-                                     string const &rabbitHandler,
-                                     vector<CK_BYTE> const &modulus,
-                                     vector<CK_BYTE> const &publicExponent
+                                     const string &rabbitHandler,
+                                     const string &metainfo,
+                                     const bytes_t *modulus,
+                                     const bytes_t *publicExponent
     ) {
         // NOTE: This comes in some way from SoftHSM...
         CK_OBJECT_CLASS oClass = CKO_PUBLIC_KEY;
@@ -398,16 +400,22 @@ namespace {
                 .ulValueLen=rabbitHandler.size()
         };
 
+        CK_ATTRIBUTE aMetainfo = {
+                .type=CKA_VENDOR_DEFINED+1,
+                .pValue= (void*) metainfo.c_str(),
+                .ulValueLen=metainfo.size()
+        };
+
         CK_ATTRIBUTE aModulus = {
                 .type = CKA_MODULUS,
-                .pValue = (void *) modulus.data(),
-                .ulValueLen = modulus.size()
+                .pValue = modulus->data,
+                .ulValueLen = modulus->data_len
         };
 
         CK_ATTRIBUTE aExponent = {
                 .type = CKA_PUBLIC_EXPONENT,
-                .pValue = (void *) publicExponent.data(),
-                .ulValueLen = publicExponent.size()
+                .pValue = publicExponent->data,
+                .ulValueLen = publicExponent->data_len
         };
 
         for (CK_ULONG i = 0; i < ulPublicKeyAttributeCount; i++) {
@@ -482,6 +490,7 @@ namespace {
                 aStartDate,
                 aEndDate,
                 aValue,
+                aMetainfo,
                 aModulus,
                 aExponent
         };
@@ -492,9 +501,10 @@ namespace {
     CK_OBJECT_HANDLE createPrivateKey(Session &session,
                                       CK_ATTRIBUTE_PTR pPrivateKeyTemplate,
                                       CK_ULONG ulPrivateKeyAttributeCount,
-                                      string const &rabbitHandler,
-                                      vector<CK_BYTE> const &modulus,
-                                      vector<CK_BYTE> const &publicExponent
+                                      string const &keyHandler,
+                                      const string &metainfo,
+                                      const bytes_t *modulus,
+                                      const bytes_t *publicExponent
     ) {
         CK_OBJECT_CLASS oClass = CKO_PRIVATE_KEY;
         CK_KEY_TYPE keyType = CKK_RSA;
@@ -534,20 +544,26 @@ namespace {
         // NOTE: CKA_VENDOR_DEFINED = CKA_RABBIT_HANDLER.
         CK_ATTRIBUTE aValue = {
                 .type=CKA_VENDOR_DEFINED,
-                .pValue= (void *) rabbitHandler.c_str(),
-                .ulValueLen = rabbitHandler.size()
+                .pValue= (void *) keyHandler.c_str(),
+                .ulValueLen = keyHandler.size()
+        };
+
+        CK_ATTRIBUTE aMetainfo = {
+                .type=CKA_VENDOR_DEFINED+1,
+                .pValue= (void*) metainfo.c_str(),
+                .ulValueLen=metainfo.size()
         };
 
         CK_ATTRIBUTE aModulus = {
                 .type = CKA_MODULUS,
-                .pValue = (void *) modulus.data(),
-                .ulValueLen = modulus.size()
+                .pValue = (void *) modulus->data,
+                .ulValueLen = modulus->data_len
         };
 
         CK_ATTRIBUTE aExponent = {
                 .type = CKA_PUBLIC_EXPONENT,
-                .pValue = (void *) publicExponent.data(),
-                .ulValueLen = publicExponent.size()
+                .pValue = (void *) publicExponent->data,
+                .ulValueLen = publicExponent->data_len
         };
 
         for (CK_ULONG i = 0; i < ulPrivateKeyAttributeCount; i++) {
@@ -626,6 +642,7 @@ namespace {
                 aExtractable,
                 aNeverExtractable,
                 aValue,
+                aMetainfo,
                 aModulus,
                 aExponent,
 
@@ -677,37 +694,42 @@ KeyPair Session::generateKeyPair(CK_MECHANISM_PTR pMechanism,
         // case CKM_VENDOR_DEFINED:
         case CKM_RSA_PKCS_KEY_PAIR_GEN:
             // RSA is the only accepted method...
-            // TODO: Generate and send key shares
-            boost::uuids::basic_random_generator uuidGen;
+            boost::uuids::random_generator uuidGen;
             string keyHandler = to_string(uuidGen());
+            // Todo: check if generated uuid is already taken.
 
-            key_metainfo_t * metainfo;
-            if(dtc_generate_key_shares(dtc_ctx_, keyHandler.data(), modulusBits, 2, 3, &metainfo) != 0) {
-                throw TcbError("Session::generateKeyPair", "dtc_generate_key_shares()", CKR_GENERAL_ERROR);
+            Application &app = getCurrentSlot().getApplication();
+            dtc_ctx_t *ctx = app.getDtcContext();
+            const Configuration &cfg = app.getConfiguration();
+
+            key_metainfo_t *metainfo;
+            int err = dtc_generate_key_shares(ctx, keyHandler.c_str(), modulusBits, cfg.getThreshold(),
+                                              cfg.getNodesNumber(), &metainfo);
+            if (err != DTC_ERR_NONE) {
+                throw TcbError("Session::generateKeyPair", std::string(dtc_get_error_msg(err)), CKR_GENERAL_ERROR);
             }
+
+            string serializedMetainfo(tc_serialize_key_metainfo(metainfo));
+            std::cout << "Metainfo 1: " << serializedMetainfo << std::endl;
 
             const public_key_t *pk = tc_key_meta_info_public_key(metainfo);
 
-            const bytes_t * n = tc_public_key_n(pk);
-            const bytes_t * e = tc_public_key_e(pk);
-
-
-            vector<CK_BYTE> modulus((CK_BYTE) n->data, (CK_BYTE) n->data + n->data_len); // TODO: Set = base64::decode(modulusB64);
-            vector<CK_BYTE> publicExponent((CK_BYTE) e->data, (CK_BYTE) e->data + e->data_len);//TODO: Set = base64::decode(publicExponentB64);
+            const bytes_t *n = tc_public_key_n(pk);
+            const bytes_t *e = tc_public_key_e(pk);
 
             CK_OBJECT_HANDLE publicKeyHandle = createPublicKey(*this, pPublicKeyTemplate,
                                                                ulPublicKeyAttributeCount,
                                                                keyHandler,
-                                                               modulus,
-                                                               publicExponent);
+                                                               serializedMetainfo,
+                                                               n,
+                                                               e);
             CK_OBJECT_HANDLE privateKeyHandle = createPrivateKey(*this, pPrivateKeyTemplate,
                                                                  ulPrivateKeyAttributeCount,
                                                                  keyHandler,
-                                                                 modulus,
-                                                                 publicExponent);
+                                                                 serializedMetainfo,
+                                                                 n,
+                                                                 e);
             return KeyPair {privateKeyHandle, publicKeyHandle};
-        default:
-            break;
     }
 
     throw TcbError("Session::generateKeyPair", "Mechanism invalid.", CKR_MECHANISM_INVALID);
@@ -729,9 +751,13 @@ void Session::signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
         throw TcbError("Session::signInit", "El object handle no contiene keymetainfos", CKR_ARGUMENTS_BAD);
     }
 
+    string metainfo(static_cast<char*>(keyMetainfoAttribute->pValue), keyMetainfoAttribute->ulValueLen);
+    string keyHandler(static_cast<char*>(keyName->pValue), keyName->ulValueLen);
     signMechanism_ = pMechanism->mechanism;
-    signHandler_ = (static_cast<char *> ( keyName->pValue ), keyName->ulValueLen);
-    keyMetainfo_ = tc_deserialize_key_metainfo(static_cast<char *>(keyMetainfoAttribute->pValue));
+    signHandler_ = keyHandler;
+
+    std::cout << "Metainfo 2: " << metainfo << std::endl;
+    keyMetainfo_ = tc_deserialize_key_metainfo(metainfo.c_str());
 
     signInitialized_ = true;
 }
@@ -778,7 +804,7 @@ void Session::sign(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pSignature
                 break;
 
             default:
-                throw TcbError("Session::signInit", "El mecanismo no esta soportado.", CKR_MECHANISM_INVALID);
+                throw TcbError("Session::sign", "El mecanismo no esta soportado.", CKR_MECHANISM_INVALID);
         }
 
         // Then padder
@@ -803,17 +829,20 @@ void Session::sign(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pSignature
                 break;
 
             default:
-                throw TcbError("Session::signInit", "El mecanismo no esta soportado.", CKR_MECHANISM_INVALID);
+                throw TcbError("Session::sign", "El mecanismo no esta soportado.", CKR_MECHANISM_INVALID);
         }
 
         padder->update(pData, ulDataLen);
         auto paddedData = padder->raw_data();
         auto paddedDataBytes = tc_init_bytes(paddedData, paddedData.size());
 
+        dtc_ctx_t *ctx = getCurrentSlot().getApplication().getDtcContext();
+
         bytes_t *signature;
-        if (dtc_sign(dtc_ctx_, keyMetainfo_, signHandler_.data(), paddedDataBytes, &signature) != 0) {
-            // TODO: handle error correctly.
-            throw TcbError("Session::signInit", "Remote sign did't work!.", CKR_GENERAL_ERROR);
+        std::cout << "signHandler: " << signHandler_ <<std::endl;
+        int sign_err = dtc_sign(ctx, keyMetainfo_, signHandler_.c_str(), paddedDataBytes, &signature);
+        if (sign_err != DTC_ERR_NONE) {
+            throw TcbError("Session::sign", dtc_get_error_msg(sign_err), CKR_GENERAL_ERROR);
         }
 
         if (*pulSignatureLen < signature->data_len) {

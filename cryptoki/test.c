@@ -171,7 +171,7 @@ show_key_info ( CK_SESSION_HANDLE session, CK_OBJECT_HANDLE key )
 }
 
 void
-read_private_keys ( session )
+read_private_keys ( CK_SESSION_HANDLE session )
 {
     CK_RV rv;
     CK_OBJECT_CLASS keyClass = CKO_PRIVATE_KEY;
@@ -210,7 +210,7 @@ create_key_pair ( CK_SESSION_HANDLE session )
     CK_MECHANISM mechanism = {
         CKM_RSA_PKCS_KEY_PAIR_GEN, NULL_PTR, 0
     };
-    CK_ULONG modulusBits = 1024;
+    CK_ULONG modulusBits = 512;
     CK_BYTE publicExponent[] = { 1, 0, 1 };
     CK_BYTE subject[] = LABEL;
     CK_BYTE id[] = ID;
@@ -326,6 +326,7 @@ sign_data ( CK_SESSION_HANDLE session, FILE *data_file, FILE *signature_file )
     rv = C_Sign ( session, text, text_size, signature, &signatureLen );
     check_return_value ( rv, "sign final" );
 
+    fprintf(signature_file, "Signature: ");
     if ( signatureLen > 0 ) {
         int i;
         for (i=0; i<signatureLen; i++) {
