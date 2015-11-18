@@ -3,6 +3,10 @@
 
 #include <tc.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum {
     DTC_ERR_NONE,   // Not an error.
     DTC_ERR_NOMEM,  // Not enough memory.
@@ -70,7 +74,7 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
  * @return DTC_ERR_NONE on success, a proper error code otherwise.
  */
 int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
-                  const char *key_id, bytes_t *message, bytes_t **out);
+             const char *key_id, bytes_t *message, bytes_t **out);
 
 /**
  * This is a best effort deletion of the key in the nodes, the library will not
@@ -90,5 +94,9 @@ void dtc_delete_key_shares(dtc_ctx_t *ctx, const char *key_id);
 int dtc_destroy(dtc_ctx_t *ctx);
 
 const char *dtc_get_error_msg(int errno);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
