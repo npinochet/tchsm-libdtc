@@ -93,7 +93,7 @@ void dtc_delete_key_shares(dtc_ctx_t *ctx, const char *key_id);
  */
 int dtc_destroy(dtc_ctx_t *ctx);
 
-const char *dtc_get_error_msg(int errno);
+const char *dtc_get_error_msg(int err);
 
 #ifdef __cplusplus
 }

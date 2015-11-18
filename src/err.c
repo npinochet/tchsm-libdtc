@@ -17,10 +17,10 @@ const char *err_msgs[] = {
     "Wrong errno.",  // Keep at the end.
 };
 
-const char *dtc_get_error_msg(int errno) {
+const char *dtc_get_error_msg(int err) {
 
-    if(errno >= DTC_ERR_MAX_ || errno < 0)
+    if(err >= DTC_ERR_MAX_ || err < 0)
         return err_msgs[DTC_ERR_MAX_];
 
-    return err_msgs[errno];
+    return err_msgs[err];
 }

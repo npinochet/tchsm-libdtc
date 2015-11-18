@@ -690,7 +690,6 @@ void *classifier_thr(void *classifier_thread_data)
             LOG(LOG_LVL_ERRO, "User id is null: %s", zmq_strerror(errno));
             continue;
         }
-        LOG(LOG_LVL_DEBG, "Received msg from %s", user_id)
 
         rc = zmq_msg_recv(msg, inproc_socket, 0);
         if(rc == -1){
