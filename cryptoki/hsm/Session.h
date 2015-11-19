@@ -28,7 +28,9 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 #include <vector>
 #include <utility>
 #include <botan/hash.h>
+#include <botan/emsa.h>
 #include <botan/auto_rng.h>
+#include <botan/pubkey.h>
 
 namespace hsm {
 
@@ -60,12 +62,18 @@ namespace hsm {
 
         // Signing (remotely)
         bool signInitialized_ = false;
-        CK_MECHANISM_TYPE signMechanism_;
         std::string signHandler_;
-        key_metainfo_t *keyMetainfo_;
+        std::unique_ptr<key_metainfo_t, std::function<void(key_metainfo_t*)>> keyMetainfo_;
+        std::unique_ptr<Botan::EMSA> padder_;
+
+        // Verifying
+        bool verifyInitialized_ = false;
+        std::unique_ptr<Botan::Public_Key> pk_;
+        std::unique_ptr<Botan::PK_Verifier> verifier_;
+
 
         // Digest
-        Botan::HashFunction *hashFunction_;
+        std::unique_ptr<Botan::HashFunction> hashFunction_;
         bool digestInitialized_ = false;
 
         // RNG
@@ -102,8 +110,15 @@ namespace hsm {
 
         void signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey);
 
-        void sign(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pSignature,
-                  CK_ULONG_PTR pulSignatureLen);
+        void signUpdate(CK_BYTE_PTR pData, CK_ULONG ulDataLen);
+
+        void signFinal(CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen);
+
+        void verifyInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey);
+
+        void verifyUpdate(CK_BYTE_PTR pPart, CK_ULONG ulPartLen);
+
+        bool verifyFinal(CK_BYTE_PTR pSignature, CK_ULONG ulSignatureLen);
 
         void digestInit(CK_MECHANISM_PTR pMechanism);
 

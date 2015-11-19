@@ -30,6 +30,8 @@
 #include <botan/sha2_64.h>
 #include <botan/randpool.h>
 
+#include <botan/rsa.h>
+
 #include <sstream>
 
 #include <pkcs11.h>
@@ -42,6 +44,7 @@
 #include "CryptoObject.h"
 #include "TcbError.h"
 #include "Application.h"
+#include "../../tclib/include/tc_internal.h"
 
 using namespace hsm;
 using namespace std;
@@ -53,11 +56,9 @@ namespace {
         switch (sessionState) {
             case CKS_RW_SO_FUNCTIONS:
                 return isPrivateObject == CK_FALSE;
-                break;
 
             case CKS_RW_USER_FUNCTIONS:
                 return true;
-                break;
 
             case CKS_RO_USER_FUNCTIONS:
                 if (isTokenObject == CK_TRUE) {
@@ -65,11 +66,9 @@ namespace {
                 } else {
                     return true;
                 }
-                break;
 
             case CKS_RW_PUBLIC_SESSION:
                 return isPrivateObject == CK_FALSE;
-                break;
 
             case CKS_RO_PUBLIC_SESSION:
                 if (isPrivateObject == CK_FALSE) {
@@ -77,7 +76,6 @@ namespace {
                 } else {
                     return false;
                 }
-                break;
 
             default:
                 break;
@@ -96,7 +94,9 @@ Session::Session(CK_FLAGS flags, CK_VOID_PTR pApplication,
           flags_(flags),
           application_(pApplication),
           notify_(notify),
-          slot_(currentSlot) {
+          slot_(currentSlot),
+          keyMetainfo_(nullptr, [](key_metainfo_t * ptr) { tc_clear_key_metainfo(ptr);})
+{
 
 }
 
@@ -390,7 +390,7 @@ namespace {
         CK_ATTRIBUTE aEndDate = {CKA_END_DATE, &emptyDate, 0};
         CK_ATTRIBUTE aModulusBits = {CKA_MODULUS_BITS, NULL_PTR, 0};
 
-        // NOTE: CKA_VENDOR_DEFINED = CKA_RABBIT_HANDLER.
+
         CK_ATTRIBUTE aValue = {
                 .type=CKA_VENDOR_DEFINED,
                 .pValue= (void *) rabbitHandler.c_str(),
@@ -489,6 +489,7 @@ namespace {
                 aValue,
                 aMetainfo,
                 aModulus,
+                aModulusBits,
                 aExponent
         };
 
@@ -553,13 +554,13 @@ namespace {
 
         CK_ATTRIBUTE aModulus = {
                 .type = CKA_MODULUS,
-                .pValue = (void *) modulus->data,
+                .pValue = modulus->data,
                 .ulValueLen = modulus->data_len
         };
 
         CK_ATTRIBUTE aExponent = {
                 .type = CKA_PUBLIC_EXPONENT,
-                .pValue = (void *) publicExponent->data,
+                .pValue = publicExponent->data,
                 .ulValueLen = publicExponent->data_len
         };
 
@@ -707,7 +708,6 @@ KeyPair Session::generateKeyPair(CK_MECHANISM_PTR pMechanism,
             }
 
             string serializedMetainfo(tc_serialize_key_metainfo(metainfo));
-            std::cout << "Metainfo 1: " << serializedMetainfo << std::endl;
 
             const public_key_t *pk = tc_key_meta_info_public_key(metainfo);
 
@@ -734,6 +734,10 @@ KeyPair Session::generateKeyPair(CK_MECHANISM_PTR pMechanism,
 }
 
 void Session::signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
+    if (signInitialized_) {
+        throw TcbError("Session::signInit", "Operation active.", CKR_OPERATION_ACTIVE);
+    }
+
     CryptoObject &keyObject = getObject(hKey);
     CK_ATTRIBUTE tmpl = {.type = CKA_VENDOR_DEFINED};
 
@@ -750,114 +754,206 @@ void Session::signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
 
     string metainfo(static_cast<char *>(keyMetainfoAttribute->pValue), keyMetainfoAttribute->ulValueLen);
     string keyHandler(static_cast<char *>(keyName->pValue), keyName->ulValueLen);
-    signMechanism_ = pMechanism->mechanism;
-    signHandler_ = keyHandler;
 
-    std::cout << "Metainfo 2: " << metainfo << std::endl;
-    keyMetainfo_ = tc_deserialize_key_metainfo(metainfo.c_str());
+    signHandler_ = keyHandler;
+    keyMetainfo_.reset(tc_deserialize_key_metainfo(metainfo.c_str()));
+
+    CK_MECHANISM_TYPE signMechanism = pMechanism->mechanism;
+    Botan::HashFunction *hasher;
+    // First hasher
+    switch (signMechanism) {
+        case CKM_RSA_PKCS:
+            hasher = nullptr;
+            break;
+
+        case CKM_MD5_RSA_PKCS:
+            hasher = new Botan::MD5;
+            break;
+
+        case CKM_SHA1_RSA_PKCS:
+        case CKM_SHA1_RSA_PKCS_PSS:
+            hasher = new Botan::SHA_160;
+            break;
+
+        case CKM_SHA256_RSA_PKCS:
+        case CKM_SHA256_RSA_PKCS_PSS:
+            hasher = new Botan::SHA_256;
+            break;
+
+        case CKM_SHA384_RSA_PKCS:
+        case CKM_SHA384_RSA_PKCS_PSS:
+            hasher = new Botan::SHA_384;
+            break;
+
+        case CKM_SHA512_RSA_PKCS:
+        case CKM_SHA512_RSA_PKCS_PSS:
+            hasher = new Botan::SHA_512;
+            break;
+
+        default:
+            throw TcbError("Session::sign", "El mecanismo no esta soportado.", CKR_MECHANISM_INVALID);
+    }
+
+    // Then padder
+    switch (signMechanism) {
+        case CKM_RSA_PKCS:
+            padder_.reset(new Botan::EMSA3_Raw);
+            break;
+
+        case CKM_MD5_RSA_PKCS:
+        case CKM_SHA1_RSA_PKCS:
+        case CKM_SHA256_RSA_PKCS:
+        case CKM_SHA384_RSA_PKCS:
+        case CKM_SHA512_RSA_PKCS:
+            padder_.reset(new Botan::EMSA3(hasher));
+            break;
+
+        case CKM_SHA1_RSA_PKCS_PSS:
+        case CKM_SHA256_RSA_PKCS_PSS:
+        case CKM_SHA384_RSA_PKCS_PSS:
+        case CKM_SHA512_RSA_PKCS_PSS:
+            padder_.reset(new Botan::EMSA4(hasher));
+            break;
+
+    }
 
     signInitialized_ = true;
 }
 
-void Session::sign(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen) {
 
+void Session::signUpdate(CK_BYTE_PTR pData, CK_ULONG ulDataLen) {
     if (!signInitialized_) {
-        throw TcbError("Session::sign", "Operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
+        throw TcbError("Session::signUpdate", "Operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
     }
 
-    try {
+    padder_->update(pData, ulDataLen);
+}
 
-        Botan::EMSA *padder;
-        Botan::HashFunction *hasher;
 
-        // First hasher
-        switch (signMechanism_) {
-            case CKM_RSA_PKCS:
-                hasher = nullptr;
-                break;
-
-            case CKM_MD5_RSA_PKCS:
-                hasher = new Botan::MD5;
-                break;
-
-            case CKM_SHA1_RSA_PKCS:
-            case CKM_SHA1_RSA_PKCS_PSS:
-                hasher = new Botan::SHA_160;
-                break;
-
-            case CKM_SHA256_RSA_PKCS:
-            case CKM_SHA256_RSA_PKCS_PSS:
-                hasher = new Botan::SHA_256;
-                break;
-
-            case CKM_SHA384_RSA_PKCS:
-            case CKM_SHA384_RSA_PKCS_PSS:
-                hasher = new Botan::SHA_384;
-                break;
-
-            case CKM_SHA512_RSA_PKCS:
-            case CKM_SHA512_RSA_PKCS_PSS:
-                hasher = new Botan::SHA_512;
-                break;
-
-            default:
-                throw TcbError("Session::sign", "El mecanismo no esta soportado.", CKR_MECHANISM_INVALID);
-        }
-
-        // Then padder
-        switch (signMechanism_) {
-            case CKM_RSA_PKCS:
-                padder = new Botan::EMSA3_Raw;
-                break;
-
-            case CKM_MD5_RSA_PKCS:
-            case CKM_SHA1_RSA_PKCS:
-            case CKM_SHA256_RSA_PKCS:
-            case CKM_SHA384_RSA_PKCS:
-            case CKM_SHA512_RSA_PKCS:
-                padder = new Botan::EMSA3(hasher);
-                break;
-
-            case CKM_SHA1_RSA_PKCS_PSS:
-            case CKM_SHA256_RSA_PKCS_PSS:
-            case CKM_SHA384_RSA_PKCS_PSS:
-            case CKM_SHA512_RSA_PKCS_PSS:
-                padder = new Botan::EMSA4(hasher);
-                break;
-
-            default:
-                throw TcbError("Session::sign", "El mecanismo no esta soportado.", CKR_MECHANISM_INVALID);
-        }
-
-        padder->update(pData, ulDataLen);
-        auto paddedData = padder->raw_data();
-        auto paddedDataBytes = tc_init_bytes(paddedData, paddedData.size());
-
-        dtc_ctx_t *ctx = getCurrentSlot().getApplication().getDtcContext();
-
-        bytes_t *signature;
-        std::cout << "signHandler: " << signHandler_ << std::endl;
-        int sign_err = dtc_sign(ctx, keyMetainfo_, signHandler_.c_str(), paddedDataBytes, &signature);
-        if (sign_err != DTC_ERR_NONE) {
-            throw TcbError("Session::sign", dtc_get_error_msg(sign_err), CKR_GENERAL_ERROR);
-        }
-
-        if (*pulSignatureLen < signature->data_len) {
-
-            throw TcbError("Session::sign", "Buffer too small.", CKR_BUFFER_TOO_SMALL);
-        }
-        *pulSignatureLen = signature->data_len;
-
-        CK_BYTE_PTR data = (CK_BYTE_PTR) signature->data;
-        uint32_t dataLen = signature->data_len;
-        std::copy(data, data + dataLen, pSignature);
-
-        signInitialized_ = false;
-    } catch (TcbError &e) {
-        throw e;
-    } catch (std::exception &e) {
-        throw TcbError("Session::sign", e.what(), CKR_GENERAL_ERROR);
+void Session::signFinal(CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen) {
+    if (!signInitialized_) {
+        throw TcbError("Session::signFinal", "Operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
     }
+
+    auto paddedData = padder_->raw_data();
+    auto paddedDataBytes = tc_init_bytes(paddedData, paddedData.size());
+
+    dtc_ctx_t *ctx = getCurrentSlot().getApplication().getDtcContext();
+
+    bytes_t *signature;
+    int sign_err = dtc_sign(ctx, keyMetainfo_.get(), signHandler_.c_str(), paddedDataBytes, &signature);
+    if (sign_err != DTC_ERR_NONE) {
+        throw TcbError("Session::sign", dtc_get_error_msg(sign_err), CKR_GENERAL_ERROR);
+    }
+
+    if (*pulSignatureLen < signature->data_len) {
+
+        throw TcbError("Session::sign", "Buffer too small.", CKR_BUFFER_TOO_SMALL);
+    }
+    *pulSignatureLen = signature->data_len;
+
+    CK_BYTE_PTR data = (CK_BYTE_PTR) signature->data;
+    uint32_t dataLen = signature->data_len;
+    std::copy(data, data + dataLen, pSignature);
+
+    keyMetainfo_.reset();
+    padder_.reset();
+    signInitialized_ = false;
+}
+
+// TODO: Fix the verifier!
+void Session::verifyInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
+    if (verifyInitialized_) {
+        throw TcbError("Session::verifyInit", "Operation active.", CKR_OPERATION_ACTIVE);
+    }
+
+    CryptoObject &keyObject = getObject(hKey);
+    CK_ATTRIBUTE tmpl = {.type = CKA_VENDOR_DEFINED + 1};
+    const CK_ATTRIBUTE *keyMetainfoAttribute = keyObject.findAttribute(&tmpl);
+    if (!keyMetainfoAttribute) {
+        throw TcbError("Session::signInit", "El object handle no contiene keymetainfos", CKR_ARGUMENTS_BAD);
+    }
+
+    CK_MECHANISM_TYPE signMechanism = pMechanism->mechanism;
+    std::string emsa;
+    switch (signMechanism) {
+        case CKM_RSA_PKCS:
+            emsa = "EMSA3(Raw)";
+            break;
+
+        case CKM_MD5_RSA_PKCS:
+            emsa = "EMSA3(MD5)";
+            break;
+
+        case CKM_SHA1_RSA_PKCS:
+            emsa = "EMSA3(SHA-160)";
+            break;
+
+        case CKM_SHA1_RSA_PKCS_PSS:
+            emsa = "EMSA4(SHA-160)";
+            break;
+
+        case CKM_SHA256_RSA_PKCS:
+            emsa = "EMSA3(SHA-256)";
+            break;
+
+        case CKM_SHA256_RSA_PKCS_PSS:
+            emsa = "EMSA4(SHA-256)";
+            break;
+
+        case CKM_SHA384_RSA_PKCS:
+            emsa = "EMSA3(SHA-384)";
+            break;
+
+        case CKM_SHA384_RSA_PKCS_PSS:
+            emsa = "EMSA4(SHA-384)";
+            break;
+
+        case CKM_SHA512_RSA_PKCS:
+            emsa = "EMSA3(SHA-512)";
+            break;
+
+        case CKM_SHA512_RSA_PKCS_PSS:
+            emsa = "EMSA4(SHA-512)";
+            break;
+
+        default:
+            throw TcbError("Session::sign", "El mecanismo no esta soportado.", CKR_MECHANISM_INVALID);
+    }
+
+    string serializedMetainfo(static_cast<char *>(keyMetainfoAttribute->pValue), keyMetainfoAttribute->ulValueLen);
+    key_metainfo_t * metainfo = tc_deserialize_key_metainfo(serializedMetainfo.c_str());
+    const public_key_t * pk = tc_key_meta_info_public_key(metainfo);
+
+    Botan::BigInt n((Botan::byte*) pk->n->data, pk->n->data_len);
+    Botan::BigInt e((Botan::byte*) pk->e->data, pk->e->data_len);
+
+    pk_.reset(new Botan::RSA_PublicKey(n, e));
+    verifier_.reset(new Botan::PK_Verifier(*pk_, emsa));
+
+    verifyInitialized_ = true;
+}
+
+void Session::verifyUpdate(CK_BYTE_PTR pPart, CK_ULONG ulPartLen) {
+    if (!verifyInitialized_) {
+        throw TcbError("Session::verifyUpdate", "Operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
+    }
+
+    verifier_->update(pPart, ulPartLen);
+}
+
+bool Session::verifyFinal(CK_BYTE_PTR pSignature, CK_ULONG ulSignatureLen) {
+    if (!verifyInitialized_) {
+        throw TcbError("Session::verifyFinal", "Operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
+    }
+
+    bool checks = verifier_->check_signature(pSignature, ulSignatureLen);
+
+    verifier_.reset();
+    pk_.reset();
+    verifyInitialized_ = false;
+
+    return checks;
 }
 
 void Session::digestInit(CK_MECHANISM_PTR pMechanism) {
@@ -869,25 +965,28 @@ void Session::digestInit(CK_MECHANISM_PTR pMechanism) {
         throw TcbError("Session::digestInit", "pMechanism == nullptr.", CKR_ARGUMENTS_BAD);
     }
 
+    Botan::HashFunction *f;
     switch (pMechanism->mechanism) {
         case CKM_MD5:
-            hashFunction_ = new Botan::MD5;
+            f = new Botan::MD5;
             break;
         case CKM_SHA_1:
-            hashFunction_ = new Botan::SHA_160;
+            f = new Botan::SHA_160;
             break;
         case CKM_SHA256:
-            hashFunction_ = new Botan::SHA_256;
+            f = new Botan::SHA_256;
             break;
         case CKM_SHA384:
-            hashFunction_ = new Botan::SHA_384;
+            f = new Botan::SHA_384;
             break;
         case CKM_SHA512:
-            hashFunction_ = new Botan::SHA_512;
+            f = new Botan::SHA_512;
             break;
         default:
             throw TcbError("Session::digestInit", "Mechanism invalid.", CKR_MECHANISM_INVALID);
     }
+
+    hashFunction_.reset(f);
 
     digestInitialized_ = true;
 }
@@ -923,12 +1022,11 @@ void Session::digest(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pDigest,
 
     hashFunction_->final(pDigest);
     digestInitialized_ = false;
-    delete hashFunction_;
-    hashFunction_ = nullptr;
+    hashFunction_.reset();
 }
 
 void Session::generateRandom(CK_BYTE_PTR pRandomData, CK_ULONG ulRandomLen) {
-    if (pRandomData == nullptr) {
+    if (!pRandomData) {
         throw TcbError("Session::generateRandom", "pRandomData == nullptr", CKR_ARGUMENTS_BAD);
     }
 
@@ -937,7 +1035,7 @@ void Session::generateRandom(CK_BYTE_PTR pRandomData, CK_ULONG ulRandomLen) {
 }
 
 void Session::seedRandom(CK_BYTE_PTR pSeed, CK_ULONG ulSeedLen) {
-    if (pSeed == nullptr) {
+    if (!pSeed) {
         throw TcbError("Session::seedRandom", "pSeed == nullptr", CKR_ARGUMENTS_BAD);
     }
 

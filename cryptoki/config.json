@@ -4,7 +4,6 @@
   "nodes_number": 3,
   "threshold": 2 ,
   "slots" : [
-    // Token definitions...
     { "label": "TCBHSM" }
   ]
 }
