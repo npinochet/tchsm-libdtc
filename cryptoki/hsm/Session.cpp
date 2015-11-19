@@ -917,7 +917,6 @@ void Session::digest(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pDigest,
         throw TcbError("Session::digest", "pData == nullptr", CKR_ARGUMENTS_BAD);
     }
 
-    // TODO: Digest generation
     hashFunction_->update(pData, ulDataLen);
 
     *pulDigestLen = digestSize;

@@ -57,21 +57,21 @@ public:
     Slot (Slot && ) = default;
     Slot & operator=(Slot &) = delete;
     Slot & operator=(Slot &&) = default;
-    virtual ~Slot() = default;
+    ~Slot() = default;
 
-    virtual CK_SESSION_HANDLE openSession ( CK_FLAGS flags, CK_VOID_PTR pApplication, CK_NOTIFY notify );
-    virtual void closeSession ( CK_SESSION_HANDLE handle );
-    virtual void closeAllSessions();
-    virtual Session & getSession ( CK_SESSION_HANDLE handle );
-    virtual bool hasSession ( CK_SESSION_HANDLE handle );
-    virtual CK_ULONG sessionsCount() const;
+    CK_SESSION_HANDLE openSession ( CK_FLAGS flags, CK_VOID_PTR pApplication, CK_NOTIFY notify );
+    void closeSession ( CK_SESSION_HANDLE handle );
+    void closeAllSessions();
+    Session & getSession ( CK_SESSION_HANDLE handle );
+    bool hasSession ( CK_SESSION_HANDLE handle );
+    CK_ULONG sessionsCount() const;
 
-    virtual Application & getApplication();
-    virtual CK_SLOT_ID getId() const;
-    virtual void getInfo ( CK_SLOT_INFO_PTR pInfo ) const; // throws exception
-    virtual void insertToken ( Token * token );
-    virtual Token & getToken() const; // throws exception
-    virtual bool isTokenPresent() const;
+    Application & getApplication();
+    CK_SLOT_ID getId() const;
+    void getInfo ( CK_SLOT_INFO_PTR pInfo ) const; // throws exception
+    void insertToken ( Token * token );
+    Token & getToken() const; // throws exception
+    bool isTokenPresent() const;
 };
 }
 

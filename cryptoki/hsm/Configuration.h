@@ -39,14 +39,14 @@ public:
     Configuration & operator=(Configuration const &) = default;
     Configuration & operator=(Configuration &&) = default;
 
-    virtual std::vector<SlotConf> const & getSlotConf() const;
-    virtual const std::string & getDtcConfigPath() const;
-    virtual const int getNodesNumber() const;
-    virtual const int getThreshold() const;
-    virtual const std::string & getDatabasePath() const;
-    virtual void load(std::string configurationPath);
+    std::vector<SlotConf> const & getSlotConf() const;
+    const std::string & getDtcConfigPath() const;
+    const int getNodesNumber() const;
+    const int getThreshold() const;
+    const std::string & getDatabasePath() const;
+    void load(std::string configurationPath);
 
-    virtual ~Configuration() = default;
+    ~Configuration() = default;
 private:
     std::vector<SlotConf> slotConf_;
     std::string dtcConfigPath_;

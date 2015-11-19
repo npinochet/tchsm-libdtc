@@ -45,7 +45,6 @@ public:
     
     virtual hsm::Token* getToken(std::string label);
     virtual void saveToken(hsm::Token& token);
-    virtual void saveCryptoObject(Token& token, CryptoObject& object);
 };
 }
 

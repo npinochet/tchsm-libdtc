@@ -43,18 +43,18 @@ class Application
 {
 public:
     Application ( std::ostream& out );
-    virtual ~Application();
+    ~Application();
 
-    virtual Slot & getSlot ( CK_SLOT_ID id ) const; // throws exception
-    virtual std::vector<SlotPtr> const & getSlotList() const;
+    Slot & getSlot ( CK_SLOT_ID id ) const; // throws exception
+    std::vector<SlotPtr> const & getSlotList() const;
 
-    virtual Slot & getSessionSlot ( CK_SESSION_HANDLE handle );
-    virtual Session & getSession ( CK_SESSION_HANDLE session ); // throws exception
-    virtual Database & getDatabase ();
-    virtual const Configuration & getConfiguration() const;
-    virtual dtc_ctx_t * getDtcContext();
+    Slot & getSessionSlot ( CK_SESSION_HANDLE handle );
+    Session & getSession ( CK_SESSION_HANDLE session ); // throws exception
+    Database & getDatabase ();
+    const Configuration & getConfiguration() const;
+    dtc_ctx_t * getDtcContext();
 
-    virtual void errorLog ( std::string message ) const;
+    void errorLog ( std::string message ) const;
 
 private:  
     std::ostream& out_;

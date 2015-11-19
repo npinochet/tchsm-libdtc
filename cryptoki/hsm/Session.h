@@ -27,6 +27,7 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 #include <memory>
 #include <vector>
 #include <utility>
+#include <botan/hash.h>
 
 namespace hsm {
 
@@ -70,55 +71,56 @@ namespace hsm {
         Session(CK_FLAGS flags, CK_VOID_PTR pApplication,
                 CK_NOTIFY notify, Slot &currentSlot);
 
-        virtual ~Session();
+        ~Session();
 
-        virtual CK_SESSION_HANDLE getHandle() const;
+        CK_SESSION_HANDLE getHandle() const;
 
-        virtual CK_STATE getState() const;
+        CK_STATE getState() const;
 
-        virtual CK_FLAGS getFlags() const;
+        CK_FLAGS getFlags() const;
 
-        virtual void getSessionInfo(CK_SESSION_INFO_PTR pInfo) const;
+        void getSessionInfo(CK_SESSION_INFO_PTR pInfo) const;
 
-        virtual bool isReadOnly() const;
+        bool isReadOnly() const;
 
-        virtual Slot &getCurrentSlot();
+        Slot &getCurrentSlot();
 
-        virtual void login(CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinLen);
+        void login(CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinLen);
 
-        virtual void logout();
+        void logout();
 
         // Cryptographic functions
-        virtual KeyPair generateKeyPair(CK_MECHANISM_PTR pMechanism,
-                                        CK_ATTRIBUTE_PTR pPublicKeyTemplate,
-                                        CK_ULONG ulPublicKeyAttributeCount,
-                                        CK_ATTRIBUTE_PTR pPrivateKeyTemplate,
-                                        CK_ULONG ulPrivateKeyAttributeCount);
+        KeyPair generateKeyPair(CK_MECHANISM_PTR pMechanism,
+                                CK_ATTRIBUTE_PTR pPublicKeyTemplate,
+                                CK_ULONG ulPublicKeyAttributeCount,
+                                CK_ATTRIBUTE_PTR pPrivateKeyTemplate,
+                                CK_ULONG ulPrivateKeyAttributeCount);
 
-        virtual void signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey);
+        void signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey);
 
-        virtual void sign(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pSignature,
-                          CK_ULONG_PTR pulSignatureLen);
+        void sign(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pSignature,
+                  CK_ULONG_PTR pulSignatureLen);
 
-        virtual void digestInit(CK_MECHANISM_PTR pMechanism);
+        void digestInit(CK_MECHANISM_PTR pMechanism);
 
-        virtual void digest(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pDigest,
-                            CK_ULONG_PTR pulDigestLen);
+        void digest(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pDigest,
+                    CK_ULONG_PTR pulDigestLen);
 
-        virtual void seedRandom(CK_BYTE_PTR pSeed, CK_ULONG ulSeedLen);
+        void seedRandom(CK_BYTE_PTR pSeed, CK_ULONG ulSeedLen);
 
-        virtual void generateRandom(CK_BYTE_PTR pRandomData, CK_ULONG ulRandomLen);
+        void generateRandom(CK_BYTE_PTR pRandomData, CK_ULONG ulRandomLen);
 
-        virtual CK_OBJECT_HANDLE createObject(CK_ATTRIBUTE_PTR pTemplate,
-                                              CK_ULONG ulCount); // throws exception
-        virtual void destroyObject(CK_OBJECT_HANDLE hObject); // throws exception
-        virtual void findObjectsInit(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount);
+        CK_OBJECT_HANDLE createObject(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount); // throws exception
 
-        virtual std::vector<CK_OBJECT_HANDLE> findObjects(CK_ULONG maxObjectCount);
+        void destroyObject(CK_OBJECT_HANDLE hObject); // throws exception
 
-        virtual void findObjectsFinal();
+        void findObjectsInit(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount);
 
-        virtual CryptoObject &getObject(CK_OBJECT_HANDLE objectHandle); // throws exception
+        std::vector<CK_OBJECT_HANDLE> findObjects(CK_ULONG maxObjectCount);
+
+        void findObjectsFinal();
+
+        CryptoObject &getObject(CK_OBJECT_HANDLE objectHandle); // throws exception
     };
 
 }

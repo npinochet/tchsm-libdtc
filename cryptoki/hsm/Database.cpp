@@ -179,6 +179,3 @@ void Database::saveToken(hsm::Token &token) {
     sqlite3_finalize(insertAttributesStmt);
 }
 
-void Database::saveCryptoObject(Token &token, CryptoObject &object) {
-
-}
