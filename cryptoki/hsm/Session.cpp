@@ -28,6 +28,7 @@
 #include <botan/sha160.h>
 #include <botan/sha2_32.h>
 #include <botan/sha2_64.h>
+#include <botan/randpool.h>
 
 #include <sstream>
 
@@ -39,7 +40,6 @@
 #include "Slot.h"
 #include "Token.h"
 #include "CryptoObject.h"
-#include "Configuration.h"
 #include "TcbError.h"
 #include "Application.h"
 
@@ -286,7 +286,7 @@ vector<CK_OBJECT_HANDLE> Session::findObjects(CK_ULONG maxObjectCount) {
                        CKR_OPERATION_NOT_INITIALIZED);
     }
 
-    auto end = foundObjectsIterator_ + maxObjectCount;
+    vector<CK_OBJECT_HANDLE >::iterator end = foundObjectsIterator_ + maxObjectCount;
     if (foundObjectsEnd_ < end) {
         end = foundObjectsEnd_;
     }
@@ -932,12 +932,8 @@ void Session::generateRandom(CK_BYTE_PTR pRandomData, CK_ULONG ulRandomLen) {
         throw TcbError("Session::generateRandom", "pRandomData == nullptr", CKR_ARGUMENTS_BAD);
     }
 
-    // TODO: Random bytes generation
+    rng_.randomize(pRandomData, ulRandomLen);
 
-    vector<CK_BYTE> decodedData;//  ( base64::decode ( encodedData ) );
-    CK_BYTE_PTR data = decodedData.data();
-
-    std::copy(data, data + ulRandomLen, pRandomData);
 }
 
 void Session::seedRandom(CK_BYTE_PTR pSeed, CK_ULONG ulSeedLen) {
@@ -945,6 +941,6 @@ void Session::seedRandom(CK_BYTE_PTR pSeed, CK_ULONG ulSeedLen) {
         throw TcbError("Session::seedRandom", "pSeed == nullptr", CKR_ARGUMENTS_BAD);
     }
 
-    // TODO: Random seed.
+    rng_.add_entropy(pSeed, ulSeedLen);
 }
 

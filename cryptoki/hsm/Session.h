@@ -28,6 +28,7 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 #include <vector>
 #include <utility>
 #include <botan/hash.h>
+#include <botan/auto_rng.h>
 
 namespace hsm {
 
@@ -66,6 +67,9 @@ namespace hsm {
         // Digest
         Botan::HashFunction *hashFunction_;
         bool digestInitialized_ = false;
+
+        // RNG
+        Botan::AutoSeeded_RNG rng_;
 
     public:
         Session(CK_FLAGS flags, CK_VOID_PTR pApplication,

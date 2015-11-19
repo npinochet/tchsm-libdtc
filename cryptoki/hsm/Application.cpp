@@ -57,9 +57,9 @@ Application::Application(std::ostream &out)
     }
 
     int err;
-    dtcCtx_ = dtc_init(configuration_.getDtcConfigPath().data(), nullptr);
+    dtcCtx_ = dtc_init(configuration_.getDtcConfigPath().data(), &err);
     if (!dtcCtx_) {
-        throw TcbError("Application::Application", "DTC not initialized.", CKR_DEVICE_ERROR);
+        throw TcbError("Application::Application", dtc_get_error_msg(err), CKR_DEVICE_ERROR);
     }
 
     // TODO: Slow joiner!
