@@ -15,6 +15,7 @@
 #include "utilities.h"
 #include "dtc.h"
 
+
 struct master_info {
     // master_id.
     char *id;
@@ -756,7 +757,7 @@ static struct communication_objects *init_node(
 
 // TODO --help should print usage
 
-static void set_zap_security(void *zmq_ctx, char *database)
+static void start_zap_security(void *zmq_ctx, char *database)
 {
     int ret_value;
     struct zap_handler_data *zap_data =
@@ -791,7 +792,7 @@ static struct communication_objects *create_and_bind_sockets(
     ret_val->ctx = zmq_ctx_new();
     EXIT_ON_FALSE(ret_val->ctx, "Context initialization error.");
 
-    set_zap_security(ret_val->ctx, conf->database);
+    start_zap_security(ret_val->ctx, conf->database);
 
     // Socket to send received messages for classification.
     ret_val->classifier_main_thread_socket = zmq_socket(ret_val->ctx,
@@ -898,56 +899,206 @@ static int set_server_socket_security(void *socket, char *server_secret_key)
 
 static int node_loop(struct communication_objects *communication_objs)
 {
-    zmq_msg_t rcvd_msg_;
-    zmq_msg_t *rcvd_msg = &rcvd_msg_;
-    const char *user_id;
+    zmq_msg_t rcvd_msg_, out_msg_;
+    zmq_msg_t *rcvd_msg = &rcvd_msg_, *out_msg = &out_msg_;
+    const unsigned poll_items = 3;
+    const char *auth_user_id;
+    char *server_id, identity;
     int rc = 0;
 
     //TODO Check if synchronization is necessary to wait that the
     // classifier thread is connected.
     //rc = zmq_msg_init(msg);
     //classifier_main_thread_socket;
-    while(1){
+
+    zmq_pollitem_t items[poll_items];
+    int poll_timeout = -1;
+
+    items[0].socket = communication_objs->sub_socket;
+    items[1].socket = communication_objs->router_socket;
+    items[2].socket = communication_objs->pull_socket;
+    items[0].events = items[1].events = items[2].events = ZMQ_POLLIN;
+
+    while(1) {
+        rc = zmq_poll(items, poll_items, poll_timeout);
+        if(rc == 0) //TODO implement clean exit
+            break;
+
+        if(rc < 0) {
+            LOG(LOG_LVL_CRIT, "Poll failed:%s", zmq_strerror(errno))
+            break;
+        }
+
         rc = zmq_msg_init(rcvd_msg);
-        if(rc == -1)
-            PERROR_RET(1, "zmq_msg_init");
-
-        rc = zmq_msg_recv(rcvd_msg, communication_objs->sub_socket, 0);
-        if(rc == -1){
-            PERROR_LOG(LOG_LVL_ERRO, "zmq_msg_recv",
-                       "Receive message failed.");
-            zmq_msg_close(rcvd_msg);
-            continue;
-        }
-
-        user_id = zmq_msg_gets(rcvd_msg, "User-Id");
-        if(user_id == NULL) {
-            LOG(LOG_LVL_ERRO, "Unauthenticated msg received.");
-            zmq_msg_close(rcvd_msg);
-            continue;
-        }
-
-        LOG(LOG_LVL_DEBG, "Sub msg from:%s", user_id)
-
-        rc = s_sendmore(communication_objs->classifier_main_thread_socket,
-                        user_id);
         if(rc == -1) {
-            LOG(LOG_LVL_ERRO, "Node_loop error, zmq_send: %s",
-                zmq_strerror(errno));
-            zmq_msg_close(rcvd_msg);
+            LOG(LOG_LVL_CRIT, "MSG init failed:%s", zmq_strerror(errno))
+            continue; //TODO or break?
+        }
+
+        if(items[0].revents) {
+            rc = zmq_msg_recv(rcvd_msg, communication_objs->sub_socket, 0);
+            if(rc == -1) {
+                LOG(LOG_LVL_ERRO, "Error Receiving msg:%s", zmq_strerror(errno))
+                zmq_msg_close(rcvd_msg);
+                continue;
+            }
+
+            auth_user_id = zmq_msg_gets(rcvd_msg, "User-Id");
+            if(user_id == NULL) {
+                LOG(LOG_LVL_ERRO, "Unauthenticated msg received")
+                zmq_msg_close(rcvd_msg);
+                continue;
+            }
+
+            rc = db_get_server_id_from_pub_token(DATABASE, auth_user_id,
+                                                 &server_id);
+            if(rc != DTC_ERR_NONE) {
+                LOG(LOG_LVL_ERRO, "Error retrieving server_id from DB: %d",
+                    rc)
+                zmq_msg_close(rcvd_msg);
+                continue;
+            }
+
+        }
+
+        else if(items[1].revents) {
+            identity = s_recv(communication_objs->router_socket);
+            if(identity == NULL) {
+                LOG(LOG_LVL_ERRO, "Could not get sender identity.")
+                zmq_msg_close(rcvd_msg);
+                continue;
+            }
+
+            rc = zmq_msg_recv(rcvd_msg, communication_objs->sub_socket, 0);
+            if(rc == -1) {
+                LOG(LOG_LVL_ERRO, "Error Receiving msg:%s", zmq_strerror(errno))
+                zmq_msg_close(rcvd_msg);
+                continue;
+            }
+
+            auth_user_id = zmq_msg_gets(rcvd_msg, "User-Id");
+            if(user_id == NULL) {
+                LOG(LOG_LVL_ERRO, "Unauthenticated msg received")
+                zmq_msg_close(rcvd_msg);
+                free(identity);
+                continue;
+            }
+
+            rc = db_get_server_id_from_router_token(DATABASE, auth_user_id,
+                                                    &server_id);
+            if(rc != DTC_ERR_NONE) {
+                LOG(LOG_LVL_ERRO, "Error retrieving server_id from DB: %d",
+                    rc)
+                zmq_msg_close(rcvd_msg);
+                free(identity);
+                continue;
+            }
+
+            if(strcmp(identity, server_id) != 0) {
+                LOG(LOG_LVL_ERRO,
+                    "Auth server_id does not match router identity")
+                zmq_msg_close(rcvd_msg);
+                free(identity);
+                free(server_id);
+                continue;
+            }
+        }
+
+        else if(items[2].revents) { // Probably else is enough.
+            server_id = s_recv(communication_objs->pull_socket);
+            if(server_id == NULL) {
+                LOG(LOG_LVL_ERRO, "Error reading first frame of pull_socket")
+                zmq_msg_close(rcvd_msg);
+                continue;
+            }
+
+            rc = zmq_msg_recv(rcvd_msg, communication_objs->pull_socket);
+            if(rc == -1) {
+                zmq_msg_close(rcvd_msg);
+                free(server_id);
+                LOG_EXIT(LOG_LVL_ERRO,
+                         "Error reading second frame of pull socket")
+            }
+
+        }
+
+        //
+        if(items[0].revents || items[1].revents)
+            out_sock = communication_objs->push_socket;
+        else if(items[2].revents)
+            out_sock = communication_objs->router_socket;
+
+        rc = zmq_msg_copy(out_msg, rcvd_msg);
+        zmq_msg_close(rcvd_msg);
+        if(rc != 0) {
+            LOG(LOG_LVL_ERRO, "Unable to copy the msg:%s",
+                zmq_strerror(errno))
+            free(server_id);
             continue;
         }
 
-        rc = zmq_msg_send(rcvd_msg,
-                          communication_objs->classifier_main_thread_socket, 0);
+        rc = s_sendmore(out_sock, server_id);
         if(rc == -1) {
-            LOG(LOG_LVL_ERRO,
-                "Unable to pass the message to the classifier thread: %s",
-                zmq_strerror(errno));
-            zmq_msg_close(rcvd_msg);
+            LOG(LOG_LVL_ERRO, "Unable to send msg: %s", zmq_strerror(errno))
+            zmq_msg_close(out_msg);
+            free(server_id);
             continue;
         }
+
+        rc = zmq_msg_send(out_msg, out_sock, 0);
+        if(rc == -1) {
+            zmq_msg_close(out_msg);
+            free(server_id);
+            // TODO Not sure how to handle an error sending second part
+            // of multipart msg, investigate it and remove the EXIT.
+            LOG_EXIT(LOG_LVL_ERRO, "Unable to send msg: %s",
+                        zmq_strerror(errno))
+        }
+        free(server_id);
+
     }
+
+    //while(1){
+    //    rc = zmq_msg_init(rcvd_msg);
+    //    if(rc == -1)
+    //        PERROR_RET(1, "zmq_msg_init");
+
+    //    rc = zmq_msg_recv(rcvd_msg, communication_objs->sub_socket, 0);
+    //    if(rc == -1){
+    //        PERROR_LOG(LOG_LVL_ERRO, "zmq_msg_recv",
+    //                   "Receive message failed.");
+    //        zmq_msg_close(rcvd_msg);
+    //        continue;
+    //    }
+
+    //    user_id = zmq_msg_gets(rcvd_msg, "User-Id");
+    //    if(user_id == NULL) {
+    //        LOG(LOG_LVL_ERRO, "Unauthenticated msg received.");
+    //        zmq_msg_close(rcvd_msg);
+    //        continue;
+    //    }
+
+    //    LOG(LOG_LVL_DEBG, "Sub msg from:%s", user_id)
+
+    //    rc = s_sendmore(communication_objs->classifier_main_thread_socket,
+    //                    user_id);
+    //    if(rc == -1) {
+    //        LOG(LOG_LVL_ERRO, "Node_loop error, zmq_send: %s",
+    //            zmq_strerror(errno));
+    //        zmq_msg_close(rcvd_msg);
+    //        continue;
+    //    }
+
+    //    rc = zmq_msg_send(rcvd_msg,
+    //                      communication_objs->classifier_main_thread_socket, 0);
+    //    if(rc == -1) {
+    //        LOG(LOG_LVL_ERRO,
+    //            "Unable to pass the message to the classifier thread: %s",
+    //            zmq_strerror(errno));
+    //        zmq_msg_close(rcvd_msg);
+    //        continue;
+    //    }
+    //}
 
     return 0;
 }
