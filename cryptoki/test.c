@@ -199,7 +199,7 @@ create_key_pair(CK_SESSION_HANDLE session) {
     CK_MECHANISM mechanism = {
             CKM_RSA_PKCS_KEY_PAIR_GEN, NULL_PTR, 0
     };
-    CK_ULONG modulusBits = 512;
+    CK_ULONG modulusBits = 1024;
     CK_BYTE publicExponent[] = {1, 0, 1};
     CK_BYTE subject[] = LABEL;
     CK_BYTE id[] = ID;
@@ -296,10 +296,10 @@ sign_data(CK_SESSION_HANDLE session, CK_BYTE_PTR data, CK_ULONG dataLen, CK_ULON
     CK_OBJECT_HANDLE key = get_private_key(session, id, sizeof(id));
     CK_MECHANISM sign_mechanism;
 
-    CK_ULONG signatureLen = 512;
+    CK_ULONG signatureLen = 1024;
     CK_BYTE *signature = malloc(signatureLen);
 
-    sign_mechanism.mechanism = CKM_SHA1_RSA_PKCS;
+    sign_mechanism.mechanism = CKM_SHA256_RSA_PKCS_PSS;
     sign_mechanism.pParameter = NULL;
     sign_mechanism.ulParameterLen = 0;
 
@@ -320,7 +320,7 @@ verify_data(CK_SESSION_HANDLE session, CK_BYTE_PTR data, CK_ULONG dataLen, CK_BY
     CK_OBJECT_HANDLE key = get_public_key(session, id, sizeof(id));
     CK_MECHANISM sign_mechanism;
 
-    sign_mechanism.mechanism = CKM_SHA256_RSA_PKCS;
+    sign_mechanism.mechanism = CKM_SHA256_RSA_PKCS_PSS;
     sign_mechanism.pParameter = NULL;
     sign_mechanism.ulParameterLen = 0;
 

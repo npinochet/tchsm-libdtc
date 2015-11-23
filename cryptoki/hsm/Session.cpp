@@ -37,6 +37,7 @@
 #include <pkcs11.h>
 #include <dtc.h>
 #include <iostream>
+#include <botan/lookup.h>
 
 #include "Session.h"
 #include "Slot.h"
@@ -759,63 +760,54 @@ void Session::signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
     keyMetainfo_.reset(tc_deserialize_key_metainfo(metainfo.c_str()));
 
     CK_MECHANISM_TYPE signMechanism = pMechanism->mechanism;
-    Botan::HashFunction *hasher;
-    // First hasher
+
+    std::string emsa;
     switch (signMechanism) {
         case CKM_RSA_PKCS:
-            hasher = nullptr;
+            emsa = "EMSA3(Raw)";
             break;
 
         case CKM_MD5_RSA_PKCS:
-            hasher = new Botan::MD5;
+            emsa = "EMSA3(MD5)";
             break;
 
         case CKM_SHA1_RSA_PKCS:
+            emsa = "EMSA3(SHA-160)";
+            break;
+
         case CKM_SHA1_RSA_PKCS_PSS:
-            hasher = new Botan::SHA_160;
+            emsa = "EMSA4(SHA-160)";
             break;
 
         case CKM_SHA256_RSA_PKCS:
+            emsa = "EMSA3(SHA-256)";
+            break;
+
         case CKM_SHA256_RSA_PKCS_PSS:
-            hasher = new Botan::SHA_256;
+            emsa = "EMSA4(SHA-256)";
             break;
 
         case CKM_SHA384_RSA_PKCS:
+            emsa = "EMSA3(SHA-384)";
+            break;
+
         case CKM_SHA384_RSA_PKCS_PSS:
-            hasher = new Botan::SHA_384;
+            emsa = "EMSA4(SHA-384)";
             break;
 
         case CKM_SHA512_RSA_PKCS:
+            emsa = "EMSA3(SHA-512)";
+            break;
+
         case CKM_SHA512_RSA_PKCS_PSS:
-            hasher = new Botan::SHA_512;
+            emsa = "EMSA4(SHA-512)";
             break;
 
         default:
             throw TcbError("Session::sign", "El mecanismo no esta soportado.", CKR_MECHANISM_INVALID);
     }
 
-    // Then padder
-    switch (signMechanism) {
-        case CKM_RSA_PKCS:
-            padder_.reset(new Botan::EMSA3_Raw);
-            break;
-
-        case CKM_MD5_RSA_PKCS:
-        case CKM_SHA1_RSA_PKCS:
-        case CKM_SHA256_RSA_PKCS:
-        case CKM_SHA384_RSA_PKCS:
-        case CKM_SHA512_RSA_PKCS:
-            padder_.reset(new Botan::EMSA3(hasher));
-            break;
-
-        case CKM_SHA1_RSA_PKCS_PSS:
-        case CKM_SHA256_RSA_PKCS_PSS:
-        case CKM_SHA384_RSA_PKCS_PSS:
-        case CKM_SHA512_RSA_PKCS_PSS:
-            padder_.reset(new Botan::EMSA4(hasher));
-            break;
-
-    }
+    padder_.reset(Botan::get_emsa(emsa));
 
     signInitialized_ = true;
 }
@@ -835,7 +827,10 @@ void Session::signFinal(CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen) {
         throw TcbError("Session::signFinal", "Operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
     }
 
-    auto paddedData = padder_->raw_data();
+    const public_key_t * pk = tc_key_meta_info_public_key(&*keyMetainfo_);
+
+    Botan::AutoSeeded_RNG rng;
+    auto paddedData = padder_->encoding_of(padder_->raw_data(), pk->n->data_len*8 - 1, rng) ;
     auto paddedDataBytes = tc_init_bytes(paddedData, paddedData.size());
 
     dtc_ctx_t *ctx = getCurrentSlot().getApplication().getDtcContext();

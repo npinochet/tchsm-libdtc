@@ -53,6 +53,12 @@ include_directories(${DTCLIB_INCLUDE_DIR})
 find_library(DTCLIB_LIBRARY NAMES libdt_tc.so
         HINTS "${TCLIB_PREFIX}/lib" "${CMAKE_PREFIX_PATH}/tclib/lib")
 
+find_path(TCLIB_INCLUDE_DIR tc.h
+        HINTS "${TCLIB_PREFIX}/include" "${CMAKE_PREFIX_PATH}/tclib/include")
+
+find_library(TCLIB_LIBRARY NAMES libtc.so
+        HINTS "${TCLIB_PREFIX}/lib" "${CMAKE_PREFIX_PATH}/tclib/lib")
+
 include_directories("cryptoki_compat")
 include_directories("hsm")
   
@@ -83,3 +89,9 @@ target_link_libraries(pkcs11 ${DTCLIB_LIBRARY} ${Boost_LIBRARIES} ${SQLITE3_LIBR
 
 add_executable(pkcs11_test test.c)
 target_link_libraries(pkcs11_test pkcs11 ${Boost_LIBRARIES} ${SQLITE3_LIBRARIES} ${BOTAN_LIBRARIES})
+
+add_executable(botanmain main.cpp)
+target_link_libraries(botanmain ${TCLIB_LIBRARY} ${BOTAN_LIBRARIES})
+
+set_property(TARGET botanmain PROPERTY CXX_STANDARD 11)
+set_property(TARGET botanmain PROPERTY CXX_STANDARD_REQUIRED_ON 11)
