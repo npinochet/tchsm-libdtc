@@ -54,17 +54,20 @@ struct communication_objects {
     void *sub_socket;
     void *router_socket;
 
-    // Inter threads communication.
-    char *classifier_socket_address;
-    void *classifier_main_thread_socket;
+    // Outgoing msgs
+    char *outgoing_inproc_address;
+    void *outgoing_socket;
 
+    // Incoming msgs
+    char *incoming_inproc_address;
+    void *incoming_socket;
 };
 
-struct classifier_data {
+struct worker_data {
     void *ctx;
-    void *router_socket;
-    const char *socket_address;
-    const char *database;
+    const char *incoming_inproc_address;
+    const char *outgoing_inproc_address;
+    const char *database_path;
 };
 
 struct zap_handler_data {
@@ -109,7 +112,8 @@ static int read_configuration(int argc, char *argv[], struct configuration *conf
 static struct communication_objects *init_node(const struct configuration *conf);
 static struct communication_objects *create_and_bind_sockets(
         const struct configuration *conf);
-static int node_loop(struct communication_objects *communication_objs);
+static int node_loop(struct communication_objects *communication_objs,
+                     const char * database_path);
 static int set_server_socket_security(void *socket, char *server_secret_key);
 static void zap_handler (void *handler);
 
@@ -154,7 +158,7 @@ int main(int argc, char **argv)
     if(!communication_objs)
         return 1;
 
-    return node_loop(communication_objs);
+    return node_loop(communication_objs, configuration.database);
 }
 
 /**
@@ -359,70 +363,17 @@ void store_key(database_t *db_conn, const char *server_id,
     return;
 }
 
-void handle_store_key_res(database_t *db_conn, void *router_socket,
-                          struct op_req *pub_op, struct op_req *req_op)
+//TODO do we need to handle only request after store_key_pub was called?
+void handle_store_key_res(database_t *db_conn, void *outgoing_socket,
+                          struct op_req *res_op, const char *auth_user)
 {
-    char *identity;
-    int rc;
-    zmq_msg_t msg_;
-    zmq_msg_t *msg = &msg_;
-    struct op_req *res_op;
-
-    if(zmq_msg_init(msg) != 0) {
-        LOG(LOG_LVL_ERRO, "Error initializing msg: %s", zmq_strerror(errno));
-        return;
-    }
-
-    identity = s_recv(router_socket);
-    if(identity == NULL) {
-        LOG(LOG_LVL_ERRO, "Could not get sender identity.");
-        zmq_msg_close(msg);
-        return;
-    }
-
-    rc = zmq_msg_recv(msg, router_socket, 0);
-    if(rc == -1) {
-        LOG(LOG_LVL_ERRO, "Error getting msg from %s:%s", identity,
-            zmq_strerror(errno));
-        goto err_exit;
-    }
-
-    if(!auth_router(db_conn, identity, zmq_msg_gets(msg, "User-Id"))) {
-        LOG(LOG_LVL_ERRO, "Unauthorized user (%s) dropped at store_key_res.",
-            identity);
-        goto err_exit;
-    }
-    if(req_op->args->store_key_req.key_id_accepted != 1)
-        goto err_exit;
-
-    res_op = unserialize_op_req(zmq_msg_data(msg), rc);
-    if(!res_op) {
-        LOG(LOG_LVL_ERRO, "Unable to unserialize msg received.");
-        goto err_exit;
-    }
-
-    if(strcmp(req_op->args->store_key_req.key_id,
-              res_op->args->store_key_res.key_id) != 0) {
-        LOG(LOG_LVL_ERRO, "Received a different key id from %s.", identity);
-        delete_op_req(res_op);
-        goto err_exit;
-    }
-
-    store_key(db_conn, identity, &res_op->args->store_key_res);
-
-    delete_op_req(res_op);
-
-err_exit:
-    free(identity);
-    zmq_msg_close(msg);
-    return;
+    store_key(db_conn, auth_user, &res_op->args->store_key_res);
 }
 
 void handle_delete_key_share_pub(database_t *db_conn, void *router_socket,
                                  struct op_req *pub_op, const char *auth_user)
 {
     const char *key_id;
-    char *server_id;
     int ret;
     struct op_req req_op;
     struct delete_key_share_req delete_key_share;
@@ -436,20 +387,15 @@ void handle_delete_key_share_pub(database_t *db_conn, void *router_socket,
         return;
     }
 
-    ret = db_get_server_id_from_pub_token(db_conn, auth_user, &server_id);
-    if(ret != DTC_ERR_NONE) {
-        LOG(LOG_LVL_ERRO, "Couldn't retrieve the server id %d", ret)
-        return;
-    }
-
     key_id = pub_op->args->delete_key_share_pub.key_id;
 
     delete_key_share.key_id = key_id;
-    delete_key_share.deleted = db_delete_key(db_conn, server_id, key_id);
+    delete_key_share.deleted = db_delete_key(db_conn, auth_user, key_id);
     if(delete_key_share.deleted == DTC_ERR_NONE)
         LOG(LOG_LVL_LOG, "Successfully deleted key %s from server %s",
-            key_id, server_id)
+            key_id, auth_user)
 
+    //TODO Use send_op
     req_op.version = 1;
     req_op.op = OP_DELETE_KEY_SHARE_REQ;
     req_op.args = (union command_args *)&delete_key_share;
@@ -484,7 +430,6 @@ void handle_delete_key_share_pub(database_t *db_conn, void *router_socket,
 
     printf("Sent: %d\n", ret);
 err_exit:
-    free(server_id);
     return;
 }
 
@@ -500,8 +445,8 @@ const signature_share_t *sign(database_t *db_conn, const char *server_id,
 
     ret = db_get_key(db_conn, server_id, key_id, &key_share, &key_metainfo);
     if(ret != DTC_ERR_NONE) {
-        LOG(LOG_LVL_NOTI, "Error getting keys for server %s and key %s.",
-            server_id, key_id)
+        LOG(LOG_LVL_NOTI, "Error (%d) getting keys for server %s and key %s.",
+            ret, server_id, key_id)
         return NULL;
     }
 
@@ -533,19 +478,12 @@ void handle_sign_pub(database_t *db_conn, void *router_socket,
     struct op_req req;
     struct sign_req sign_req;
     size_t msg_len;
-    char *server_id;
     const signature_share_t *signature;
     bytes_t *msg_bytes;
     int ret;
 
     if(pub_op->version != 1) {
         LOG(LOG_LVL_ERRO, "version %" PRIu16 " not supported.")
-        return;
-    }
-
-    ret = db_get_server_id_from_pub_token(db_conn, auth_user, &server_id);
-    if(ret != DTC_ERR_NONE) {
-        LOG(LOG_LVL_NOTI, "Error getting server id %d.", ret)
         return;
     }
 
@@ -556,12 +494,11 @@ void handle_sign_pub(database_t *db_conn, void *router_socket,
 
     msg_bytes = tc_init_bytes((void *)message, msg_len);
 
-    signature = sign(db_conn, server_id, key_id, msg_bytes);
+    signature = sign(db_conn, auth_user, key_id, msg_bytes);
     free(msg_bytes);
 
     //TODO send status code.
     if(!signature) {
-        free(server_id);
         return;
     }
 
@@ -572,12 +509,11 @@ void handle_sign_pub(database_t *db_conn, void *router_socket,
     sign_req.signing_id = signing_id;
     sign_req.signature = signature;
 
-    send_op(server_id, &req, router_socket);
+    send_op(auth_user, &req, router_socket);
     tc_clear_signature_share((signature_share_t *)signature);
-    free(server_id);
 }
 
-void handle_store_key_pub(database_t *db_conn, void *router_socket,
+void handle_store_key_pub(database_t *db_conn, void *outgoing_socket,
                           struct op_req *pub_op, const char *auth_user)
 {
     const char *server_id;
@@ -591,8 +527,9 @@ void handle_store_key_pub(database_t *db_conn, void *router_socket,
     }
 
     server_id = pub_op->args->store_key_pub.server_id;
-    printf("Authuser:%s\n", auth_user);
-    if(!auth_pub(db_conn, server_id, auth_user)) {
+    ret = strcmp(auth_user, pub_op->args->store_key_pub.server_id);
+    printf("%s %s\n", server_id, auth_user);
+    if(ret) {
         LOG(LOG_LVL_NOTI, "Unauthorized user (%s) dropped at store_key_pub.",
             server_id);
         return;
@@ -606,29 +543,29 @@ void handle_store_key_pub(database_t *db_conn, void *router_socket,
     store_key_req.key_id_accepted =
             db_is_key_id_available(db_conn, server_id, store_key_req.key_id);
 
-    ret = send_op(server_id, &req_op, router_socket);
+    ret = send_op(server_id, &req_op, outgoing_socket);
     if(ret != DTC_ERR_NONE) {
         LOG(LOG_LVL_CRIT, "Error at handle_store_key_pub")
         return;
     }
-
-    handle_store_key_res(db_conn, router_socket, pub_op, &req_op);
 }
 
-void classify_and_handle_operation(database_t *db_conn, void *router_socket,
+void classify_and_handle_operation(database_t *db_conn, void *outgoing_socket,
                                    struct op_req *op, const char *auth_user)
 {
     unsigned i;
-    #define TOTAL_SUPPORTED_OPS 3
+    #define TOTAL_SUPPORTED_OPS 4
     uint16_t supported_operations[TOTAL_SUPPORTED_OPS] = {OP_STORE_KEY_PUB,
+                                                          OP_STORE_KEY_RES,
                                                           OP_SIGN_PUB,
                                                           OP_DELETE_KEY_SHARE_PUB};
     static void (*const op_handlers[TOTAL_SUPPORTED_OPS]) (
                                                     database_t *db_conn,
-                                                    void *router_socket,
+                                                    void *outgoing_socket,
                                                     struct op_req *op,
                                                     const char *auth_user) = {
             handle_store_key_pub,
+            handle_store_key_res,
             handle_sign_pub,
             handle_delete_key_share_pub
     };
@@ -643,40 +580,43 @@ void classify_and_handle_operation(database_t *db_conn, void *router_socket,
     }
     LOG(LOG_LVL_DEBG, "Got an op %u", supported_operations[i])
 
-    (op_handlers[i])(db_conn, router_socket, op, auth_user);
+    (op_handlers[i])(db_conn, outgoing_socket, op, auth_user);
 
     return;
 
 }
 
-void *classifier_thr(void *classifier_thread_data)
+static void *worker_thr(void *thread_data)
 {
     int rc = 0;
-    void *inproc_socket = NULL;
-    void *router_socket = NULL;
-    char *user_id;
+    void *incoming_socket = NULL;
+    void *outgoing_socket = NULL;
+    char *auth_master_id;
     int close_thread = 0;
     zmq_msg_t msg_;
     zmq_msg_t *msg = &msg_;
     struct op_req *op;
     database_t *db_conn;
 
-    struct classifier_data *thr_data =
-        (struct classifier_data *) classifier_thread_data;
+    struct worker_data *thr_data = (struct worker_data *) thread_data;
 
-    inproc_socket = zmq_socket(thr_data->ctx, ZMQ_PAIR);
-    PERROR_AND_EXIT_ON_FALSE(inproc_socket, "zmq_socket",
-                             "Unable to create inproc socket.");
-    rc = zmq_connect(inproc_socket, thr_data->socket_address);
-    PERROR_AND_EXIT_ON_FALSE(rc == 0, "zmq_connect",
-                             "Unable to connect inproc socket.");
-    router_socket = thr_data->router_socket;
-    db_conn = db_init_connection(thr_data->database);
+    incoming_socket = zmq_socket(thr_data->ctx, ZMQ_PULL);
+    outgoing_socket = zmq_socket(thr_data->ctx, ZMQ_PUSH);
+    if(!incoming_socket || !outgoing_socket) {
+        LOG_EXIT("Unable to create sockets")
+    }
+
+    rc = zmq_connect(incoming_socket, thr_data->incoming_inproc_address);
+    rc += zmq_connect(outgoing_socket, thr_data->outgoing_inproc_address);
+    if(rc != 0) {
+        LOG_EXIT("Unable to connect socket: %s", zmq_strerror(errno))
+    }
+
+    db_conn = db_init_connection(thr_data->database_path);
     EXIT_ON_FALSE(db_conn, "Unable to init db connection at:%s",
-                  thr_data->database);
-    free(classifier_thread_data);
+                  thr_data->database_path);
 
-    LOG(LOG_LVL_NOTI, "Inproc classifier socket connected!");
+    LOG(LOG_LVL_NOTI, "Worker thread ready!");
 
     while(!close_thread) {
         rc = zmq_msg_init(msg);
@@ -685,16 +625,16 @@ void *classifier_thr(void *classifier_thread_data)
             continue;
         }
 
-        user_id = s_recv(inproc_socket);
-        if(user_id == NULL) {
+        auth_master_id = s_recv(incoming_socket);
+        if(auth_master_id == NULL) {
             LOG(LOG_LVL_ERRO, "User id is null: %s", zmq_strerror(errno));
             continue;
         }
 
-        rc = zmq_msg_recv(msg, inproc_socket, 0);
+        rc = zmq_msg_recv(msg, incoming_socket, 0);
         if(rc == -1){
             LOG(LOG_LVL_ERRO, "Receive message failed:%s", zmq_strerror(errno));
-            free(user_id);
+            free(auth_master_id);
             zmq_msg_close(msg);
             continue;
         }
@@ -703,14 +643,14 @@ void *classifier_thr(void *classifier_thread_data)
         if(op == NULL) {
             LOG(LOG_LVL_ERRO, "Unable to unserialize the received msg.");
             zmq_msg_close(msg);
-            free(user_id);
+            free(auth_master_id);
             continue;
         }
 
-        classify_and_handle_operation(db_conn, router_socket, op, user_id);
-
+        classify_and_handle_operation(db_conn, outgoing_socket, op,
+                                      auth_master_id);
         delete_op_req(op);
-        free(user_id);
+        free(auth_master_id);
         rc = zmq_msg_close(msg);
         if(rc)
             LOG(LOG_LVL_ERRO, "Error closing the msg:%s", zmq_strerror(errno));
@@ -718,39 +658,48 @@ void *classifier_thr(void *classifier_thread_data)
     return NULL;
 }
 
-static void create_classifier_thread(void *zmq_ctx, void *router_socket,
-                                     char *classifier_socket_address,
-                                     const struct configuration *conf)
+static void create_workers(int num_workers, const char * database_path,
+                           void *zmq_ctx, const char *incoming_inproc_address,
+                           const char *outgoing_inproc_address)
 {
+    unsigned i;
     int ret;
     pthread_t pid;
-    struct classifier_data *classifier_data =
-        (struct classifier_data *) malloc(sizeof(struct classifier_data));
-    classifier_data->ctx = zmq_ctx;
-    classifier_data->socket_address = classifier_socket_address;
-    classifier_data->database = conf->database;
-    classifier_data->router_socket = router_socket;
 
-    ret = pthread_create(&pid, NULL, classifier_thr, classifier_data);
+    struct worker_data *worker_data =
+        (struct worker_data *) malloc(sizeof(struct worker_data));
+
+    worker_data->incoming_inproc_address = incoming_inproc_address;
+    worker_data->outgoing_inproc_address = outgoing_inproc_address;
+    worker_data->database_path = database_path;
+    worker_data->ctx = zmq_ctx;
+    for(i = 0; i < num_workers; i++) {
+        ret = pthread_create(&pid, NULL, worker_thr, worker_data);
+        if(ret != 0) {
+            LOG_EXIT("Failed creating a worker thread")
+        }
+    }
 }
 
 static struct communication_objects *init_node(
         const struct configuration *configuration)
 {
     // TODO(fmontoto) Initialize the database.
+    int num_workers = 20;
 
     struct communication_objects *comm_objs;
 
     comm_objs = create_and_bind_sockets(configuration);
 
-    create_classifier_thread(comm_objs->ctx, comm_objs->router_socket,
-                             comm_objs->classifier_socket_address,
-                             configuration);
 
-    // The classifier thread will take ownership of the router_socket,
-    // as sockets are not intended to be shared by threads, this prevent to use
-    // it from a different thread.
-    comm_objs->router_socket = NULL;
+    create_workers(num_workers,
+                   configuration->database,
+                   comm_objs->ctx,
+                   comm_objs->incoming_inproc_address,
+                   comm_objs->outgoing_inproc_address);
+    //create_classifier_thread(comm_objs->ctx, comm_objs->router_socket,
+    //                         comm_objs->classifier_socket_address,
+    //                         configuration);
 
     return comm_objs;
 }
@@ -769,7 +718,7 @@ static void start_zap_security(void *zmq_ctx, char *database)
     EXIT_ON_FALSE(zap_data->socket, "ZAP_HANDLER socket error.")
 
     ret_value = zmq_bind (zap_data->socket, "inproc://zeromq.zap.01");
-    EXIT_ON_FALSE(ret_value == 0, "ZQA_HANDLER bind error.")
+    EXIT_ON_FALSE(ret_value == 0, "ZAP_HANDLER bind error.")
     zmq_threadstart (&zap_handler, zap_data);
 }
 /**
@@ -787,38 +736,43 @@ static struct communication_objects *create_and_bind_sockets(
     void *sub_socket = NULL, *router_socket = NULL;
     int ret_value = 0;
     int enabled = 1;
-    ret_val->classifier_socket_address = "inproc://classifier";
+    ret_val->outgoing_inproc_address = "inproc://outgoing";
+    ret_val->incoming_inproc_address = "inproc://incoming";
 
     ret_val->ctx = zmq_ctx_new();
     EXIT_ON_FALSE(ret_val->ctx, "Context initialization error.");
 
     start_zap_security(ret_val->ctx, conf->database);
 
-    // Socket to send received messages for classification.
-    ret_val->classifier_main_thread_socket = zmq_socket(ret_val->ctx,
-                                                        ZMQ_PAIR);
-    PERROR_AND_EXIT_ON_FALSE(ret_val->classifier_main_thread_socket,
-                             "zmq_socket",
-                             "Unable to create classifier socket.");
-
-    ret_value = zmq_bind(ret_val->classifier_main_thread_socket,
-                         ret_val->classifier_socket_address);
-    EXIT_ON_FALSE(!ret_value, "Bind failed at: %s.",
-                  ret_val->classifier_socket_address);
-
+    // Create sockets.
+    ret_val->incoming_socket = zmq_socket(ret_val->ctx, ZMQ_PUSH);
+    ret_val->outgoing_socket = zmq_socket(ret_val->ctx, ZMQ_PULL);
     ret_val->sub_socket = zmq_socket(ret_val->ctx, ZMQ_SUB);
+    ret_val->router_socket = zmq_socket(ret_val->ctx, ZMQ_ROUTER);
     sub_socket = ret_val->sub_socket;
-    PERROR_AND_EXIT_ON_FALSE(sub_socket, "zmq_socket:",
-                             "Unable to create sub socket.");
+    router_socket = ret_val->router_socket;
 
+    if(!ret_val->incoming_socket || !ret_val->outgoing_socket ||
+       !ret_val->sub_socket || !ret_val->router_socket) {
+        LOG_EXIT("Unable to create socket: %s", zmq_strerror(errno))
+    }
+
+    // Bind inproc sockets
+    ret_value = zmq_bind(ret_val->incoming_socket,
+                         ret_val->incoming_inproc_address);
+    EXIT_ON_FALSE(!ret_value, "Bind failed (%s) at: %s.", zmq_strerror(errno),
+                  ret_val->incoming_inproc_address);
+
+    ret_value = zmq_bind(ret_val->outgoing_socket,
+                         ret_val->outgoing_inproc_address);
+    EXIT_ON_FALSE(!ret_value, "Bind failed (%s) at: %s.", zmq_strerror(errno),
+                  ret_val->outgoing_inproc_address);
+
+    // Activate ZAP security for authentication.
     ret_value = zmq_setsockopt(sub_socket, ZMQ_ZAP_DOMAIN, "SUB_SOCKET", 10);
     PERROR_AND_EXIT_ON_FALSE(ret_value == 0, "zmq_setsockopt",
                              "ZMQ_ZAP_DOMAIN failed.");
 
-    ret_val->router_socket = zmq_socket(ret_val->ctx, ZMQ_ROUTER);
-    router_socket = ret_val->router_socket;
-    PERROR_AND_EXIT_ON_FALSE(router_socket, "zmq_socket:",
-                             "Unable to create socket.");
     ret_value = zmq_setsockopt(router_socket, ZMQ_ZAP_DOMAIN, "ROUTER_SOCKET",
                                13);
     PERROR_AND_EXIT_ON_FALSE(ret_value == 0, "zmq_setsockopt",
@@ -836,6 +790,7 @@ static struct communication_objects *create_and_bind_sockets(
     PERROR_AND_EXIT_ON_FALSE(ret_value == 0, "zmq_setsockopt",
                              "ZMQ_IDENTITY failed for router socket.");
 
+    // Set curve security for encryption.
     if(set_server_socket_security(sub_socket, conf->private_key) ||
         set_server_socket_security(router_socket, conf->private_key))
         exit(1);
@@ -865,6 +820,8 @@ static struct communication_objects *create_and_bind_sockets(
     }
 
     ret_value = zmq_bind(router_socket, bind_buff);
+    EXIT_ON_FALSE(!ret_value, "Bind failed at: %s.", bind_buff);
+
     LOG(LOG_LVL_NOTI, "Both socket binded, node ready to talk with the Master.");
     return ret_val;
 }
@@ -897,14 +854,19 @@ static int set_server_socket_security(void *socket, char *server_secret_key)
     return 0;
 }
 
-static int node_loop(struct communication_objects *communication_objs)
+static int node_loop(struct communication_objects *communication_objs,
+                     const char *database_path)
 {
     zmq_msg_t rcvd_msg_, out_msg_;
     zmq_msg_t *rcvd_msg = &rcvd_msg_, *out_msg = &out_msg_;
     const unsigned poll_items = 3;
     const char *auth_user_id;
-    char *server_id, identity;
+    char *server_id, *identity;
     int rc = 0;
+    void *out_sock;
+
+    database_t *db_conn = db_init_connection(database_path);
+    EXIT_ON_FALSE(db_conn, "Error trying to connect to the DB.");
 
     //TODO Check if synchronization is necessary to wait that the
     // classifier thread is connected.
@@ -916,7 +878,7 @@ static int node_loop(struct communication_objects *communication_objs)
 
     items[0].socket = communication_objs->sub_socket;
     items[1].socket = communication_objs->router_socket;
-    items[2].socket = communication_objs->pull_socket;
+    items[2].socket = communication_objs->outgoing_socket;
     items[0].events = items[1].events = items[2].events = ZMQ_POLLIN;
 
     while(1) {
@@ -944,13 +906,13 @@ static int node_loop(struct communication_objects *communication_objs)
             }
 
             auth_user_id = zmq_msg_gets(rcvd_msg, "User-Id");
-            if(user_id == NULL) {
+            if(auth_user_id == NULL) {
                 LOG(LOG_LVL_ERRO, "Unauthenticated msg received")
                 zmq_msg_close(rcvd_msg);
                 continue;
             }
 
-            rc = db_get_server_id_from_pub_token(DATABASE, auth_user_id,
+            rc = db_get_server_id_from_pub_token(db_conn, auth_user_id,
                                                  &server_id);
             if(rc != DTC_ERR_NONE) {
                 LOG(LOG_LVL_ERRO, "Error retrieving server_id from DB: %d",
@@ -969,7 +931,7 @@ static int node_loop(struct communication_objects *communication_objs)
                 continue;
             }
 
-            rc = zmq_msg_recv(rcvd_msg, communication_objs->sub_socket, 0);
+            rc = zmq_msg_recv(rcvd_msg, communication_objs->router_socket, 0);
             if(rc == -1) {
                 LOG(LOG_LVL_ERRO, "Error Receiving msg:%s", zmq_strerror(errno))
                 zmq_msg_close(rcvd_msg);
@@ -977,14 +939,14 @@ static int node_loop(struct communication_objects *communication_objs)
             }
 
             auth_user_id = zmq_msg_gets(rcvd_msg, "User-Id");
-            if(user_id == NULL) {
+            if(auth_user_id == NULL) {
                 LOG(LOG_LVL_ERRO, "Unauthenticated msg received")
                 zmq_msg_close(rcvd_msg);
                 free(identity);
                 continue;
             }
 
-            rc = db_get_server_id_from_router_token(DATABASE, auth_user_id,
+            rc = db_get_server_id_from_router_token(db_conn, auth_user_id,
                                                     &server_id);
             if(rc != DTC_ERR_NONE) {
                 LOG(LOG_LVL_ERRO, "Error retrieving server_id from DB: %d",
@@ -1005,26 +967,32 @@ static int node_loop(struct communication_objects *communication_objs)
         }
 
         else if(items[2].revents) { // Probably else is enough.
-            server_id = s_recv(communication_objs->pull_socket);
+            server_id = s_recv(communication_objs->outgoing_socket);
             if(server_id == NULL) {
-                LOG(LOG_LVL_ERRO, "Error reading first frame of pull_socket")
+                LOG(LOG_LVL_ERRO, "Error reading frame 1 of outgoing_socket")
                 zmq_msg_close(rcvd_msg);
                 continue;
             }
 
-            rc = zmq_msg_recv(rcvd_msg, communication_objs->pull_socket);
+            rc = zmq_msg_recv(rcvd_msg, communication_objs->outgoing_socket, 0);
             if(rc == -1) {
                 zmq_msg_close(rcvd_msg);
                 free(server_id);
-                LOG_EXIT(LOG_LVL_ERRO,
-                         "Error reading second frame of pull socket")
+                LOG_EXIT("Error reading second frame of pull socket")
             }
 
         }
 
+        rc = zmq_msg_init(out_msg);
+        if(rc == -1) {
+            LOG(LOG_LVL_CRIT, "MSG init failed:%s", zmq_strerror(errno))
+            zmq_msg_close(rcvd_msg);
+            free(server_id);
+            continue; //TODO or break?
+        }
         //
         if(items[0].revents || items[1].revents)
-            out_sock = communication_objs->push_socket;
+            out_sock = communication_objs->incoming_socket;
         else if(items[2].revents)
             out_sock = communication_objs->router_socket;
 
@@ -1051,8 +1019,7 @@ static int node_loop(struct communication_objects *communication_objs)
             free(server_id);
             // TODO Not sure how to handle an error sending second part
             // of multipart msg, investigate it and remove the EXIT.
-            LOG_EXIT(LOG_LVL_ERRO, "Unable to send msg: %s",
-                        zmq_strerror(errno))
+            LOG_EXIT("Unable to send msg: %s", zmq_strerror(errno))
         }
         free(server_id);
 
@@ -1135,7 +1102,6 @@ static void zap_handler(void *zap_data_)
         char client_key_text [42];
         zmq_z85_encode(client_key_text, client_key, 32);
 
-        //printf("%s\n", client_key_text);
 
         s_sendmore(sock, version);
         s_sendmore(sock, sequence);

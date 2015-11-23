@@ -8,6 +8,7 @@
 int main(int argc, char **argv)
 {
     int ret_val = 0;
+    int verify;
     key_metainfo_t *info = NULL;
     char *char_msg = "My msg";
     bytes_t *signature;
@@ -35,8 +36,12 @@ int main(int argc, char **argv)
     printf("Sign: %d: %s\n", ret_val, dtc_get_error_msg(ret_val));
 
     if(ret_val == DTC_ERR_NONE) {
-        printf("Verify: %d\n", tc_rsa_verify(signature, msg, info, TC_SHA256));
+        verify = tc_rsa_verify(signature, msg, info, TC_SHA256);
+        printf("Verify: %d\n", verify);
         tc_clear_bytes(signature);
+        if(verify != 1) {
+            return 1;
+        }
     }
 
     tc_clear_key_metainfo(info);
