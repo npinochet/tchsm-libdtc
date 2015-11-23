@@ -22,13 +22,11 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
-#include <botan/emsa3.h>
-#include <botan/emsa4.h>
+#include <botan/emsa.h>
 #include <botan/md5.h>
 #include <botan/sha160.h>
 #include <botan/sha2_32.h>
 #include <botan/sha2_64.h>
-#include <botan/randpool.h>
 
 #include <botan/rsa.h>
 
@@ -45,7 +43,6 @@
 #include "CryptoObject.h"
 #include "TcbError.h"
 #include "Application.h"
-#include "../../tclib/include/tc_internal.h"
 
 using namespace hsm;
 using namespace std;
@@ -827,11 +824,12 @@ void Session::signFinal(CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen) {
         throw TcbError("Session::signFinal", "Operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
     }
 
-    const public_key_t * pk = tc_key_meta_info_public_key(&*keyMetainfo_);
+    const public_key_t *pk = tc_key_meta_info_public_key(&*keyMetainfo_);
+    const bytes_t *n = tc_public_key_n(pk);
 
     Botan::AutoSeeded_RNG rng;
-    auto paddedData = padder_->encoding_of(padder_->raw_data(), pk->n->data_len*8 - 1, rng) ;
-    auto paddedDataBytes = tc_init_bytes(paddedData, paddedData.size());
+    auto paddedData = padder_->encoding_of(padder_->raw_data(), n->data_len*8 - 1, rng) ;
+    auto paddedDataBytes = tc_init_bytes(&paddedData[0], paddedData.size());
 
     dtc_ctx_t *ctx = getCurrentSlot().getApplication().getDtcContext();
 
@@ -918,10 +916,13 @@ void Session::verifyInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
 
     string serializedMetainfo(static_cast<char *>(keyMetainfoAttribute->pValue), keyMetainfoAttribute->ulValueLen);
     key_metainfo_t * metainfo = tc_deserialize_key_metainfo(serializedMetainfo.c_str());
-    const public_key_t * pk = tc_key_meta_info_public_key(metainfo);
 
-    Botan::BigInt n((Botan::byte*) pk->n->data, pk->n->data_len);
-    Botan::BigInt e((Botan::byte*) pk->e->data, pk->e->data_len);
+    const public_key_t * pk = tc_key_meta_info_public_key(metainfo);
+    const bytes_t *nBytes = tc_public_key_n(pk);
+    const bytes_t *eBytes = tc_public_key_e(pk);
+
+    Botan::BigInt n((Botan::byte*) nBytes->data, nBytes->data_len);
+    Botan::BigInt e((Botan::byte*) eBytes->data, eBytes->data_len);
 
     pk_.reset(new Botan::RSA_PublicKey(n, e));
     verifier_.reset(new Botan::PK_Verifier(*pk_, emsa));

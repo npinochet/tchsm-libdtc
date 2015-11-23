@@ -11,7 +11,6 @@
 #include <botan/pubkey.h>
 #include <botan/rsa.h>
 #include <iostream>
-#include <botan/randpool.h>
 #include <botan/auto_rng.h>
 
 
@@ -57,7 +56,8 @@ bytes_t *prepare_doc(bytes_t *doc, key_metainfo_t *metainfo) {
     auto v = emsa->encoding_of(emsa->raw_data(), n.bits()-1, rng);
     bytes_t *rv = tc_init_bytes(malloc(v.size()), v.size());
 
-    std::memcpy(rv->data, v.begin(), v.size());
+    std::copy(v.begin(), v.end(), (Botan::byte*)rv->data);
+    // std::memcpy(rv->data, v, v.size());
     return rv;
 }
 
@@ -70,9 +70,6 @@ bool verify_rsa(bytes_t *doc, bytes_t *signature, const key_metainfo_t *metainfo
     Botan::PK_Verifier verifier(pk, "EMSA4(SHA-256)");
     verifier.update((Botan::byte*) doc->data, doc->data_len);
     return verifier.check_signature((Botan::byte*)signature->data, signature->data_len);
-
-    //verifier.update((Botan::byte *) doc->data, doc->data_len);
-    //return verifier.check_signature((Botan::byte *) signature->data, signature->data_len);
 }
 
 
