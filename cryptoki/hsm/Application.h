@@ -30,44 +30,55 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 #include "pkcs11.h"
 #include "Database.h"
 
-namespace hsm
-{
-class Slot;
-class Session;
-class Configuration;
+namespace hsm {
+    class Slot;
 
-using SlotPtr = std::unique_ptr<Slot>;
+    class Session;
+
+    class Configuration;
+
+    struct DtcCtxDeleter {
+        void operator()(dtc_ctx_t *ctx) {
+            dtc_destroy(ctx);
+        }
+    };
+
+    using SlotPtr = std::unique_ptr<Slot>;
+    using DtcCtxPtr = std::unique_ptr<dtc_ctx_t, DtcCtxDeleter>;
 
 /** La aplicacion tiene slots y algunas funcionalidades de ayuda... **/
-class Application
-{
-public:
-    Application ( std::ostream& out );
-    ~Application();
+    class Application {
+    public:
+        Application(std::ostream &out);
 
-    Slot & getSlot ( CK_SLOT_ID id ) const; // throws exception
-    std::vector<SlotPtr> const & getSlotList() const;
+        ~Application();
 
-    Slot & getSessionSlot ( CK_SESSION_HANDLE handle );
-    Session & getSession ( CK_SESSION_HANDLE session ); // throws exception
-    Database & getDatabase ();
-    const Configuration & getConfiguration() const;
-    dtc_ctx_t * getDtcContext();
+        Slot &getSlot(CK_SLOT_ID id) const; // throws exception
+        const std::vector<SlotPtr> &getSlotList() const;
 
-    void errorLog ( std::string message ) const;
+        Slot &getSessionSlot(CK_SESSION_HANDLE handle);
 
-private:  
-    std::ostream& out_;
-    Configuration configuration_;
-    
-    Database database_;
+        Session &getSession(CK_SESSION_HANDLE session); // throws exception
+        Database &getDatabase();
 
-    // An application can have a variable number of slots...
-    std::vector<SlotPtr> slots_;
+        const Configuration &getConfiguration() const;
 
-    dtc_ctx_t * dtcCtx_;
+        dtc_ctx_t *getDtcContext();
 
-};
+        void errorLog(std::string message) const;
+
+    private:
+        std::ostream &out_;
+        Configuration configuration_;
+
+        Database database_;
+
+        // An application can have a variable number of slots...
+        std::vector<SlotPtr> slots_;
+
+        DtcCtxPtr dtcCtx_;
+
+    };
 }
 
 #endif // TCBHSM_APPLICATION_H

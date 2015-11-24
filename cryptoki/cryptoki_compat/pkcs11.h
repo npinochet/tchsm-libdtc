@@ -454,6 +454,8 @@ typedef unsigned long ck_attribute_type_t;
 #define CKA_UNWRAP_TEMPLATE		(CKF_ARRAY_ATTRIBUTE | 0x212)
 #define CKA_ALLOWED_MECHANISMS		(CKF_ARRAY_ATTRIBUTE | 0x600)
 #define CKA_VENDOR_DEFINED		((unsigned long) (1 << 31))
+#define CKA_TC_KEYHANDLER   (CKA_VENDOR_DEFINED)
+#define CKA_TC_KEYMETAINFO  (CKA_VENDOR_DEFINED + 1)
 
 
 struct ck_attribute

@@ -41,8 +41,8 @@ public:
 
     std::vector<SlotConf> const & getSlotConf() const;
     const std::string & getDtcConfigPath() const;
-    const int getNodesNumber() const;
-    const int getThreshold() const;
+    const uint16_t getNodesNumber() const;
+    const uint16_t getThreshold() const;
     const std::string & getDatabasePath() const;
     void load(std::string configurationPath);
 
@@ -51,8 +51,8 @@ private:
     std::vector<SlotConf> slotConf_;
     std::string dtcConfigPath_;
     std::string databasePath_;
-    int nodesNumber_;
-    int threshold_;
+    uint16_t nodesNumber_;
+    uint16_t threshold_;
 
 };
 }

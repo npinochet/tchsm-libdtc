@@ -57,7 +57,7 @@ Application::Application(std::ostream &out)
     }
 
     int err;
-    dtcCtx_ = dtc_init(configuration_.getDtcConfigPath().data(), &err);
+    dtcCtx_.reset(dtc_init(configuration_.getDtcConfigPath().data(), &err));
     if (!dtcCtx_) {
         throw TcbError("Application::Application", dtc_get_error_msg(err), CKR_DEVICE_ERROR);
     }
@@ -70,11 +70,10 @@ Application::Application(std::ostream &out)
 
 Application::~Application() {
     for (auto const &slotPtr: slots_) {
-        database_.saveToken(slotPtr->getToken());
+        getDatabase().saveToken(slotPtr->getToken());
     }
 
-    dtc_destroy(dtcCtx_);
-    dtcCtx_ = nullptr;
+    dtcCtx_.reset();
 }
 
 void Application::errorLog(std::string message) const {
@@ -120,5 +119,5 @@ const Configuration &Application::getConfiguration() const {
 }
 
 dtc_ctx_t *Application::getDtcContext() {
-    return dtcCtx_;
+    return dtcCtx_.get();
 }

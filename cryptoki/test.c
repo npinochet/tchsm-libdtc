@@ -328,7 +328,7 @@ verify_data(CK_SESSION_HANDLE session, CK_BYTE_PTR data, CK_ULONG dataLen, CK_BY
     check_return_value(rv, "verify init new");
 
     rv = C_Verify(session, data, dataLen, signature, signatureLen);
-    // check_return_value(rv, "verify final");
+    check_return_value(rv, "verify final");
     return rv;
 }
 
@@ -339,7 +339,6 @@ main(int argc, char **argv) {
     CK_SESSION_HANDLE session;
     FILE *input_file = NULL;
     FILE *output_file = NULL;
-    CK_BYTE *user_pin = NULL;
 
     char *howManyValue = NULL;
     char *filename = NULL;
@@ -394,10 +393,9 @@ main(int argc, char **argv) {
         CK_ULONG signatureLen;
         CK_BYTE_PTR signature = sign_data(session, text, text_size, &signatureLen);
         CK_RV rv = verify_data(session, text, text_size, signature, signatureLen);
-        printf("CKR_OK: %u, CKR_SIGNATURE_INVALID: %u, RV: %u\n", CKR_OK, CKR_SIGNATURE_INVALID, rv);
     }
 
-    if (user_pin) {
+    if (pinValue) {
         logout(session);
     }
     end_session(session);

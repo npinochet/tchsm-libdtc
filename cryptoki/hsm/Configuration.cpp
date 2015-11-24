@@ -47,8 +47,8 @@ void Configuration::load(std::string configurationPath) {
     databasePath_ = root.get<std::string>("database_path");
 
     dtcConfigPath_ = root.get<std::string>("dtc_config_path");
-    nodesNumber_ = root.get<int>("nodes_number");
-    threshold_ = root.get<int>("threshold");
+    nodesNumber_ = root.get<uint16_t>("nodes_number");
+    threshold_ = root.get<uint16_t>("threshold");
 
 
     ptree slots = root.get_child("slots");
@@ -67,11 +67,11 @@ const std::string &Configuration::getDtcConfigPath() const {
     return dtcConfigPath_;
 }
 
-const int Configuration::getNodesNumber() const {
+const uint16_t Configuration::getNodesNumber() const {
     return nodesNumber_;
 }
 
-const int Configuration::getThreshold() const {
+const uint16_t Configuration::getThreshold() const {
     return threshold_;
 }
 

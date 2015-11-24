@@ -36,6 +36,14 @@ namespace hsm {
 
     using KeyPair = std::pair<CK_OBJECT_HANDLE, CK_OBJECT_HANDLE>; // (Private, Public)
 
+    struct KeyMetaInfoDeleter {
+        void operator()(key_metainfo_t * mi) {
+            tc_clear_key_metainfo(mi);
+        }
+    };
+
+    using KeyMetaInfoPtr = std::unique_ptr<key_metainfo_t, KeyMetaInfoDeleter>;
+
     class Configuration;
 
     class Slot;
@@ -62,15 +70,14 @@ namespace hsm {
 
         // Signing (remotely)
         bool signInitialized_ = false;
-        std::string signHandler_;
-        std::unique_ptr<key_metainfo_t, std::function<void(key_metainfo_t*)>> keyMetainfo_;
+        std::string keyHandler_;
+        KeyMetaInfoPtr keyMetainfo_;
         std::unique_ptr<Botan::EMSA> padder_;
 
         // Verifying
         bool verifyInitialized_ = false;
         std::unique_ptr<Botan::Public_Key> pk_;
         std::unique_ptr<Botan::PK_Verifier> verifier_;
-
 
         // Digest
         std::unique_ptr<Botan::HashFunction> hashFunction_;
@@ -104,9 +111,9 @@ namespace hsm {
         // Cryptographic functions
         KeyPair generateKeyPair(CK_MECHANISM_PTR pMechanism,
                                 CK_ATTRIBUTE_PTR pPublicKeyTemplate,
-                                CK_ULONG ulPublicKeyAttributeCount,
-                                CK_ATTRIBUTE_PTR pPrivateKeyTemplate,
-                                CK_ULONG ulPrivateKeyAttributeCount);
+                                CK_ULONG pkAttrCount,
+                                CK_ATTRIBUTE_PTR skTemplate,
+                                CK_ULONG skAttrCount);
 
         void signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey);
 

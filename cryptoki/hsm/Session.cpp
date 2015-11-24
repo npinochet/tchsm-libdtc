@@ -93,13 +93,11 @@ Session::Session(CK_FLAGS flags, CK_VOID_PTR pApplication,
           application_(pApplication),
           notify_(notify),
           slot_(currentSlot),
-          keyMetainfo_(nullptr, [](key_metainfo_t * ptr) { tc_clear_key_metainfo(ptr);})
-{
+          keyMetainfo_(nullptr) {
 
 }
 
 Session::~Session() {
-
     Token &token = slot_.getToken();
     auto &objects = token.getObjects();
 
@@ -208,7 +206,6 @@ CK_OBJECT_HANDLE Session::createObject(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCo
 
                 CK_OBJECT_HANDLE handle = token.addObject(object);
                 // Update the database
-                // TODO: reorder this...
                 getCurrentSlot().getApplication().getDatabase().saveToken(token);
                 return handle;
             } else {
@@ -231,7 +228,6 @@ void Session::destroyObject(CK_OBJECT_HANDLE hObject) {
 
     auto it = objectContainer.find(hObject);
     if (it != objectContainer.end()) {
-
         // Verifico que el objeto no sea una llave, y si lo es, la elimino de los nodos.
         CK_ATTRIBUTE tmpl = {.type=CKA_VENDOR_DEFINED};
         const CK_ATTRIBUTE *handlerAttribute = it->second->findAttribute(&tmpl);
@@ -256,7 +252,7 @@ void Session::findObjectsInit(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount) {
         throw TcbError("Session::findObjectsInit", "pTemplate == nullptr", CKR_ARGUMENTS_BAD);
     }
 
-    Token &token = slot_.getToken();
+    Token &token = getCurrentSlot().getToken();
 
     if (ulCount == 0) {
         // Busco todos los objetos...
@@ -284,7 +280,7 @@ vector<CK_OBJECT_HANDLE> Session::findObjects(CK_ULONG maxObjectCount) {
                        CKR_OPERATION_NOT_INITIALIZED);
     }
 
-    vector<CK_OBJECT_HANDLE >::iterator end = foundObjectsIterator_ + maxObjectCount;
+    auto end = foundObjectsIterator_ + maxObjectCount;
     if (foundObjectsEnd_ < end) {
         end = foundObjectsEnd_;
     }
@@ -351,14 +347,8 @@ void Session::logout() {
 }
 
 namespace {
-    CK_OBJECT_HANDLE createPublicKey(Session &session,
-                                     CK_ATTRIBUTE_PTR pPublicKeyTemplate,
-                                     CK_ULONG ulPublicKeyAttributeCount,
-                                     const string &rabbitHandler,
-                                     const string &metainfo,
-                                     const bytes_t *modulus,
-                                     const bytes_t *publicExponent
-    ) {
+    CK_OBJECT_HANDLE createPublicKey(Session &session, CK_ATTRIBUTE_PTR pkTemplate, CK_ULONG pkAttrCount,
+                                     const string &keyHandler, const key_metainfo_t *metainfo) {
         // NOTE: This comes in some way from SoftHSM...
         CK_OBJECT_CLASS oClass = CKO_PUBLIC_KEY;
         CK_KEY_TYPE keyType = CKK_RSA;
@@ -389,16 +379,22 @@ namespace {
         CK_ATTRIBUTE aModulusBits = {CKA_MODULUS_BITS, NULL_PTR, 0};
 
 
+        string serializedMetainfo(tc_serialize_key_metainfo(metainfo));
+        const public_key_t *pk = tc_key_meta_info_public_key(metainfo);
+        const bytes_t *modulus = tc_public_key_n(pk);
+        const bytes_t *publicExponent = tc_public_key_e(pk);
+
+
         CK_ATTRIBUTE aValue = {
                 .type=CKA_VENDOR_DEFINED,
-                .pValue= (void *) rabbitHandler.c_str(),
-                .ulValueLen=rabbitHandler.size()
+                .pValue= (void *) keyHandler.c_str(),
+                .ulValueLen=keyHandler.size()
         };
 
         CK_ATTRIBUTE aMetainfo = {
                 .type=CKA_VENDOR_DEFINED + 1,
-                .pValue= (void *) metainfo.c_str(),
-                .ulValueLen=metainfo.size()
+                .pValue= (void *) serializedMetainfo.c_str(),
+                .ulValueLen=serializedMetainfo.size()
         };
 
         CK_ATTRIBUTE aModulus = {
@@ -413,52 +409,52 @@ namespace {
                 .ulValueLen = publicExponent->data_len
         };
 
-        for (CK_ULONG i = 0; i < ulPublicKeyAttributeCount; i++) {
-            switch (pPublicKeyTemplate[i].type) {
+        for (CK_ULONG i = 0; i < pkAttrCount; i++) {
+            switch (pkTemplate[i].type) {
                 case CKA_LABEL:
-                    aLabel = pPublicKeyTemplate[i];
+                    aLabel = pkTemplate[i];
                     break;
                 case CKA_ID:
-                    aId = pPublicKeyTemplate[i];
+                    aId = pkTemplate[i];
                     break;
                 case CKA_SUBJECT:
-                    aSubject = pPublicKeyTemplate[i];
+                    aSubject = pkTemplate[i];
                     break;
                 case CKA_DERIVE:
-                    aDerive = pPublicKeyTemplate[i];
+                    aDerive = pkTemplate[i];
                     break;
                 case CKA_TOKEN:
-                    aToken = pPublicKeyTemplate[i];
+                    aToken = pkTemplate[i];
                     break;
                 case CKA_PRIVATE:
-                    aPrivate = pPublicKeyTemplate[i];
+                    aPrivate = pkTemplate[i];
                     break;
                 case CKA_MODIFIABLE:
-                    aModifiable = pPublicKeyTemplate[i];
+                    aModifiable = pkTemplate[i];
                     break;
                 case CKA_ENCRYPT:
-                    aEncrypt = pPublicKeyTemplate[i];
+                    aEncrypt = pkTemplate[i];
                     break;
                 case CKA_VERIFY:
-                    aVerify = pPublicKeyTemplate[i];
+                    aVerify = pkTemplate[i];
                     break;
                 case CKA_VERIFY_RECOVER:
-                    aVerifyRecover = pPublicKeyTemplate[i];
+                    aVerifyRecover = pkTemplate[i];
                     break;
                 case CKA_WRAP:
-                    aWrap = pPublicKeyTemplate[i];
+                    aWrap = pkTemplate[i];
                     break;
                 case CKA_TRUSTED:
-                    aSubject = pPublicKeyTemplate[i];
+                    aSubject = pkTemplate[i];
                     break;
                 case CKA_START_DATE:
-                    aStartDate = pPublicKeyTemplate[i];
+                    aStartDate = pkTemplate[i];
                     break;
                 case CKA_END_DATE:
-                    aEndDate = pPublicKeyTemplate[i];
+                    aEndDate = pkTemplate[i];
                     break;
                 case CKA_MODULUS_BITS:
-                    aModulusBits = pPublicKeyTemplate[i];
+                    aModulusBits = pkTemplate[i];
                     break;
                 default:
                     break;
@@ -494,21 +490,15 @@ namespace {
         return session.createObject(attributes, sizeof(attributes) / sizeof(attributes[0]));
     }
 
-    CK_OBJECT_HANDLE createPrivateKey(Session &session,
-                                      CK_ATTRIBUTE_PTR pPrivateKeyTemplate,
-                                      CK_ULONG ulPrivateKeyAttributeCount,
-                                      string const &keyHandler,
-                                      const string &metainfo,
-                                      const bytes_t *modulus,
-                                      const bytes_t *publicExponent
-    ) {
+    CK_OBJECT_HANDLE createPrivateKey(Session &session, CK_ATTRIBUTE_PTR skTemplate, CK_ULONG skAttrCount,
+                                      string const &keyHandler, const key_metainfo_t *metainfo) {
         CK_OBJECT_CLASS oClass = CKO_PRIVATE_KEY;
         CK_KEY_TYPE keyType = CKK_RSA;
         CK_MECHANISM_TYPE mechType = CKM_RSA_PKCS_KEY_PAIR_GEN;
         CK_BBOOL ckTrue = CK_TRUE, ckFalse = CK_FALSE;
         CK_DATE emptyDate;
 
-        // Generic attributes...
+        // Default attributes...
         CK_ATTRIBUTE aClass = {CKA_CLASS, &oClass, sizeof(oClass)};
         CK_ATTRIBUTE aKeyType = {CKA_KEY_TYPE, &keyType, sizeof(keyType)};
         CK_ATTRIBUTE aMechType = {CKA_KEY_GEN_MECHANISM, &mechType, sizeof(mechType)};
@@ -536,18 +526,23 @@ namespace {
         CK_ATTRIBUTE aStartDate = {CKA_START_DATE, &emptyDate, 0};
         CK_ATTRIBUTE aEndDate = {CKA_END_DATE, &emptyDate, 0};
 
+        string serializedMetainfo(tc_serialize_key_metainfo(metainfo));
 
-        // NOTE: CKA_VENDOR_DEFINED = CKA_RABBIT_HANDLER.
+        const public_key_t *pk = tc_key_meta_info_public_key(metainfo);
+        const bytes_t *modulus = tc_public_key_n(pk);
+        const bytes_t *publicExponent = tc_public_key_e(pk);
+
+        // With this we can use the standard mechanism to store objects
         CK_ATTRIBUTE aValue = {
-                .type=CKA_VENDOR_DEFINED,
+                .type=CKA_TC_KEYHANDLER,
                 .pValue= (void *) keyHandler.c_str(),
                 .ulValueLen = keyHandler.size()
         };
 
         CK_ATTRIBUTE aMetainfo = {
-                .type=CKA_VENDOR_DEFINED + 1,
-                .pValue= (void *) metainfo.c_str(),
-                .ulValueLen=metainfo.size()
+                .type=CKA_TC_KEYMETAINFO,
+                .pValue= (void *) serializedMetainfo.c_str(),
+                .ulValueLen=serializedMetainfo.size()
         };
 
         CK_ATTRIBUTE aModulus = {
@@ -562,52 +557,52 @@ namespace {
                 .ulValueLen = publicExponent->data_len
         };
 
-        for (CK_ULONG i = 0; i < ulPrivateKeyAttributeCount; i++) {
-            switch (pPrivateKeyTemplate[i].type) {
+        for (CK_ULONG i = 0; i < skAttrCount; i++) {
+            switch (skTemplate[i].type) {
                 case CKA_LABEL:
-                    aLabel = pPrivateKeyTemplate[i];
+                    aLabel = skTemplate[i];
                     break;
                 case CKA_ID:
-                    aId = pPrivateKeyTemplate[i];
+                    aId = skTemplate[i];
                     break;
                 case CKA_SUBJECT:
-                    aSubject = pPrivateKeyTemplate[i];
+                    aSubject = skTemplate[i];
                     break;
                 case CKA_TOKEN:
-                    aToken = pPrivateKeyTemplate[i];
+                    aToken = skTemplate[i];
                     break;
                 case CKA_PRIVATE:
-                    aPrivate = pPrivateKeyTemplate[i];
+                    aPrivate = skTemplate[i];
                     break;
                 case CKA_DERIVE:
-                    aDerive = pPrivateKeyTemplate[i];
+                    aDerive = skTemplate[i];
                     break;
                 case CKA_MODIFIABLE:
-                    aModifiable = pPrivateKeyTemplate[i];
+                    aModifiable = skTemplate[i];
                     break;
                 case CKA_DECRYPT:
-                    aDecrypt = pPrivateKeyTemplate[i];
+                    aDecrypt = skTemplate[i];
                     break;
                 case CKA_SIGN:
-                    aSign = pPrivateKeyTemplate[i];
+                    aSign = skTemplate[i];
                     break;
                 case CKA_SIGN_RECOVER:
-                    aSignRecover = pPrivateKeyTemplate[i];
+                    aSignRecover = skTemplate[i];
                     break;
                 case CKA_UNWRAP:
-                    aUnwrap = pPrivateKeyTemplate[i];
+                    aUnwrap = skTemplate[i];
                     break;
                 case CKA_WRAP_WITH_TRUSTED:
-                    aWrapWithTrusted = pPrivateKeyTemplate[i];
+                    aWrapWithTrusted = skTemplate[i];
                     break;
                 case CKA_ALWAYS_AUTHENTICATE:
-                    aAlwaysAuthenticate = pPrivateKeyTemplate[i];
+                    aAlwaysAuthenticate = skTemplate[i];
                     break;
                 case CKA_START_DATE:
-                    aStartDate = pPrivateKeyTemplate[i];
+                    aStartDate = skTemplate[i];
                     break;
                 case CKA_END_DATE:
-                    aEndDate = pPrivateKeyTemplate[i];
+                    aEndDate = skTemplate[i];
                     break;
                 default:
                     break;
@@ -651,30 +646,32 @@ namespace {
 
 }
 
-KeyPair Session::generateKeyPair(CK_MECHANISM_PTR pMechanism,
-                                 CK_ATTRIBUTE_PTR pPublicKeyTemplate, CK_ULONG ulPublicKeyAttributeCount,
-                                 CK_ATTRIBUTE_PTR pPrivateKeyTemplate, CK_ULONG ulPrivateKeyAttributeCount) {
+KeyPair Session::generateKeyPair(CK_MECHANISM_PTR pMechanism, CK_ATTRIBUTE_PTR pkTemplate, CK_ULONG pkAttrCount,
+                                 CK_ATTRIBUTE_PTR skTemplate, CK_ULONG skAttrCount) {
     // TODO: verificar permisos de acceso.
-    if (pMechanism == nullptr || pPublicKeyTemplate == nullptr || pPrivateKeyTemplate == nullptr) {
+    if (pMechanism == nullptr || pkTemplate == nullptr || skTemplate == nullptr) {
         throw TcbError("Session::generateKeyPair", "Argumentos nulos", CKR_ARGUMENTS_BAD);
     }
 
-    // Se extrae la información relevante para crear la llave.
     CK_ULONG modulusBits = 0;
-    // string exponent = "";
 
-    for (CK_ULONG i = 0; i < ulPublicKeyAttributeCount; i++) {
-        switch (pPublicKeyTemplate[i].type) {
+    // With this we can get RAII semantics (c++ memsafe things).
+    std::unique_ptr<bytes_t, std::function<void(bytes_t*)>> publicExponent(nullptr, [](bytes_t *p) {
+        tc_release_bytes(p, NULL);
+    });
+
+    for (CK_ULONG i = 0; i < pkAttrCount; i++) {
+        switch (pkTemplate[i].type) {
             case CKA_MODULUS_BITS: {
-                if (pPublicKeyTemplate[i].ulValueLen != sizeof(CK_ULONG)) {
+                if (pkTemplate[i].ulValueLen != sizeof(CK_ULONG)) {
                     throw TcbError("Session::generateKeyPair", "pPublicKeyTemplate[i].ulValueLen != sizeof(CK_ULONG)",
                                    CKR_TEMPLATE_INCOMPLETE);
                 }
-                modulusBits = *static_cast<CK_ULONG *> ( pPublicKeyTemplate[i].pValue );
+                modulusBits = *static_cast<CK_ULONG *> ( pkTemplate[i].pValue );
             }
                 break;
             case CKA_PUBLIC_EXPONENT: {
-                // TODO: Set Exponent (Discard Exponent?)
+                publicExponent.reset(tc_init_bytes(skTemplate[i].pValue, pkTemplate[i].ulValueLen));
             }
                 break;
             default:
@@ -687,48 +684,31 @@ KeyPair Session::generateKeyPair(CK_MECHANISM_PTR pMechanism,
     }
 
     switch (pMechanism->mechanism) {
-        // case CKM_VENDOR_DEFINED:
-        case CKM_RSA_PKCS_KEY_PAIR_GEN:
+        case CKM_RSA_PKCS_KEY_PAIR_GEN: {
             // RSA is the only accepted method...
             boost::uuids::random_generator uuidGen;
             string keyHandler = to_string(uuidGen());
-            // Todo: check if generated uuid is already taken.
+            // TODO: check if generated uuid is already taken.
 
             Application &app = getCurrentSlot().getApplication();
+
             dtc_ctx_t *ctx = app.getDtcContext();
             const Configuration &cfg = app.getConfiguration();
 
             key_metainfo_t *metainfo;
             int err = dtc_generate_key_shares(ctx, keyHandler.c_str(), modulusBits, cfg.getThreshold(),
-                                              cfg.getNodesNumber(), &metainfo);
+                                              cfg.getNodesNumber(), publicExponent.get(), &metainfo);
             if (err != DTC_ERR_NONE) {
                 throw TcbError("Session::generateKeyPair", std::string(dtc_get_error_msg(err)), CKR_GENERAL_ERROR);
             }
 
-            string serializedMetainfo(tc_serialize_key_metainfo(metainfo));
-
-            const public_key_t *pk = tc_key_meta_info_public_key(metainfo);
-
-            const bytes_t *n = tc_public_key_n(pk);
-            const bytes_t *e = tc_public_key_e(pk);
-
-            CK_OBJECT_HANDLE publicKeyHandle = createPublicKey(*this, pPublicKeyTemplate,
-                                                               ulPublicKeyAttributeCount,
-                                                               keyHandler,
-                                                               serializedMetainfo,
-                                                               n,
-                                                               e);
-            CK_OBJECT_HANDLE privateKeyHandle = createPrivateKey(*this, pPrivateKeyTemplate,
-                                                                 ulPrivateKeyAttributeCount,
-                                                                 keyHandler,
-                                                                 serializedMetainfo,
-                                                                 n,
-                                                                 e);
-            return KeyPair {privateKeyHandle, publicKeyHandle};
+            CK_OBJECT_HANDLE sk = createPrivateKey(*this, skTemplate, skAttrCount, keyHandler, metainfo);
+            CK_OBJECT_HANDLE pk = createPublicKey(*this, pkTemplate, pkAttrCount, keyHandler, metainfo);
+            return KeyPair(sk, pk);
+        }
+        default:
+            throw TcbError("Session::generateKeyPair", "Mechanism invalid.", CKR_MECHANISM_INVALID);
     }
-
-    throw TcbError("Session::generateKeyPair", "Mechanism invalid.", CKR_MECHANISM_INVALID);
-
 }
 
 void Session::signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
@@ -751,10 +731,10 @@ void Session::signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
     }
 
     string metainfo(static_cast<char *>(keyMetainfoAttribute->pValue), keyMetainfoAttribute->ulValueLen);
-    string keyHandler(static_cast<char *>(keyName->pValue), keyName->ulValueLen);
-
-    signHandler_ = keyHandler;
     keyMetainfo_.reset(tc_deserialize_key_metainfo(metainfo.c_str()));
+
+    string keyHandler(static_cast<char *>(keyName->pValue), keyName->ulValueLen);
+    keyHandler_ = keyHandler;
 
     CK_MECHANISM_TYPE signMechanism = pMechanism->mechanism;
 
@@ -801,7 +781,7 @@ void Session::signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
             break;
 
         default:
-            throw TcbError("Session::sign", "El mecanismo no esta soportado.", CKR_MECHANISM_INVALID);
+            throw TcbError("Session::sign", "Mechanism Invalid.", CKR_MECHANISM_INVALID);
     }
 
     padder_.reset(Botan::get_emsa(emsa));
@@ -828,15 +808,16 @@ void Session::signFinal(CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen) {
     const bytes_t *n = tc_public_key_n(pk);
 
     Botan::AutoSeeded_RNG rng;
-    auto paddedData = padder_->encoding_of(padder_->raw_data(), n->data_len*8 - 1, rng) ;
+    auto paddedData = padder_->encoding_of(padder_->raw_data(), n->data_len * 8 - 1, rng);
     auto paddedDataBytes = tc_init_bytes(&paddedData[0], paddedData.size());
 
     dtc_ctx_t *ctx = getCurrentSlot().getApplication().getDtcContext();
 
     bytes_t *signature;
-    int sign_err = dtc_sign(ctx, keyMetainfo_.get(), signHandler_.c_str(), paddedDataBytes, &signature);
+    int sign_err = dtc_sign(ctx, keyMetainfo_.get(), keyHandler_.c_str(), paddedDataBytes, &signature);
     if (sign_err != DTC_ERR_NONE) {
-        throw TcbError("Session::sign", dtc_get_error_msg(sign_err), CKR_GENERAL_ERROR);
+        string err_msg = "DT_TC Error: ";
+        throw TcbError("Session::sign", err_msg + dtc_get_error_msg(sign_err), CKR_GENERAL_ERROR);
     }
 
     if (*pulSignatureLen < signature->data_len) {
@@ -915,14 +896,14 @@ void Session::verifyInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
     }
 
     string serializedMetainfo(static_cast<char *>(keyMetainfoAttribute->pValue), keyMetainfoAttribute->ulValueLen);
-    key_metainfo_t * metainfo = tc_deserialize_key_metainfo(serializedMetainfo.c_str());
 
-    const public_key_t * pk = tc_key_meta_info_public_key(metainfo);
+    KeyMetaInfoPtr metainfo(tc_deserialize_key_metainfo(serializedMetainfo.c_str()));
+    const public_key_t *pk = tc_key_meta_info_public_key(metainfo.get());
     const bytes_t *nBytes = tc_public_key_n(pk);
     const bytes_t *eBytes = tc_public_key_e(pk);
 
-    Botan::BigInt n((Botan::byte*) nBytes->data, nBytes->data_len);
-    Botan::BigInt e((Botan::byte*) eBytes->data, eBytes->data_len);
+    Botan::BigInt n((Botan::byte *) nBytes->data, nBytes->data_len);
+    Botan::BigInt e((Botan::byte *) eBytes->data, eBytes->data_len);
 
     pk_.reset(new Botan::RSA_PublicKey(n, e));
     verifier_.reset(new Botan::PK_Verifier(*pk_, emsa));
@@ -981,7 +962,6 @@ void Session::digestInit(CK_MECHANISM_PTR pMechanism) {
         default:
             throw TcbError("Session::digestInit", "Mechanism invalid.", CKR_MECHANISM_INVALID);
     }
-
     hashFunction_.reset(f);
 
     digestInitialized_ = true;
