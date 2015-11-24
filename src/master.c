@@ -713,23 +713,22 @@ void *router_socket_handler(void *data_)
 
 
 int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
-                            uint16_t threshold, uint16_t nodes_cant,
-                            key_metainfo_t **key_metainfo)
+                            uint16_t threshold, uint16_t cant_nodes, bytes_t * public_exponent,
+                            key_metainfo_t **info)
 {
     key_share_t **key_shares = NULL;
     int ret;
 
-    key_shares = tc_generate_keys(key_metainfo, bit_size, threshold,
-                                  nodes_cant);
+    key_shares = tc_generate_keys(info, bit_size, threshold, cant_nodes, public_exponent);
     if(!key_shares)
         return DTC_ERR_INTERN;
 
-    ret = store_key_shares_nodes(ctx, key_id, nodes_cant, key_metainfo,
+    ret = store_key_shares_nodes(ctx, key_id, cant_nodes, info,
                                  key_shares);
-    tc_clear_key_shares(key_shares, *key_metainfo);
+    tc_clear_key_shares(key_shares, *info);
     if(ret != DTC_ERR_NONE) {
         dtc_delete_key_shares(ctx, key_id);
-        tc_clear_key_metainfo(*key_metainfo);
+        tc_clear_key_metainfo(*info);
     }
 
     return ret;

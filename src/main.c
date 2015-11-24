@@ -22,7 +22,7 @@ int main(int argc, char **argv)
     if(ret_val != DTC_ERR_NONE)
         return 1;
 
-    ret_val = dtc_generate_key_shares(ctx, "hola_id", 512, 2, 2, &info);
+    ret_val = dtc_generate_key_shares(ctx, "hola_id", 512, 2, 2, NULL, &info);
     printf("Generate: %d:%s\n", ret_val, dtc_get_error_msg(ret_val));
     if(ret_val != DTC_ERR_NONE) {
         printf("Destroy: %d\n", dtc_destroy(ctx));

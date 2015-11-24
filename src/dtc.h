@@ -54,7 +54,7 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err);
  * @return -1 if key_id is already used. //TODO
  */
 int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
-                            uint16_t threshold, uint16_t cant_nodes,
+                            uint16_t threshold, uint16_t cant_nodes, bytes_t * public_exponent,
                             key_metainfo_t **info);
 
 /**
