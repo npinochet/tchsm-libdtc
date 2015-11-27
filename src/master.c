@@ -90,6 +90,7 @@ struct handle_sign_key_data {
     Buffer_t *signatures;
     const bytes_t *prepared_doc;
     const key_metainfo_t *key_metainfo;
+    Uint16_Hash_t *user_already_signed;
 };
 
 static void free_nodes(unsigned int nodes_cant, struct node_info *node)
@@ -402,6 +403,12 @@ void handle_sign_req(void *zmq_ctx, const struct op_req *req, const char *user,
     int ret;
     struct sign_req *sign_req = (struct sign_req *)&req->args->sign_req;
 
+    if(sign_req->status_code != 0) {
+        LOG_DEBUG(LOG_LVL_ERRO, "Got an error (%u) from %s when signing.",
+                  sign_req->status_code)
+        return;
+    }
+
     ht_lock_get(expected_msgs);
     if(!ht_get_element(expected_msgs, sign_req->signing_id,
                        (void **)&sign_key_data)) {
@@ -410,10 +417,12 @@ void handle_sign_req(void *zmq_ctx, const struct op_req *req, const char *user,
         return;
     }
 
-    if(sign_req->status_code != 0) {
+    //
+    if(!uht_add_element(sign_key_data->user_already_signed, user, 1)){
+        //The user already signed this signing_id
         ht_unlock_get(expected_msgs);
-        LOG_DEBUG(LOG_LVL_ERRO, "Got an error (%u) from %s when signing.",
-                  sign_req->status_code)
+        //TODO delete this LOG
+        LOG_DEBUG(LOG_LVL_LOG, "User %s already signed this", user)
         return;
     }
 
@@ -879,6 +888,7 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
     sign_key_data.signatures = signatures_buffer;
     sign_key_data.prepared_doc = message;
     sign_key_data.key_metainfo = key_metainfo;
+    sign_key_data.user_already_signed = uht_init_hashtable();
 
     ret = ht_add_element(ctx->expected_msgs[OP_SIGN_REQ], signing_id,
                          (void *)&sign_key_data);
@@ -892,6 +902,7 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
         if(ret != DTC_ERR_NONE) {
             LOG_DEBUG(LOG_LVL_CRIT, "Send pub msg error")
             free_buffer(signatures_buffer);
+            uht_free(sign_key_data.user_already_signed);
             return ret;
         }
 
@@ -899,7 +910,7 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
                 threshold, timeout_secs, timeout_usecs) == 0;
         if(!return_on_timeout)
             break;
-    }while(retries--);
+    } while(retries--);
 
     assert(1 == ht_get_and_delete_element(ctx->expected_msgs[OP_SIGN_REQ],
                                           signing_id, NULL));
@@ -916,6 +927,7 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
         tc_clear_signature_share(signatures[j]);
 
     free_buffer(signatures_buffer);
+    uht_free(sign_key_data.user_already_signed);
     if(return_on_timeout)
         return DTC_ERR_TIMED_OUT;
 
