@@ -117,6 +117,7 @@ static int node_loop(struct communication_objects *communication_objs,
 static int set_server_socket_security(void *socket, char *server_secret_key);
 static void zap_handler (void *handler);
 
+/* Update masters in the Database to keep it sync with the config file */
 static void update_database(struct configuration *conf)
 {
     unsigned i;
@@ -306,7 +307,7 @@ static int auth_router(database_t *conn, const char *server_id,
     return ret;
 }
 
-// Serialize and send a op to router, will write the server id as first frame
+// Serialize and send an op to router, will write the server id as first frame
 // of the message, that's used to select the destination in a router socket.
 static int send_op(const char *server_id, const struct op_req *op, void *socket)
 {
@@ -316,7 +317,6 @@ static int send_op(const char *server_id, const struct op_req *op, void *socket)
     zmq_msg_t msg_;
     zmq_msg_t *msg = &msg_;
 
-    printf("Sending %d to %s\n", op->op, server_id);
     msg_size = serialize_op_req(op, &msg_data);
     if(!msg_size) {
         LOG(LOG_LVL_CRIT, "Serialize error at send_op")
@@ -341,9 +341,17 @@ static int send_op(const char *server_id, const struct op_req *op, void *socket)
         zmq_msg_close(msg);
         return DTC_ERR_COMMUNICATION;
     }
+    LOG(LOG_LVL_DEBG, "Sending %d to %s\n", op->op, server_id)
     return DTC_ERR_NONE;
 }
 
+/**
+ * Store the key received in the database.
+ *
+ * @param db_conn Active connection with the database.
+ * @param server_id Id of the server the key is asociated with.
+ * @param res_op Communication struct with the key.
+ */
 void store_key(database_t *db_conn, const char *server_id,
                struct store_key_res *res_op)
 {
@@ -395,41 +403,17 @@ void handle_delete_key_share_pub(database_t *db_conn, void *router_socket,
         LOG(LOG_LVL_LOG, "Successfully deleted key %s from server %s",
             key_id, auth_user)
 
-    //TODO Use send_op
     req_op.version = 1;
     req_op.op = OP_DELETE_KEY_SHARE_REQ;
     req_op.args = (union command_args *)&delete_key_share;
 
-    ret = zmq_send(router_socket, auth_user, strlen(auth_user), ZMQ_SNDMORE);
-    if(ret == -1) {
-        LOG(LOG_LVL_ERRO, "Unable to send msg, zmq_send:%s",
-                          zmq_strerror(errno))
-        goto err_exit;
+    ret = send_op(server_id, &req_op, outgoing_socket);
+    if(ret != DTC_ERR_NONE) {
+        LOG(LOG_LVL_CRIT, "Error replying from handle_delete_key_share_pub:",
+            dtc_get_error_msg(ret))
+        return;
     }
 
-    size = serialize_op_req(&req_op, &serialized_msg);
-    if(size == 0) {
-        LOG(LOG_LVL_ERRO, "Unable to serialize delete_key_share_req.")
-        goto err_exit;
-    }
-
-    ret = zmq_msg_init_data(msg, serialized_msg, size, free_wrapper, free);
-    if(ret) {
-        LOG(LOG_LVL_ERRO, "Unable to initialize the msg: %s",
-            zmq_strerror(errno))
-        free(serialized_msg);
-        goto err_exit;
-    }
-
-    ret = zmq_msg_send(msg, router_socket, 0);
-    if(ret == -1) {
-        LOG(LOG_LVL_ERRO, "Unable to send msg: %s", zmq_strerror(errno))
-        zmq_msg_close(msg);
-        goto err_exit;
-    }
-
-    printf("Sent: %d\n", ret);
-err_exit:
     return;
 }
 
@@ -545,7 +529,8 @@ void handle_store_key_pub(database_t *db_conn, void *outgoing_socket,
 
     ret = send_op(server_id, &req_op, outgoing_socket);
     if(ret != DTC_ERR_NONE) {
-        LOG(LOG_LVL_CRIT, "Error at handle_store_key_pub")
+        LOG(LOG_LVL_CRIT, "Error replying from handle_store_key_pub:",
+            dtc_get_error_msg(ret))
         return;
     }
 }
@@ -1024,48 +1009,6 @@ static int node_loop(struct communication_objects *communication_objs,
         free(server_id);
 
     }
-
-    //while(1){
-    //    rc = zmq_msg_init(rcvd_msg);
-    //    if(rc == -1)
-    //        PERROR_RET(1, "zmq_msg_init");
-
-    //    rc = zmq_msg_recv(rcvd_msg, communication_objs->sub_socket, 0);
-    //    if(rc == -1){
-    //        PERROR_LOG(LOG_LVL_ERRO, "zmq_msg_recv",
-    //                   "Receive message failed.");
-    //        zmq_msg_close(rcvd_msg);
-    //        continue;
-    //    }
-
-    //    user_id = zmq_msg_gets(rcvd_msg, "User-Id");
-    //    if(user_id == NULL) {
-    //        LOG(LOG_LVL_ERRO, "Unauthenticated msg received.");
-    //        zmq_msg_close(rcvd_msg);
-    //        continue;
-    //    }
-
-    //    LOG(LOG_LVL_DEBG, "Sub msg from:%s", user_id)
-
-    //    rc = s_sendmore(communication_objs->classifier_main_thread_socket,
-    //                    user_id);
-    //    if(rc == -1) {
-    //        LOG(LOG_LVL_ERRO, "Node_loop error, zmq_send: %s",
-    //            zmq_strerror(errno));
-    //        zmq_msg_close(rcvd_msg);
-    //        continue;
-    //    }
-
-    //    rc = zmq_msg_send(rcvd_msg,
-    //                      communication_objs->classifier_main_thread_socket, 0);
-    //    if(rc == -1) {
-    //        LOG(LOG_LVL_ERRO,
-    //            "Unable to pass the message to the classifier thread: %s",
-    //            zmq_strerror(errno));
-    //        zmq_msg_close(rcvd_msg);
-    //        continue;
-    //    }
-    //}
 
     return 0;
 }

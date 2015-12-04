@@ -781,7 +781,6 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
     if(ret == 0) {
         free_buffer(keys);
         uht_free(store_key_data.users_delivered);
-        printf("ASD111 \n");
         return DTC_ERR_INVALID_VAL;
     }
 
@@ -828,7 +827,6 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
             return DTC_ERR_TIMED_OUT;
         return ret;
     }
-    printf("ASD22 \n");
 
     //Check that all the nodes did accept the key.
     prev = 0;
