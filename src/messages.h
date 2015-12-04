@@ -2,7 +2,7 @@
 #define DT_TCLIB_MESSAGES_H_
 #include <stdint.h>
 
-#include "tc.h"
+#include <tc.h>
 
 enum OP {
     OP_STORE_KEY_PUB,
