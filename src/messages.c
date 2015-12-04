@@ -212,7 +212,7 @@ static struct json_object *serialize_store_key_ack(
     if(version != 1)
         return NULL;
 
-    ret = json_object_new();
+    ret = json_object_new_object();
 
     json_object_object_add(ret, "key_id",
                            json_object_new_string(store_key_ack->key_id));
@@ -222,25 +222,25 @@ static struct json_object *serialize_store_key_ack(
     return ret;
 }
 
-static struct json_object *unserialize_store_key_ack(struct json_object *in,
+static union command_args *unserialize_store_key_ack(struct json_object *in,
                                                      uint16_t version)
 {
     struct json_object *temp;
     union command_args *ret_union =
         (union command_args *) malloc(sizeof(union command_args));
-    struct store_key_ack *ret = &ret_union->store_key_req;
+    struct store_key_ack *ret = &ret_union->store_key_ack;
 
     if(version != 1)
         goto err_exit;
 
-    if(!json_object_get_ex(in, "key_id", &temp)) {
+    if(!json_object_object_get_ex(in, "key_id", &temp)) {
         LOG(LOG_LVL_CRIT, "Key \"key_id\" does not exists.")
         goto err_exit;
     }
 
     ret->key_id = strdup(json_object_get_string(temp));
 
-    if(!json_object_get_ex(in, "status", &temp)) {
+    if(!json_object_object_get_ex(in, "status", &temp)) {
         LOG(LOG_LVL_CRIT, "Key \"status\" does not exists.")
         goto err_exit;
     }
@@ -257,7 +257,7 @@ err_exit:
 static int delete_store_key_ack(union command_args *data)
 {
     struct store_key_ack *store_key_ack = &data->store_key_ack;
-    free((void *)store_key_ack->ret->key_id);
+    free((void *)store_key_ack->key_id);
     free(data);
     return 0;
 }

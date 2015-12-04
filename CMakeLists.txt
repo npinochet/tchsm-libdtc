@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 2.8)
 project(distributed_tclib C)
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${distributed_tclib_SOURCE_DIR}/cmake)
+
 set(CMAKE_CTEST_COMMAND ctest -V)
 
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})

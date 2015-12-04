@@ -2,14 +2,13 @@ cmake_minimum_required(VERSION 2.8)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${distributed_tclib_SOURCE_DIR}/cmake)
-
 include(FindZeroMQ)
 include(FindSqlite3)
 include(FindJSON-C)
 include(FindLibSodium)
 include(FindLibConfig)
 include(FindLibUUID)
+include(FindTCLib)
 
 find_package(Threads REQUIRED)
 
