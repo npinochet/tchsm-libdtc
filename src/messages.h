@@ -8,6 +8,7 @@ enum OP {
     OP_STORE_KEY_PUB,
     OP_STORE_KEY_REQ,
     OP_STORE_KEY_RES,
+    OP_STORE_KEY_ACK,
 
     OP_DELETE_KEY_SHARE_PUB,
     OP_DELETE_KEY_SHARE_REQ,
@@ -40,6 +41,11 @@ struct store_key_res {
     const char *key_id;
 };
 
+struct store_key_ack {
+    const char *key_id;
+    uint8_t status;
+};
+
 struct delete_key_share_pub {
     const char *key_id;
 };
@@ -69,6 +75,7 @@ union command_args {
     struct store_key_pub store_key_pub;
     struct store_key_req store_key_req;
     struct store_key_res store_key_res;
+    struct store_key_ack store_key_ack;
 
     struct delete_key_share_pub delete_key_share_pub;
     struct delete_key_share_req delete_key_share_req;

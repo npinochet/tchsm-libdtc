@@ -202,6 +202,66 @@ static int delete_store_key_res(union command_args *data) {
     return 0;
 }
 
+static struct json_object *serialize_store_key_ack(
+        const union command_args *args_u, uint16_t version)
+{
+
+    const struct store_key_ack *store_key_ack = &args_u->store_key_ack;
+    struct json_object *ret;
+
+    if(version != 1)
+        return NULL;
+
+    ret = json_object_new();
+
+    json_object_object_add(ret, "key_id",
+                           json_object_new_string(store_key_ack->key_id));
+    json_object_object_add(ret, "status",
+                           json_object_new_int(store_key_ack->status));
+
+    return ret;
+}
+
+static struct json_object *unserialize_store_key_ack(struct json_object *in,
+                                                     uint16_t version)
+{
+    struct json_object *temp;
+    union command_args *ret_union =
+        (union command_args *) malloc(sizeof(union command_args));
+    struct store_key_ack *ret = &ret_union->store_key_req;
+
+    if(version != 1)
+        goto err_exit;
+
+    if(!json_object_get_ex(in, "key_id", &temp)) {
+        LOG(LOG_LVL_CRIT, "Key \"key_id\" does not exists.")
+        goto err_exit;
+    }
+
+    ret->key_id = strdup(json_object_get_string(temp));
+
+    if(!json_object_get_ex(in, "status", &temp)) {
+        LOG(LOG_LVL_CRIT, "Key \"status\" does not exists.")
+        goto err_exit;
+    }
+
+    ret->status = (uint8_t) json_object_get_int(temp);
+
+    return ret_union;
+
+err_exit:
+    free(ret_union);
+    return NULL;
+}
+
+static int delete_store_key_ack(union command_args *data)
+{
+    struct store_key_ack *store_key_ack = &data->store_key_ack;
+    free((void *)store_key_ack->ret->key_id);
+    free(data);
+    return 0;
+}
+
 static struct json_object *serialize_delete_key_share_pub(
         const union command_args *args_u, uint16_t version){
 
@@ -478,24 +538,40 @@ static int delete_sign_req(union command_args *data){
 static struct json_object *(
         *const serialize_funcs[OP_MAX])(const union command_args *data,
                                         uint16_t version) =
-    {serialize_store_key_pub, serialize_store_key_req, serialize_store_key_res,
-     serialize_delete_key_share_pub, serialize_delete_key_share_req,
-     serialize_sign_pub, serialize_sign_req};
+    {
+        serialize_store_key_pub,
+        serialize_store_key_req,
+        serialize_store_key_res,
+        serialize_store_key_ack,
+        serialize_delete_key_share_pub,
+        serialize_delete_key_share_req,
+        serialize_sign_pub,
+        serialize_sign_req
+    };
 
 static union command_args *(*const unserialize_funcs[OP_MAX])(
         struct json_object *in, uint16_t version) =
-    {unserialize_store_key_pub,
-     unserialize_store_key_req,
-     unserialize_store_key_res,
-     unserialize_delete_key_share_pub,
-     unserialize_delete_key_share_req,
-     unserialize_sign_pub,
-     unserialize_sign_req};
+    {
+        unserialize_store_key_pub,
+        unserialize_store_key_req,
+        unserialize_store_key_res,
+        unserialize_store_key_ack,
+        unserialize_delete_key_share_pub,
+        unserialize_delete_key_share_req,
+        unserialize_sign_pub,
+        unserialize_sign_req
+    };
 
 static int (*delete_funcs[OP_MAX])(union command_args *data) =
-    {delete_store_key_pub, delete_store_key_req, delete_store_key_res,
-     delete_delete_key_share_pub, delete_delete_key_share_req,
-     delete_sign_pub, delete_sign_req};
+    {
+        delete_store_key_pub,
+        delete_store_key_req,
+        delete_store_key_res,
+        delete_delete_key_share_pub,
+        delete_delete_key_share_req,
+        delete_sign_pub,
+        delete_sign_req
+    };
 
 // *************************************************************
 // ***********************Public API****************************
@@ -862,6 +938,37 @@ START_TEST(serialize_unserialize_delete_key_share_req) {
     free(output);
     delete_op_req(unserialized_op_req);
 
+}
+END_TEST
+
+START_TEST(serialize_unserialize_store_key_ack) {
+    char *key_id = "14OUASDH";
+    char *output;
+    size_t ret;
+    struct op_req operation_request;
+    struct op_req *unserialized_op_req;
+    union command_args com_args;
+
+    com_args.store_key_ack.status = 4;
+    com_args.store_key_ack.key_id = key_id;
+
+    operation_request,op = OP_STORE_KEY_ACK;
+    operation_request.args = &com_args;
+
+    ret = serialize_op_req(&operation_request, &output);
+    ck_assert(ret > 0);
+
+    unserialized_op_req = unserialize_op_req(output, ret);
+
+    ck_assert(unserialized_op_req->version == operation_request.version);
+    ck_assert(unserialized_op_req->op == operation_request.op);
+    ck_assert_int_eq(unserialized_op_req->args->store_key_ack.status,
+                     com_args.store_key_ack.status);
+    ck_assert_str_eq(unserialized_op_req->args->store_key_ack.key_id,
+                     com_args.store_key_ack.key_id);
+
+    free(output);
+    delete_op_req(unserialized_op_req)
 }
 END_TEST
 
