@@ -22,8 +22,6 @@ START_TEST(serialize_op_req_store_key_pub_simple) {
     ret = serialize_op_req(&operation_request, &output);
     ck_assert(ret > 0);
 
-
-
     free(output);
 }
 END_TEST
@@ -128,7 +126,6 @@ START_TEST(serialize_unserialize_delete_key_share_req) {
 
     free(output);
     delete_op_req(unserialized_op_req);
-
 }
 END_TEST
 

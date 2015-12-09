@@ -567,6 +567,7 @@ static int (*delete_funcs[OP_MAX])(union command_args *data) =
         delete_store_key_pub,
         delete_store_key_req,
         delete_store_key_res,
+        delete_store_key_ack,
         delete_delete_key_share_pub,
         delete_delete_key_share_req,
         delete_sign_pub,

@@ -58,9 +58,9 @@ set(MASTER_FILES
         structs.c)
 
 
-add_executable(node node.c ${NODE_FILES})
-add_library(dt_tc SHARED ${MASTER_FILES})
+add_library(dt_tc SHARED ${MASTER_FILES} ${NODE_FILES})
 add_executable(master main.c)
+add_executable(node node.c)
 
 set_property(TARGET master PROPERTY C_STANDARD 11)
 set_property(TARGET master PROPERTY C_STANDARD_REQUIRED_ON 11)
@@ -94,6 +94,7 @@ target_link_libraries(dt_tc ${LIBCONFIG_LIBRARIES}
                            ${LIBUUID_LIBRARIES})
 
 target_link_libraries(master dt_tc)
+target_link_libraries(node dt_tc)
 
 install(TARGETS node DESTINATION bin)
 install(TARGETS dt_tc DESTINATION lib)

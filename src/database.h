@@ -204,11 +204,8 @@ int db_delete_key(database_t *db, const char *server_id, const char *key_id);
  * @param db Active connection to close.
  */
 void db_close_and_free_connection(database_t *db);
+
+// For testing purpose only, DO NOT USE IT.
+void *get_sqlite3_conn(database_t *database_conn);
+int create_tables(database_t *db);
 #endif // DT_TCLIB_DATABASE_H_
-
-#ifdef UNIT_TEST
-#include <check.h>
-
-TCase *get_dt_tclib_database_c_test_case(void);
-
-#endif
