@@ -403,17 +403,41 @@ void handle_delete_key_share_pub(database_t *db_conn, void *router_socket,
         LOG(LOG_LVL_LOG, "Successfully deleted key %s from server %s",
             key_id, auth_user)
 
+    //TODO Use send_op
     req_op.version = 1;
     req_op.op = OP_DELETE_KEY_SHARE_REQ;
     req_op.args = (union command_args *)&delete_key_share;
 
-    ret = send_op(server_id, &req_op, outgoing_socket);
-    if(ret != DTC_ERR_NONE) {
-        LOG(LOG_LVL_CRIT, "Error replying from handle_delete_key_share_pub:",
-            dtc_get_error_msg(ret))
-        return;
+    ret = zmq_send(router_socket, auth_user, strlen(auth_user), ZMQ_SNDMORE);
+    if(ret == -1) {
+        LOG(LOG_LVL_ERRO, "Unable to send msg, zmq_send:%s",
+            zmq_strerror(errno))
+        goto err_exit;
     }
 
+    size = serialize_op_req(&req_op, &serialized_msg);
+    if(size == 0) {
+        LOG(LOG_LVL_ERRO, "Unable to serialize delete_key_share_req.")
+        goto err_exit;
+    }
+
+    ret = zmq_msg_init_data(msg, serialized_msg, size, free_wrapper, free);
+    if(ret) {
+        LOG(LOG_LVL_ERRO, "Unable to initialize the msg: %s",
+            zmq_strerror(errno))
+        free(serialized_msg);
+        goto err_exit;
+    }
+
+    ret = zmq_msg_send(msg, router_socket, 0);
+    if(ret == -1) {
+        LOG(LOG_LVL_ERRO, "Unable to send msg: %s", zmq_strerror(errno))
+        zmq_msg_close(msg);
+        goto err_exit;
+    }
+
+    printf("Sent: %d\n", ret);
+    err_exit:
     return;
 }
 
