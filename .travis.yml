@@ -1,0 +1,13 @@
+language: c
+sudo: required
+dist: trusty
+compiler:
+    - gcc
+install:
+    - mkdir build
+    - cd build
+    - cmake ..
+    - make
+
+script:
+    make check
