@@ -182,7 +182,9 @@ static int read_configuration_file(struct configuration *conf)
 
     EXIT_ON_FALSE(CONFIG_TRUE == config_read_file(&cfg,
                                                   conf->configuration_file),
-                  "%s:%d - %s\n", config_error_file(&cfg),
+                  "%s:%d - %s\n",
+                  config_error_file(&cfg) == NULL ? conf->configuration_file :
+                                                    config_error_file(&cfg),
                   config_error_line(&cfg), config_error_text(&cfg));
 
     root = config_root_setting(&cfg);
