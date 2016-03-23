@@ -15,7 +15,11 @@ sudo tar -xzC /opt -f libsodium-1.0.2.tar.gz
 wget http://download.zeromq.org/zeromq-4.1.4.tar.gz
 sudo tar -xzC /opt -f zeromq-4.1.4.tar.gz
 
+wget https://github.com/niclabs/tclib/archive/master.zip
+sudo unzip master.zip -d /opt
+
 cd /opt/libsodium-1.0.2/ && sudo ./configure && sudo make && sudo make install
 
 cd /opt/zeromq-4.1.4 && sudo ./configure --with-libsodium && sudo make && sudo make install
 
+cd /opt/tclib-master && sudo mkdir build && cd build && sudo cmake .. && sudo make install
