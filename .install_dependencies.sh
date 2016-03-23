@@ -17,5 +17,5 @@ sudo tar -xzC /opt -f zeromq-4.1.4.tar.gz
 
 cd /opt/libsodium-1.0.2/ && sudo ./configure && sudo make && sudo make install
 
-cd /opt/zeromq-4.1.4.tar.gz && sudo ./configure --with-libsodium && sudo make && sudo make install
+cd /opt/zeromq-4.1.4 && sudo ./configure --with-libsodium && sudo make && sudo make install
 
