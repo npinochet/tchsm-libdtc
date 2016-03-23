@@ -3,6 +3,8 @@ sudo: required
 dist: trusty
 compiler:
     - gcc
+before_install:
+    - ./.install_dependencies.sh
 install:
     - mkdir build
     - cd build
