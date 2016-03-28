@@ -31,7 +31,7 @@ static sqlite3 *get_sqlite3_connection(database_t *database_conn)
 }
 static char *get_filepath(const char *file) {
 
-    const char *testing_dir = "/tmp/";
+    const char *testing_dir = DT_TCLIB_TEST_DIRECTORY;
     size_t total_size = strlen(testing_dir) + strlen(file) + 1;
     size_t printed;
     char *ret = (char *) malloc(sizeof(char) * total_size);
@@ -639,10 +639,11 @@ static void clean_directory(const char *directory)
     while(p = readdir(d)) {
         if(!strcmp(p->d_name, ".") || !strcmp(p->d_name, ".."))
             continue;
-    snprintf(buff, FILENAME_BUFF_SIZE, "%s/%s", DT_TCLIB_TEST_DIRECTORY,
-                p->d_name);
-    ck_assert_int_eq(0, remove(buff));
+        snprintf(buff, FILENAME_BUFF_SIZE, "%s/%s", DT_TCLIB_TEST_DIRECTORY,
+                 p->d_name);
+        ck_assert_int_eq(0, remove(buff));
     }
+    closedir(d);
 }
 
 static void create_or_clean_test_directory()
