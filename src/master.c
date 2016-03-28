@@ -197,7 +197,7 @@ int wait_n_connections(void **monitors, int monitors_cant,
         if(i == monitors_cant)
             break;
 
-        assert(0 == gettimeofday(&before, NULL));
+        gettimeofday(&before, NULL);
         rc = zmq_poll(items, poll_items, timeout);
         if(rc == 0)
             break;
@@ -205,7 +205,7 @@ int wait_n_connections(void **monitors, int monitors_cant,
             LOG_DEBUG(LOG_LVL_CRIT, "Poll failed: %s", zmq_strerror(errno))
             break;
         }
-        assert(0 == gettimeofday(&now, NULL));
+        gettimeofday(&now, NULL);
         elapsed_milisecs = ((now.tv_sec - before.tv_sec) * 1000) +
                            ((now.tv_usec - before.tv_usec) / 1000.0);
         timeout -= elapsed_milisecs;
@@ -910,8 +910,9 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
             break;
     } while(retries--);
 
-    assert(1 == ht_get_and_delete_element(ctx->expected_msgs[OP_SIGN_REQ],
-                                          signing_id, NULL));
+    ret = ht_get_and_delete_element(ctx->expected_msgs[OP_SIGN_REQ], signing_id,
+                                    NULL);
+    assert(ret == 1);
 
     while(get_nowait(signatures_buffer, (void **)&signature) == 0)
         signatures[i++] = (signature_share_t *)signature;
