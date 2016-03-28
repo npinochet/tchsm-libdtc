@@ -362,7 +362,8 @@ main(int argc, char **argv) {
                 break;
             case 'p':
                 pinLen = strlen(optarg);
-                pinValue = memcpy(malloc(pinLen), optarg, pinLen);
+                pinValue = memcpy(malloc(pinLen + 1), optarg, pinLen);
+                pinValue[pinLen] = '\0';
                 break;
             default:
                 abort();
