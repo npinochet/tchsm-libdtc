@@ -100,3 +100,5 @@ install(TARGETS node DESTINATION bin)
 install(TARGETS dt_tc DESTINATION lib)
 install(FILES dtc.h DESTINATION include)
 install(FILES ../dt_tclib.conf DESTINATION etc)
+
+add_subdirectory(cryptoki)

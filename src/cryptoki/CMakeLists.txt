@@ -11,10 +11,9 @@ configure_file (
   "${PROJECT_SOURCE_DIR}/hsm/config.h.in"
   "${PROJECT_BINARY_DIR}/hsm/config.h"
   )
-  
-include_directories("${PROJECT_BINARY_DIR}/hsm")  
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+include_directories("${PROJECT_BINARY_DIR}/hsm")
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 include(FindSqlite3)
@@ -61,9 +60,9 @@ find_library(TCLIB_LIBRARY NAMES libtc.so
 
 include_directories("cryptoki_compat")
 include_directories("hsm")
-  
-set(HSM_SRC   
-  hsm/Database.cpp 
+
+set(HSM_SRC
+  hsm/Database.cpp
   hsm/Database.h
   hsm/Session.cpp
   hsm/Session.h
@@ -80,7 +79,7 @@ set(HSM_SRC
   hsm/Application.cpp
   hsm/Application.h
   )
-  
+
 
 message(STATUS "DTC_LIBRARY: ${DTCLIB_LIBRARY}")
 add_library(pkcs11 SHARED pkcs11.cpp ${HSM_SRC})
