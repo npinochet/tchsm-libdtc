@@ -3,6 +3,7 @@
 sudo apt-get update -qq
 
 sudo apt-get install -y check
+sudo apt-get install -y libboost-all-dev
 sudo apt-get install -y libjson-c-dev
 sudo apt-get install -y libconfig-dev
 sudo apt-get install -y libsqlite3-dev
