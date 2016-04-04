@@ -27,4 +27,4 @@ cd /opt/zeromq-4.1.4 && sudo ./configure --with-libsodium && sudo make && sudo m
 
 cd /opt/tclib-master && sudo mkdir build && cd build && sudo cmake .. && sudo make install
 
-cd /opt/Botan-1.11.29 && ./configure && make && sudo make install
+cd /opt/Botan-1.11.29 && ./configure.py && make && sudo make install
