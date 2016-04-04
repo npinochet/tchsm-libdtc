@@ -1,0 +1,6 @@
+[submodule "tclib"]
+	path = dt_tclib/tclib
+	url = https://github.com/niclabs/tclib.git
+[submodule "dt_tclib/cmake/modules"]
+	path = dt_tclib/cmake/modules
+	url = https://github.com/fmontoto/CMakeModules.git
