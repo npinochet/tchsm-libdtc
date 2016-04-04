@@ -23,7 +23,7 @@ unzip master.zip -d /tmp
 
 cd /tmp/libsodium-1.0.9/ && ./configure && make && sudo make install
 
-cd /tmp/zeromq-4.1.4 && /configure --with-libsodium && make && sudo make install
+cd /tmp/zeromq-4.1.4 && ./configure --with-libsodium && make && sudo make install
 
 cd /tmp/tclib-master && mkdir build && cd build && cmake .. && sudo make install
 
