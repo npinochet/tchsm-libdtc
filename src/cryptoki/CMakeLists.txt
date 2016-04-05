@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 2.8)
-project (CryptographicFrontend)
 
 set(CryptographicFrontend_VERSION_MAJOR 1)
 set(CryptographicFrontend_VERSION_MINOR 0)
@@ -47,7 +46,7 @@ else()
 endif()
 
 if (DTTCLIB_FOUND)
-    include_directories({DTTCLIB_INCLUDE_DIRS})
+    include_directories(${DTTCLIB_INCLUDE_DIRS})
 else ()
     message(FATAL_ERROR "Cannot find DTTCLIB")
 endif()
