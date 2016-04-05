@@ -10,5 +10,5 @@ find_library(DTTCLIB_LIBRARY NAMES libdt_tc.so
 include(FindPackageHandleStandardArgs)
 # handle the QUIETLY and REQUIRED arguments and set SQLITE3_FOUND to TRUE
 # if all listed variables are TRUE
-find_package_handle_standard_args(DT_TCLIB DEFAULT_MSG DTTCLIB_LIBRARY DTTCLIB_INCLUDE_DIR)
+find_package_handle_standard_args(DTTCLIB DEFAULT_MSG DTTCLIB_LIBRARY DTTCLIB_INCLUDE_DIR)
 mark_as_advanced(DTTCLIB_INCLUDE_DIR DTTCLIB_LIBRARY)

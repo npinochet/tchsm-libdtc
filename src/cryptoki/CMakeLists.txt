@@ -26,6 +26,7 @@ set(Boost_USE_STATIC_RUNTIME OFF)
 find_package(Boost 1.53 REQUIRED)
 find_package(Sqlite3 REQUIRED)
 find_package(Botan REQUIRED)
+find_package(DTTCLib REQUIRED)
 
 if (Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
@@ -45,9 +46,11 @@ else()
     message(FATAL_ERROR "Cannot find botan library")
 endif()
 
-find_path(DTCLIB_INCLUDE_DIR dtc.h
-        HINTS "${TCLIB_PREFIX}/include" "${CMAKE_PREFIX_PATH}/tclib/include")
-include_directories(${DTCLIB_INCLUDE_DIR})
+if (DTTCLIB_FOUND)
+    include_directories({DTTCLIB_INCLUDE_DIRS})
+else ()
+    message(FATAL_ERROR "Cannot find DTTCLIB")
+endif()
 
 find_library(DTCLIB_LIBRARY NAMES libdt_tc.so
         HINTS "${TCLIB_PREFIX}/lib" "${CMAKE_PREFIX_PATH}/tclib/lib")
