@@ -10,7 +10,7 @@
 #include "database.h"
 //TODO do not use this anymore.
 #include "blocking_sql3.h"
-#include "dtc.h"
+#include "include/dtc.h"
 #include "logger/logger.h"
 #include "utilities.h"
 

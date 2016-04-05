@@ -12,7 +12,7 @@
 
 #include <tc.h>
 
-#include "dtc.h"
+#include "include/dtc.h"
 #include "messages.h"
 #include "structs.h"
 #include "utilities.h"

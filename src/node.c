@@ -13,7 +13,7 @@
 #include "logger/logger.h"
 #include "messages.h"
 #include "utilities.h"
-#include "dtc.h"
+#include "include/dtc.h"
 
 
 struct master_info {

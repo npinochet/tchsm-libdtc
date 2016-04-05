@@ -3,7 +3,7 @@
 
 #include "logger/logger.h"
 
-#include "dtc.h"
+#include "include/dtc.h"
 
 int main(int argc, char **argv)
 {

@@ -98,7 +98,7 @@ target_link_libraries(node dt_tc)
 
 install(TARGETS node DESTINATION bin)
 install(TARGETS dt_tc DESTINATION lib)
-install(FILES dtc.h DESTINATION include)
+install(FILES include/dtc.h DESTINATION include)
 install(FILES ../dt_tclib.conf DESTINATION etc)
 
 add_subdirectory(cryptoki)

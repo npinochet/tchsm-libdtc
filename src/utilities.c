@@ -6,7 +6,7 @@
 
 #include <zmq.h>
 
-#include "dtc.h"
+#include "include/dtc.h"
 #include "utilities.h"
 
 int lookup_uint16_conf_element(const config_setting_t *setting,

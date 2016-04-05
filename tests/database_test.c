@@ -13,7 +13,7 @@
 #include <check.h>
 
 #include "../src/database.h"
-#include "../src/dtc.h"
+#include "../src/include/dtc.h"
 #include "../src/logger/logger.h"
 //#include "utilities.h"
 
