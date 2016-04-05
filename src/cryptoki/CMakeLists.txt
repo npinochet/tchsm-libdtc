@@ -25,7 +25,6 @@ set(Boost_USE_STATIC_RUNTIME OFF)
 find_package(Boost 1.53 REQUIRED)
 find_package(Sqlite3 REQUIRED)
 find_package(Botan REQUIRED)
-find_package(DTTCLib REQUIRED)
 find_package(TCLib REQUIRED)
 
 if (Boost_FOUND)
@@ -44,12 +43,6 @@ if (BOTAN_FOUND)
     include_directories(${BOTAN_INCLUDE_DIRS})
 else()
     message(FATAL_ERROR "Cannot find botan library")
-endif()
-
-if (DTTCLIB_FOUND)
-    include_directories(${DTTCLIB_INCLUDE_DIRS})
-else ()
-    message(FATAL_ERROR "Cannot find DTTCLIB")
 endif()
 
 if (TCLIB_FOUND)
@@ -81,9 +74,9 @@ set(HSM_SRC
   )
 
 
-#message(STATUS "DTTC_LIBRARY: ${DTTCLIB_LIBRARY}")
 add_library(pkcs11 SHARED pkcs11.cpp ${HSM_SRC})
-target_link_libraries(pkcs11 ${DTTCLIB_LIBRARY} ${Boost_LIBRARIES} ${SQLITE3_LIBRARIES} ${BOTAN_LIBRARIES})
+target_link_libraries(pkcs11 dt_tc ${Boost_LIBRARIES} ${SQLITE3_LIBRARIES} ${BOTAN_LIBRARIES})
+
 
 
 add_executable(pkcs11_test test.c)
