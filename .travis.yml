@@ -9,6 +9,7 @@ install:
     - mkdir build
     - cd build
     - cmake ..
+    - make dt_tc
     - make
 
 script:
