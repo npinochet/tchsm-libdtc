@@ -89,8 +89,8 @@ target_link_libraries(pkcs11 ${DTCLIB_LIBRARY} ${Boost_LIBRARIES} ${SQLITE3_LIBR
 add_executable(pkcs11_test test.c)
 target_link_libraries(pkcs11_test pkcs11 ${Boost_LIBRARIES} ${SQLITE3_LIBRARIES} ${BOTAN_LIBRARIES})
 
-add_executable(botanmain main.cpp)
-target_link_libraries(botanmain ${TCLIB_LIBRARY} ${BOTAN_LIBRARIES})
+#add_executable(botanmain main.cpp)
+#target_link_libraries(botanmain ${TCLIB_LIBRARY} ${BOTAN_LIBRARIES})
 
-set_property(TARGET botanmain PROPERTY CXX_STANDARD 11)
-set_property(TARGET botanmain PROPERTY CXX_STANDARD_REQUIRED_ON 11)
+#set_property(TARGET botanmain PROPERTY CXX_STANDARD 11)
+#set_property(TARGET botanmain PROPERTY CXX_STANDARD_REQUIRED_ON 11)
