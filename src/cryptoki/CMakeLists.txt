@@ -7,11 +7,11 @@ set(MIN_PIN_LEN 3)
 set(MAX_PIN_LEN 10)
 
 configure_file (
-  "${PROJECT_SOURCE_DIR}/hsm/config.h.in"
-  "${PROJECT_BINARY_DIR}/hsm/config.h"
+  "${PROJECT_SOURCE_DIR}/src/cryptoki/hsm/config.h.in"
+  "${PROJECT_BINARY_DIR}/src/cryptoki/hsm/config.h"
   )
 
-include_directories("${PROJECT_BINARY_DIR}/hsm")
+include_directories("${PROJECT_BINARY_DIR}/src/cryptoki/hsm")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
@@ -26,6 +26,7 @@ find_package(Boost 1.53 REQUIRED)
 find_package(Sqlite3 REQUIRED)
 find_package(Botan REQUIRED)
 find_package(DTTCLib REQUIRED)
+find_package(TCLib REQUIRED)
 
 if (Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
@@ -51,14 +52,11 @@ else ()
     message(FATAL_ERROR "Cannot find DTTCLIB")
 endif()
 
-find_library(DTCLIB_LIBRARY NAMES libdt_tc.so
-        HINTS "${TCLIB_PREFIX}/lib" "${CMAKE_PREFIX_PATH}/tclib/lib")
-
-find_path(TCLIB_INCLUDE_DIR tc.h
-        HINTS "${TCLIB_PREFIX}/include" "${CMAKE_PREFIX_PATH}/tclib/include")
-
-find_library(TCLIB_LIBRARY NAMES libtc.so
-        HINTS "${TCLIB_PREFIX}/lib" "${CMAKE_PREFIX_PATH}/tclib/lib")
+if (TCLIB_FOUND)
+    include_directories(${TCLIB_INCLUDE_DIRS})
+else ()
+    message(FATAL_ERROR "Cannot find TCLIB")
+endif()
 
 include_directories("cryptoki_compat")
 include_directories("hsm")
@@ -83,9 +81,9 @@ set(HSM_SRC
   )
 
 
-message(STATUS "DTC_LIBRARY: ${DTCLIB_LIBRARY}")
+#message(STATUS "DTTC_LIBRARY: ${DTTCLIB_LIBRARY}")
 add_library(pkcs11 SHARED pkcs11.cpp ${HSM_SRC})
-target_link_libraries(pkcs11 ${DTCLIB_LIBRARY} ${Boost_LIBRARIES} ${SQLITE3_LIBRARIES} ${BOTAN_LIBRARIES})
+target_link_libraries(pkcs11 ${DTTCLIB_LIBRARY} ${Boost_LIBRARIES} ${SQLITE3_LIBRARIES} ${BOTAN_LIBRARIES})
 
 
 add_executable(pkcs11_test test.c)
