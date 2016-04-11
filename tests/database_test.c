@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include <assert.h>
 #include <dirent.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -20,7 +21,7 @@
 #define START_MY_TEST(test_name) START_TEST(test_name)\
                                  LOG(LOG_LVL_LOG, "Testing: %s.", #test_name)
 
-#define DT_TCLIB_TEST_DIRECTORY "/tmp/dt_tclib_test"
+#define DT_TCLIB_TEST_DIRECTORY "/tmp/dt_tclib_test/"
 #define FILENAME_BUFF_SIZE 200
 // TODO IF a test fails the file might remain in the temp folder, we need to
 // change this kind of check or figure out some way to do a clean up.
@@ -634,19 +635,21 @@ static void clean_directory(const char *directory)
 
     DIR *d;
     struct dirent *p;
+    int res;
     char buff[FILENAME_BUFF_SIZE];
     d = opendir(directory);
     while(p = readdir(d)) {
         if(!strcmp(p->d_name, ".") || !strcmp(p->d_name, ".."))
             continue;
-        snprintf(buff, FILENAME_BUFF_SIZE, "%s/%s", DT_TCLIB_TEST_DIRECTORY,
+        snprintf(buff, FILENAME_BUFF_SIZE, "%s%s", DT_TCLIB_TEST_DIRECTORY,
                  p->d_name);
-        ck_assert_int_eq(0, remove(buff));
+        res = remove(buff);
+        assert(0 == res); //This isn't called in a test routine, ck_assert fails
     }
     closedir(d);
 }
 
-static void create_or_clean_test_directory()
+static void create_and_clean_test_directory()
 {
     struct stat st = {0};
 
@@ -662,19 +665,18 @@ static void delete_test_directory()
 {
     clean_directory(DT_TCLIB_TEST_DIRECTORY);
     remove(DT_TCLIB_TEST_DIRECTORY);
-
 }
 
 int main()
 {
     int number_failed = 0;
+    create_and_clean_test_directory();
 
     Suite *s = suite_create("Database interface testing");
     SRunner *runner = srunner_create(s);
 
     add_test_cases(s);
     srunner_run_all(runner, CK_VERBOSE);
-    create_or_clean_test_directory();
     number_failed = srunner_ntests_failed(runner);
     delete_test_directory();
     srunner_free(runner);
