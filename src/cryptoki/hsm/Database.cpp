@@ -17,14 +17,15 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include <cstring>
+#include <cstdlib>
 
 #include <Token.h>
 #include "CryptoObject.h"
 #include "Database.h"
 #include "TcbError.h"
 
-
 using namespace hsm;
+using std::malloc;
 
 namespace {
     char const *GET_TOKEN_QUERY = "SELECT TKN_PIN, TKN_SO_PIN "
