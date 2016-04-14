@@ -1,7 +1,7 @@
 find_path(TCLIB_INCLUDE_DIR tc.h
         HINTS "${TCLIB_PREFIX}/include" "${CMAKE_PREFIX_PATH}/tclib/include")
 
-find_library(TCLIB_LIBRARY NAMES libtc.so
+find_library(TCLIB_LIBRARY NAMES libtc tc
         HINTS "${TCLIB_PREFIX}/lib" "${CMAKE_PREFIX_PATH}/tclib/lib")
 
 set(TCLIB_INCLUDE_DIRS ${TCLIB_INCLUDE_DIR})
