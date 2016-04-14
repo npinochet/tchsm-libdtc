@@ -58,7 +58,7 @@ set(MASTER_FILES
         structs.c)
 
 
-add_library(dt_tc SHARED ${MASTER_FILES} ${NODE_FILES})
+add_library(dtc SHARED ${MASTER_FILES} ${NODE_FILES})
 add_executable(master main.c)
 add_executable(node node.c)
 
@@ -68,12 +68,12 @@ set_property(TARGET master PROPERTY C_STANDARD_REQUIRED_ON 11)
 
 if(THREADS_HAVE_PTHREAD_ARG)
     target_compile_options(PUBLIC node "-pthread")
-    target_compile_options(PUBLIC dt_tc "-pthread")
+    target_compile_options(PUBLIC dtc "-pthread")
     target_compile_options(PUBLIC master "-pthread")
 endif()
 if(CMAKE_THREAD_LIBS_INIT)
     target_link_libraries(node "${CMAKE_THREAD_LIBS_INIT}")
-    target_link_libraries(dt_tc "${CMAKE_THREAD_LIBS_INIT}")
+    target_link_libraries(dtc "${CMAKE_THREAD_LIBS_INIT}")
     target_link_libraries(master "${CMAKE_THREAD_LIBS_INIT}")
 endif()
 
@@ -85,7 +85,7 @@ target_link_libraries(node ${LIBCONFIG_LIBRARIES}
                            ${SQLITE3_LIBRARIES}
                            ${LIBUUID_LIBRARIES})
 
-target_link_libraries(dt_tc ${LIBCONFIG_LIBRARIES}
+target_link_libraries(dtc ${LIBCONFIG_LIBRARIES}
                            ${ZEROMQ_LIBRARIES}
                            ${LIBSODIUM_LIBRARIES}
                            ${JSON-C_LIBRARIES}
@@ -93,12 +93,12 @@ target_link_libraries(dt_tc ${LIBCONFIG_LIBRARIES}
                            ${SQLITE3_LIBRARIES}
                            ${LIBUUID_LIBRARIES})
 
-target_link_libraries(master dt_tc)
-target_link_libraries(node dt_tc)
+target_link_libraries(master dtc)
+target_link_libraries(node dtc)
 
 install(TARGETS node DESTINATION bin)
-install(TARGETS dt_tc DESTINATION lib)
+install(TARGETS dtc DESTINATION lib)
 install(FILES include/dtc.h DESTINATION include)
-install(FILES ../dt_tclib.conf DESTINATION etc)
+install(FILES ../libdtc.conf DESTINATION etc)
 
 add_subdirectory(cryptoki)
