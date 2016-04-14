@@ -49,8 +49,8 @@ set(NODE_FILES
     utilities.c
     utilities.h)
 
-set(MASTER_FILES
-        master.c
+set(DTC_FILES
+        dtc.c
         err.c
         logger/logger.c
         messages.c
@@ -58,7 +58,7 @@ set(MASTER_FILES
         structs.c)
 
 
-add_library(dtc SHARED ${MASTER_FILES} ${NODE_FILES})
+add_library(dtc SHARED ${DTC_FILES} ${NODE_FILES})
 add_executable(master main.c)
 add_executable(node node.c)
 
