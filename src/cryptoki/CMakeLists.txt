@@ -76,7 +76,7 @@ set(HSM_SRC
 
 
 add_library(pkcs11 SHARED pkcs11.cpp ${HSM_SRC})
-target_link_libraries(pkcs11 dt_tc ${Boost_LIBRARIES} ${SQLITE3_LIBRARIES} ${BOTAN_LIBRARIES})
+target_link_libraries(pkcs11 dtc ${Boost_LIBRARIES} ${SQLITE3_LIBRARIES} ${BOTAN_LIBRARIES})
 
 
 

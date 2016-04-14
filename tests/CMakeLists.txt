@@ -14,7 +14,7 @@ set(tests
 
 foreach(test ${tests})
     add_executable(${test} ${test}.c)
-    target_link_libraries(${test} ${CHECK_LIBRARIES} dt_tc  m rt)
+    target_link_libraries(${test} ${CHECK_LIBRARIES} dtc  m rt)
 
     add_test(NAME ${test} COMMAND ${test})
 

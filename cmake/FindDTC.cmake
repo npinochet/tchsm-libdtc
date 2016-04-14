@@ -1,8 +1,8 @@
 find_path(DTTCLIB_INCLUDE_DIR dtc.h
-        HINTS "${DTTCLIB_PREFIX}/include" "${CMAKE_PREFIX_PATH}/dt_tclib/include")
+        HINTS "${DTTCLIB_PREFIX}/include" "${CMAKE_PREFIX_PATH}/dtc/include")
 
 find_library(DTTCLIB_LIBRARY NAMES libdt_tc.so
-        HINTS "${DTTCLIB_PREFIX}/lib" "${CMAKE_PREFIX_PATH}/dt_tclib/lib")
+        HINTS "${DTTCLIB_PREFIX}/lib" "${CMAKE_PREFIX_PATH}/dtc/lib")
 
     set(DTTCLIB_INCLUDE_DIRS ${DTTCLIB_INCLUDE_DIR})
     set(DTTCLIB_LIBRARIES ${DTTCLIB_LIBRARY})

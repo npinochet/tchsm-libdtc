@@ -19,13 +19,13 @@ tar -xzC /tmp -f zeromq-4.1.4.tar.gz
 wget http://botan.randombit.net/releases/Botan-1.11.29.tgz
 tar -xzC /tmp -f Botan-1.11.29.tgz
 
-wget https://github.com/niclabs/tclib/archive/master.zip
+wget https://github.com/niclabs/tchsm-libtc/archive/master.zip
 unzip master.zip -d /tmp
 
 cd /tmp/libsodium-1.0.9/ && ./configure && make && sudo make install
 
 cd /tmp/zeromq-4.1.4 && ./configure --with-libsodium && make && sudo make install
 
-cd /tmp/tclib-master && mkdir build && cd build && cmake .. && sudo make install
+cd /tmp/tchsm-libtc-master && mkdir build && cd build && cmake .. && sudo make install
 
 cd /tmp/Botan-1.11.29 && ./configure.py && make && sudo make install
