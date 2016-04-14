@@ -30,7 +30,7 @@ find_path(ZEROMQ_INCLUDE_DIR zmq.h
           HINTS ${PC_ZEROMQ_INCLUDEDIR} ${PC_ZEROMQ_INCLUDE_DIRS}
           PATH_SUFFIXES zeromq )
 
-find_library(ZEROMQ_LIBRARY NAMES libzmq.so
+find_library(ZEROMQ_LIBRARY NAMES libzmq zmq
              HINTS ${PC_ZEROMQ_LIBDIR} ${PC_ZEROMQ_LIBRARY_DIRS} )
 
 set(ZEROMQ_LIBRARIES ${ZEROMQ_LIBRARY} )

@@ -31,7 +31,7 @@ find_path(SQLITE3_INCLUDE_DIR sqlite3.h
           HINTS ${PC_SQLITE3_INCLUDEDIR} ${PC_SQLITE3_INCLUDE_DIRS}
           PATH_SUFFIXES sqlite3 )
 
-find_library(SQLITE3_LIBRARY NAMES libsqlite3.so
+find_library(SQLITE3_LIBRARY NAMES libsqlite3 sqlite3
              HINTS ${PC_SQLITE3_LIBDIR} ${PC_SQLITE3_LIBRARY_DIRS} )
 
 set(SQLITE3_LIBRARIES ${SQLITE3_LIBRARY} )

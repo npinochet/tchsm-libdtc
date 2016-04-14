@@ -29,7 +29,7 @@ find_path(LIBCONFIG_INCLUDE_DIR libconfig.h
           HINTS ${PC_LIBCONFIG_INCLUDEDIR} ${PC_LIBCONFIG_INCLUDE_DIRS}
           PATH_SUFFIXES libconfig)
           
-find_library(LIBCONFIG_LIBRARY NAMES libconfig.so
+find_library(LIBCONFIG_LIBRARY NAMES libconfig config
              HINTS ${PC_LIBCONFIG_LIBDIR} ${PC_LIBCONFIG_LIBRARY_DIRS})
              
 set(LIBCONFIG_LIBRARIES ${LIBCONFIG_LIBRARY})
