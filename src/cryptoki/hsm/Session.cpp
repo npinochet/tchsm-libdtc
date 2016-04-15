@@ -806,18 +806,16 @@ void Session::signFinal(CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen) {
 
     const public_key_t *pk = tc_key_meta_info_public_key(&*keyMetainfo_);
     const bytes_t *nBytes = tc_public_key_n(pk);
-    Botan::BigInt n((Botan::byte *) nBytes->data, nBytes->data_len);
+    Botan::BigInt n(static_cast<Botan::byte *>(nBytes->data), nBytes->data_len);
 
     Botan::AutoSeeded_RNG rng;
     auto paddedData = padder_->encoding_of(padder_->raw_data(), n.bits()-1, rng);
-    bytes_t *paddedDataBytes = tc_init_bytes(malloc(paddedData.size()), paddedData.size());
-    std::copy(paddedData.begin(), paddedData.end(), (Botan::byte*)paddedDataBytes->data);
+    bytes_t paddedDataBytes = { &paddedData[0], static_cast<uint32_t>(paddedData.size()) };
 
     dtc_ctx_t *ctx = getCurrentSlot().getApplication().getDtcContext();
 
     bytes_t *signature;
-    int sign_err = dtc_sign(ctx, keyMetainfo_.get(), keyHandler_.c_str(), paddedDataBytes, &signature);
-    tc_clear_bytes(paddedDataBytes);
+    int sign_err = dtc_sign(ctx, keyMetainfo_.get(), keyHandler_.c_str(), &paddedDataBytes, &signature);
     if (sign_err != DTC_ERR_NONE) {
         string err_msg = "DT_TC Error: ";
         throw TcbError("Session::sign", err_msg + dtc_get_error_msg(sign_err), CKR_GENERAL_ERROR);
