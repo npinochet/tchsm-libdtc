@@ -117,6 +117,19 @@ static int node_loop(struct communication_objects *communication_objs,
 static int set_server_socket_security(void *socket, char *server_secret_key);
 static void zap_handler (void *handler);
 
+/**
+ * Print one line of usage to stdout.
+ *
+ * @param exit_code: if exit_code >= 0, exit with exit_code, otherwise do not
+ *      exit.
+ **/
+static void print_usage(int exit_code)
+{
+    fprintf(stdout, "usage: node [-c, --config=<configuration_file>]\n");
+    if(exit_code >= 0)
+        exit(exit_code);
+}
+
 /* Update masters in the Database to keep it sync with the config file */
 static void update_database(struct configuration *conf)
 {
@@ -140,10 +153,9 @@ int main(int argc, char **argv)
 
     // Default configuration.
     static struct configuration configuration =
-            {.configuration_file = "./config"};
+            {.configuration_file = "./libdtc.conf"};
 
     logger_init_stream(stderr);
-    LOG(LOG_LVL_NOTI, "Logger started for %s", argv[0]);
 
     ret_val = read_configuration(argc, argv, &configuration);
     if(ret_val)
@@ -158,6 +170,8 @@ int main(int argc, char **argv)
             init_node(&configuration);
     if(!communication_objs)
         return 1;
+
+    LOG(LOG_LVL_NOTI, "Node started: %s", argv[0]);
 
     return node_loop(communication_objs, configuration.database);
 }
@@ -182,7 +196,7 @@ static int read_configuration_file(struct configuration *conf)
 
     EXIT_ON_FALSE(CONFIG_TRUE == config_read_file(&cfg,
                                                   conf->configuration_file),
-                  "%s:%d - %s\n",
+                  "Error opening config file %s, line %d - %s\n",
                   config_error_file(&cfg) == NULL ? conf->configuration_file :
                                                     config_error_file(&cfg),
                   config_error_line(&cfg), config_error_text(&cfg));
@@ -253,12 +267,14 @@ static int read_configuration(int argc, char *argv[],
 {
     int option_index = 0;
     char c;
+    static int help = 0;
     static struct option long_options[] = {
+        {"help", no_argument, &help, 1},
         {"config", required_argument, 0, 'c'},
         {"verbose", no_argument, 0, 'v'},
         {0, 0, 0, 0}};
 
-    while((c = getopt_long(argc, argv, ":d:i:s:l:v", long_options,
+    while((c = getopt_long(argc, argv, ":c:vh", long_options,
                            &option_index)) != -1) {
         switch(c) {
         case 'c':
@@ -267,12 +283,16 @@ static int read_configuration(int argc, char *argv[],
         case 'v':
             LOG(LOG_LVL_CRIT, "Not implemented yet :(")
             break;
+        case 'h':
+            print_usage(0);
+            break;
         case ':':
             LOG(LOG_LVL_CRIT, "Missing parameter for %c (%s).", optopt,
                 argv[optind -1 ]);
             return 1;
         case '?':
             LOG(LOG_LVL_CRIT, "Invalid option found. (%s).", argv[optind - 1]);
+            print_usage(EXIT_FAILURE);
             break;
         case 1:
             break;
@@ -280,6 +300,8 @@ static int read_configuration(int argc, char *argv[],
             break;
         }
     }
+    if(help)
+        print_usage(0);
     read_configuration_file(conf);
 
     return 0;
@@ -714,8 +736,6 @@ static struct communication_objects *init_node(
 
     return comm_objs;
 }
-
-// TODO --help should print usage
 
 static void start_zap_security(void *zmq_ctx, char *database)
 {
