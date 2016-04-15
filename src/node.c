@@ -2,6 +2,7 @@
 #include <getopt.h>
 #include <inttypes.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
@@ -155,13 +156,13 @@ int main(int argc, char **argv)
     static struct configuration configuration =
             {.configuration_file = "./libdtc.conf"};
 
-    logger_init_stream(stderr);
+    OPEN_LOG();
 
     ret_val = read_configuration(argc, argv, &configuration);
     if(ret_val)
         return 1;
 
-    LOG(LOG_LVL_LOG, "Logger configuration:%s",
+    LOG(LOG_LVL_INFO, "Logger configuration:%s",
         configuration_to_string(&configuration));
 
     update_database(&configuration);
@@ -387,7 +388,7 @@ void store_key(database_t *db_conn, const char *server_id,
     free(key_metainfo);
     free(key_share);
     if(rc == DTC_ERR_NONE)
-        LOG(LOG_LVL_LOG, "Successfully stored key %s from server %s.",
+        LOG(LOG_LVL_INFO, "Successfully stored key %s from server %s.",
             res_op->key_id, server_id)
     else
         LOG(LOG_LVL_NOTI, "Error adding key %s from server %s.", res_op->key_id,
@@ -415,7 +416,7 @@ void handle_delete_key_share_pub(database_t *db_conn, void *router_socket,
     zmq_msg_t *msg = &msg_;
 
     if(pub_op->version != 1) {
-        LOG(LOG_LVL_ERRO, "Version %" PRIu16 " not supported");
+        LOG(LOG_LVL_ERRO, "Version %" PRIu16 " not supported", pub_op->version);
         return;
     }
 
@@ -424,7 +425,7 @@ void handle_delete_key_share_pub(database_t *db_conn, void *router_socket,
     delete_key_share.key_id = key_id;
     delete_key_share.deleted = db_delete_key(db_conn, auth_user, key_id);
     if(delete_key_share.deleted == DTC_ERR_NONE)
-        LOG(LOG_LVL_LOG, "Successfully deleted key %s from server %s",
+        LOG(LOG_LVL_INFO, "Successfully deleted key %s from server %s",
             key_id, auth_user)
 
     //TODO Use send_op
@@ -515,7 +516,7 @@ void handle_sign_pub(database_t *db_conn, void *router_socket,
     int ret;
 
     if(pub_op->version != 1) {
-        LOG(LOG_LVL_ERRO, "version %" PRIu16 " not supported.")
+        LOG(LOG_LVL_ERRO, "version %" PRIu16 " not supported.", pub_op->version)
         return;
     }
 
@@ -554,7 +555,7 @@ void handle_store_key_pub(database_t *db_conn, void *outgoing_socket,
     int ret;
 
     if(pub_op->version != 1) {
-        LOG(LOG_LVL_ERRO, "version %" PRIu16 " not supported.");
+        LOG(LOG_LVL_ERRO, "version %" PRIu16 " not supported.", pub_op->version);
         return;
     }
 
@@ -577,7 +578,7 @@ void handle_store_key_pub(database_t *db_conn, void *outgoing_socket,
 
     ret = send_op(server_id, &req_op, outgoing_socket);
     if(ret != DTC_ERR_NONE) {
-        LOG(LOG_LVL_CRIT, "Error replying from handle_store_key_pub:",
+        LOG(LOG_LVL_CRIT, "Error replying from handle_store_key_pub: %s",
             dtc_get_error_msg(ret))
         return;
     }
@@ -831,7 +832,7 @@ static struct communication_objects *create_and_bind_sockets(
     ret_value = snprintf(&bind_buff[0], bind_buff_length, "tcp://%s:%d",
                          conf->interface, conf->sub_port);
     if(ret_value >= bind_buff_length){
-        LOG(LOG_LVL_CRIT, "Bind buffer too small (%d), required: %d.",
+        LOG(LOG_LVL_CRIT, "Bind buffer too small (%zu), required: %d.",
             bind_buff_length, ret_value);
         exit(1);
     }
@@ -845,7 +846,7 @@ static struct communication_objects *create_and_bind_sockets(
     ret_value = snprintf(&bind_buff[0], bind_buff_length, "tcp://%s:%d",
                          conf->interface, conf->router_port);
     if(ret_value >= bind_buff_length){
-        LOG(LOG_LVL_CRIT, "Bind buffer too small (%d), required: %d.",
+        LOG(LOG_LVL_CRIT, "Bind buffer too small (%zu), required: %d.",
             bind_buff_length, ret_value);
         exit(1);
     }
@@ -1071,7 +1072,7 @@ static void zap_handler(void *zap_data_)
     void *sock = zap_data->socket;
     database_t *db_conn = db_init_connection(zap_data->database);
     EXIT_ON_FALSE(db_conn, "Error trying to connect to the DB.");
-    LOG(LOG_LVL_LOG, "Starting ZAP thread.");
+    LOG(LOG_LVL_INFO, "Starting ZAP thread.");
 
     //  Process ZAP requests forever
     while (1) {
@@ -1102,14 +1103,14 @@ static void zap_handler(void *zap_data_)
                 s_sendmore(sock, "OK");
                 s_sendmore(sock, aux_char);
                 free(aux_char);
-                LOG(LOG_LVL_LOG, "Sub socket accepted a connection from:%s",
+                LOG(LOG_LVL_INFO, "Sub socket accepted a connection from:%s",
                     address);
             }
             else {
                 s_sendmore(sock, "400");
                 s_sendmore(sock, "Not an authorized master");
                 s_sendmore(sock, "");
-                LOG(LOG_LVL_LOG, "SUB socket rejected a connection from %s.",
+                LOG(LOG_LVL_INFO, "SUB socket rejected a connection from %s.",
                     address);
             }
         }
@@ -1120,14 +1121,14 @@ static void zap_handler(void *zap_data_)
                 s_sendmore(sock, "OK");
                 s_sendmore(sock, aux_char);
                 free(aux_char);
-                LOG(LOG_LVL_LOG, "Router socket accepted a connection from:%s.",
+                LOG(LOG_LVL_INFO, "Router socket accepted a connection from:%s.",
                     address);
             }
             else {
                 s_sendmore(sock, "400");
                 s_sendmore(sock, "Not an authorized master");
                 s_sendmore(sock, "");
-                LOG(LOG_LVL_LOG, "Router socket rejected a connection from:%s.",
+                LOG(LOG_LVL_INFO, "Router socket rejected a connection from:%s.",
                     address);
             }
         }

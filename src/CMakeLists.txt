@@ -40,7 +40,6 @@ set(NODE_FILES
     database.c
     database.h
     err.c
-    logger/logger.c
     logger/logger.h
     messages.c
     messages.h
@@ -52,7 +51,6 @@ set(NODE_FILES
 set(DTC_FILES
         dtc.c
         err.c
-        logger/logger.c
         messages.c
         utilities.c
         structs.c)
