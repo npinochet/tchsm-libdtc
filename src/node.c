@@ -125,7 +125,7 @@ static void zap_handler (void *handler);
  **/
 static void print_usage(int exit_code)
 {
-    fprintf(stdout, "usage: node [--config=<configuration_file>]\n");
+    fprintf(stdout, "usage: node [-c, --config=<configuration_file>]\n");
     if(exit_code >= 0)
         exit(exit_code);
 }
@@ -736,8 +736,6 @@ static struct communication_objects *init_node(
 
     return comm_objs;
 }
-
-// TODO --help should print usage
 
 static void start_zap_security(void *zmq_ctx, char *database)
 {
