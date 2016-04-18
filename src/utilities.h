@@ -3,14 +3,7 @@
 
 #include <libconfig.h>
 
-#ifndef NDEBUG
-    #include "logger/logger.h"
-    #define LOG_DEBUG(level, format, ...) \
-        LOG(level, format, ## __VA_ARGS__)
-#else
-    #define LOG_DEBUG(level, format, ...) \
-        do {}while(0);
-#endif
+#include "logger/logger.h"
 
 /**
  * Auxiliary function to read an uint16_t from a config_setting_t, it's read

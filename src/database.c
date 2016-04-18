@@ -240,7 +240,7 @@ int db_update_servers(database_t *db) {
         LOG(LOG_LVL_CRIT, "Error deleting server.");
         return rc;
     }
-    LOG(LOG_LVL_LOG, "%d deleted servers on update.",
+    LOG(LOG_LVL_INFO, "%d deleted servers on update.",
         sqlite3_changes(db->ppDb));
 
     // Then update existing.
@@ -250,7 +250,7 @@ int db_update_servers(database_t *db) {
         return rc;
     }
 
-    LOG(LOG_LVL_LOG, "%d servers were updated with a different public_key.",
+    LOG(LOG_LVL_INFO, "%d servers were updated with a different public_key.",
         sqlite3_changes(db->ppDb));
 
     // And move the new servers from new_server to server.
@@ -259,7 +259,7 @@ int db_update_servers(database_t *db) {
         LOG(LOG_LVL_CRIT, "Error inserting new servers.");
         return rc;
     }
-    LOG(LOG_LVL_LOG, "%d new servers were added.", sqlite3_changes(db->ppDb));
+    LOG(LOG_LVL_INFO, "%d new servers were added.", sqlite3_changes(db->ppDb));
 
 
     rc = sqlite3_my_blocking_exec(db->ppDb, delete_table);

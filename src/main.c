@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "logger/logger.h"
@@ -13,7 +14,7 @@ int main(int argc, char **argv)
     char *char_msg = "My msg";
     bytes_t *signature;
 
-    logger_init_stream(stderr);
+    OPEN_LOG();
     LOG(LOG_LVL_NOTI, "Logger started for %s", argv[0]);
 
     dtc_ctx_t *ctx = dtc_init(NULL, &ret_val);

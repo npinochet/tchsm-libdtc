@@ -234,14 +234,14 @@ static union command_args *unserialize_store_key_ack(struct json_object *in,
         goto err_exit;
 
     if(!json_object_object_get_ex(in, "key_id", &temp)) {
-        LOG(LOG_LVL_CRIT, "Key \"key_id\" does not exists.")
+        LOG(LOG_LVL_CRIT, "Key \"key_id\" does not exists.");
         goto err_exit;
     }
 
     ret->key_id = strdup(json_object_get_string(temp));
 
     if(!json_object_object_get_ex(in, "status", &temp)) {
-        LOG(LOG_LVL_CRIT, "Key \"status\" does not exists.")
+        LOG(LOG_LVL_CRIT, "Key \"status\" does not exists.");
         goto err_exit;
     }
 
@@ -343,7 +343,7 @@ static union command_args *unserialize_delete_key_share_req(
         goto err_exit;
 
     if(!json_object_object_get_ex(in, "key_id", &temp)) {
-        LOG(LOG_LVL_CRIT, "Key \"key_id\" does not exists.")
+        LOG(LOG_LVL_CRIT, "Key \"key_id\" does not exists.");
         goto err_exit;
     }
     ret->key_id = strdup(json_object_get_string(temp));
@@ -408,20 +408,20 @@ static union command_args *unserialize_sign_pub(
         goto err_exit;
 
     if(!json_object_object_get_ex(in, "key_id", &temp)) {
-        LOG(LOG_LVL_CRIT, "Key \"key_id\" does not exists.")
+        LOG(LOG_LVL_CRIT, "Key \"key_id\" does not exists.");
         goto err_exit;
     }
     ret->key_id = strdup(json_object_get_string(temp));
 
     if(!json_object_object_get_ex(in, "signing_id", &temp)) {
-        LOG(LOG_LVL_CRIT, "Key \"signing_id\" does not exists.")
+        LOG(LOG_LVL_CRIT, "Key \"signing_id\" does not exists.");
         free((void *)ret->key_id);
         goto err_exit;
     }
     ret->signing_id = strdup(json_object_get_string(temp));
 
     if(!json_object_object_get_ex(in, "message", &temp)) {
-        LOG(LOG_LVL_CRIT, "Key \"message\" does not exists.")
+        LOG(LOG_LVL_CRIT, "Key \"message\" does not exists.");
         free((void *)ret->key_id);
         free((void *)ret->signing_id);
         goto err_exit;
@@ -463,7 +463,7 @@ static struct json_object *serialize_sign_req(
 
     serialized_signature = tc_serialize_signature_share(sign_req->signature);
     if(!serialized_signature) {
-        LOG(LOG_LVL_ERRO, "Failed serializing signature share")
+        LOG(LOG_LVL_ERRO, "Failed serializing signature share");
         return NULL;
     }
 
@@ -496,13 +496,13 @@ static union command_args *unserialize_sign_req(
     ret->status_code = (uint8_t) json_object_get_int(temp);
 
     if(!json_object_object_get_ex(in, "signing_id", &temp)) {
-        LOG(LOG_LVL_CRIT, "Key \"signing_id\" does not exists.")
+        LOG(LOG_LVL_CRIT, "Key \"signing_id\" does not exists.");
         goto err_exit;
     }
     ret->signing_id = strdup(json_object_get_string(temp));
 
     if(!json_object_object_get_ex(in, "signature", &temp)) {
-        LOG(LOG_LVL_CRIT, "Key \"signature\" does not exists.")
+        LOG(LOG_LVL_CRIT, "Key \"signature\" does not exists.");
         free((void *)ret->signing_id);
         goto err_exit;
     }
@@ -510,7 +510,7 @@ static union command_args *unserialize_sign_req(
     ret->signature = tc_deserialize_signature_share(
                                             json_object_get_string(temp));
     if(!ret->signature) {
-        LOG(LOG_LVL_CRIT, "Unable to deserialize signature share")
+        LOG(LOG_LVL_CRIT, "Unable to deserialize signature share");
         free((void *)ret->signing_id);
         goto err_exit;
     }
@@ -591,7 +591,7 @@ size_t serialize_op_req(const struct op_req *operation_request, char **output){
         goto err_exit;
     }
     if(operation >= OP_MAX) {
-        LOG(LOG_LVL_CRIT, "Operation %d not supported.", operation)
+        LOG(LOG_LVL_CRIT, "Operation %d not supported.", operation);
         goto err_exit;
     }
 
@@ -656,7 +656,7 @@ struct op_req *unserialize_op_req(const char *operation_request, size_t size){
 
     // TODO refactor this into a method?
     if(ret->op >= OP_MAX) {
-        LOG(LOG_LVL_CRIT, "Operation %d not supported.", ret->op)
+        LOG(LOG_LVL_CRIT, "Operation %d not supported.", ret->op);
         goto err_exit;
     }
 

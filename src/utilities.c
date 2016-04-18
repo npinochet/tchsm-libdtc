@@ -17,12 +17,12 @@ int lookup_uint16_conf_element(const config_setting_t *setting,
 
     ret = config_setting_lookup_int64(setting, name, &aux);
     if(ret != CONFIG_TRUE) {
-        LOG_DEBUG(LOG_LVL_CRIT, "%s not found in the configuration.", name);
+        LOG(LOG_LVL_CRIT, "%s not found in the configuration.", name);
         return DTC_ERR_CONFIG_FILE;
     }
     if(aux > UINT16_MAX){
-        LOG_DEBUG(LOG_LVL_CRIT,
-                  "Error getting %s. %d is too big, should fit in uint16_t.",
+        LOG(LOG_LVL_CRIT,
+                  "Error getting %s. %lld is too big, should fit in uint16_t.",
                   name, aux);
         return DTC_ERR_CONFIG_FILE;
     }
@@ -39,12 +39,12 @@ int lookup_string_conf_element(const config_setting_t *setting,
     const char *char_aux;
     ret = config_setting_lookup_string(setting, name, &char_aux);
     if(ret == CONFIG_FALSE) {
-        LOG_DEBUG(LOG_LVL_CRIT, "Error getting %s.", name);
+        LOG(LOG_LVL_CRIT, "Error getting %s.", name);
         return DTC_ERR_CONFIG_FILE;
     }
     *value = strdup(char_aux);
     if(*value == NULL) {
-        LOG_DEBUG(LOG_LVL_CRIT, "Not enough memory to copy %s.", name);
+        LOG(LOG_LVL_CRIT, "Not enough memory to copy %s.", name);
         return DTC_ERR_NOMEM;
     }
     return DTC_ERR_NONE;
