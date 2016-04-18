@@ -80,7 +80,7 @@
     } while(0)
 
 #define GET_MACRO(_0, _1, _2, _3, NAME, ...) NAME
-#define OPEN_LOG0() openlog(NULL, LOG_CONS, LOG_LOCAL0)
+#define OPEN_LOG0() openlog((void *)0, LOG_CONS, LOG_LOCAL0)
 #define OPEN_LOG1 #error "OPEN_LOG receive 0 or 3 arguments, not 1"
 #define OPEN_LOG2 #error "OPEN_LOG receive 0 or 3 arguments, not 2"
 #define OPEN_LOG3(ident, option, facility) openlog(ident, option, facility)
