@@ -203,7 +203,7 @@ int wait_n_connections(void **monitors, int monitors_cant,
         if(rc == 0)
             break;
         if(rc < 0) {
-            LOG(LOG_LVL_CRIT, "Poll failed: %s", zmq_strerror(errno))
+            LOG(LOG_LVL_CRIT, "Poll failed: %s", zmq_strerror(errno));
             break;
         }
         gettimeofday(&now, NULL);
@@ -243,7 +243,7 @@ int wait_n_connections(void **monitors, int monitors_cant,
         address = (char *)malloc(size + 1);
         address[size] = 0;
         memcpy(address, data, size);
-        LOG(LOG_LVL_NOTI, "Connection stablished with %s", address)
+        LOG(LOG_LVL_NOTI, "Connection stablished with %s", address);
         if(uht_add_element(connected[it], address, 1))
             remaining_connections[it]--;
         zmq_msg_close(&msg);
@@ -273,32 +273,32 @@ static int send_router_msg(void *zmq_ctx, const struct op_req *op,
 
     sock = zmq_socket(zmq_ctx, ZMQ_PUSH);
     if(!sock) {
-        LOG(LOG_LVL_ERRO, "zmq_socket:%s", zmq_strerror(errno))
+        LOG(LOG_LVL_ERRO, "zmq_socket:%s", zmq_strerror(errno));
         return 0;
     }
 
     ret = zmq_connect(sock, SEND_ROUTER_INPROC_BINDING);
     if(ret != 0) {
-        LOG(LOG_LVL_ERRO, "zmq_connect:%s", zmq_strerror(errno))
+        LOG(LOG_LVL_ERRO, "zmq_connect:%s", zmq_strerror(errno));
         return 0;
     }
 
     msg_size = serialize_op_req(op, &serialized_msg);
     if(!msg_size) {
-        LOG(LOG_LVL_ERRO, "Serialization at send_router_msg")
+        LOG(LOG_LVL_ERRO, "Serialization at send_router_msg");
         return 0;
     }
 
     ret = zmq_msg_init_data(msg, serialized_msg, msg_size, free_wrapper, free);
     if(ret) {
-        LOG(LOG_LVL_ERRO, "Unable to init msg: %s", zmq_strerror(errno))
+        LOG(LOG_LVL_ERRO, "Unable to init msg: %s", zmq_strerror(errno));
         free(serialized_msg);
         goto err_exit;
     }
 
     ret = s_sendmore(sock, user);
     if(ret == 0) {
-        LOG(LOG_LVL_ERRO, "Not able to send user")
+        LOG(LOG_LVL_ERRO, "Not able to send user");
         zmq_msg_close(msg);
         goto err_exit;
     }
@@ -368,7 +368,7 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err)
     if(*err != DTC_ERR_NONE)
         goto err_exit;
 
-    LOG(LOG_LVL_DEBG, "%s\n", configuration_to_string(&conf))
+    LOG(LOG_LVL_DEBG, "%s\n", configuration_to_string(&conf));
 
     ret->server_id = conf.server_id;
     ret->timeout = conf.timeout;
@@ -406,7 +406,7 @@ void handle_sign_req(void *zmq_ctx, const struct op_req *req, const char *user,
 
     if(sign_req->status_code != 0) {
         LOG(LOG_LVL_ERRO, "Got an error (%u) from %s when signing.",
-                  sign_req->status_code, user)
+                  sign_req->status_code, user);
         return;
     }
 
@@ -414,7 +414,7 @@ void handle_sign_req(void *zmq_ctx, const struct op_req *req, const char *user,
     if(!ht_get_element(expected_msgs, sign_req->signing_id,
                        (void **)&sign_key_data)) {
         ht_unlock_get(expected_msgs);
-        LOG(LOG_LVL_NOTI, "User %s signing an unexpected key.", user)
+        LOG(LOG_LVL_NOTI, "User %s signing an unexpected key.", user);
         return;
     }
 
@@ -423,7 +423,7 @@ void handle_sign_req(void *zmq_ctx, const struct op_req *req, const char *user,
         //The user already signed this signing_id
         ht_unlock_get(expected_msgs);
         //TODO delete this LOG
-        LOG(LOG_LVL_INFO, "User %s already signed this", user)
+        LOG(LOG_LVL_INFO, "User %s already signed this", user);
         return;
     }
 
@@ -434,7 +434,7 @@ void handle_sign_req(void *zmq_ctx, const struct op_req *req, const char *user,
     if(ret != 1) {
         ht_unlock_get(expected_msgs);
         LOG(LOG_LVL_ERRO, "Got an error (%d) verifying a key from %s\n",
-                  ret, user)
+                  ret, user);
         return;
     }
 
@@ -468,20 +468,20 @@ void handle_store_key_req(void *zmq_ctx, const struct op_req *req,
     if(!ht_get_element(expected_msgs, store_key_req->key_id, (void **)&data)) {
         ht_unlock_get(expected_msgs);
         LOG(LOG_LVL_NOTI, "User %s trying to get a not expected key %s.",
-                          user, store_key_req->key_id)
+                          user, store_key_req->key_id);
         return;
     }
 
     if(!uht_add_element(data->users_delivered, user, key_rejected)) {
         ht_unlock_get(expected_msgs);
         LOG(LOG_LVL_CRIT, "User %s trying to get a key more than once ",
-                                user)
+                                user);
         return;
     }
 
     if(get_nowait(data->keys, (void **)&key_share)) {
         ht_unlock_get(expected_msgs);
-        LOG(LOG_LVL_CRIT, "Error, not more keys availables")
+        LOG(LOG_LVL_CRIT, "Error, not more keys availables");
         return;
     }
 
@@ -491,7 +491,7 @@ void handle_store_key_req(void *zmq_ctx, const struct op_req *req,
     store_key_res.key_share = key_share;
 
     if(!send_router_msg(zmq_ctx, &response, user)) {
-        LOG(LOG_LVL_ERRO, "Error sending msg to %s", user)
+        LOG(LOG_LVL_ERRO, "Error sending msg to %s", user);
         put_nowait(data->keys, key_share);
         uht_get_and_delete_element(data->users_delivered, user, NULL);
     }
@@ -503,7 +503,7 @@ void handle_store_key_req(void *zmq_ctx, const struct op_req *req,
 void handle_delete_key_share_req(void *zmq_ctx, const struct op_req *req,
                                  const char *user, Hash_t *expected_msgs)
 {
-    LOG(LOG_LVL_NOTI, "Received a delete confirmation from %s", user)
+    LOG(LOG_LVL_NOTI, "Received a delete confirmation from %s", user);
     return;
 }
 
@@ -512,11 +512,11 @@ static void handle_router_rcvd_msg(void *zmq_ctx, zmq_msg_t *msg, int msg_size,
 {
     struct op_req *req = unserialize_op_req(zmq_msg_data(msg), msg_size);
     if(req == NULL) {
-        LOG(LOG_LVL_ERRO, "Error unserializing msg from %s", user)
+        LOG(LOG_LVL_ERRO, "Error unserializing msg from %s", user);
         return;
     }
 
-    LOG(LOG_LVL_INFO, "Received at router socket:%d %s", req->op, user)
+    LOG(LOG_LVL_INFO, "Received at router socket:%d %s", req->op, user);
 
     if(req->op == OP_STORE_KEY_REQ) {
         handle_store_key_req(zmq_ctx, req, user, tables[OP_STORE_KEY_REQ]);
@@ -528,7 +528,7 @@ static void handle_router_rcvd_msg(void *zmq_ctx, zmq_msg_t *msg, int msg_size,
         handle_sign_req(zmq_ctx, req, user, tables[req->op]);
     }
     else {
-        LOG(LOG_LVL_ERRO, "Not supported operation %d", req->op)
+        LOG(LOG_LVL_ERRO, "Not supported operation %d", req->op);
     }
     delete_op_req(req);
 
@@ -548,14 +548,14 @@ static int start_router_socket_handler(dtc_ctx_t *ctx)
 
     if(inproc_socket == NULL || close_thread_socket == NULL) {
         LOG(LOG_LVL_CRIT, "Not able to create inproc_socket %s",
-                  zmq_strerror(errno))
+                  zmq_strerror(errno));
         return DTC_ERR_ZMQ_ERROR;
     }
 
     ret = zmq_bind(inproc_socket, SEND_ROUTER_INPROC_BINDING);
     if(ret != 0) {
         LOG(LOG_LVL_CRIT, "Not able to bind inproc socket %s",
-                  zmq_strerror(errno))
+                  zmq_strerror(errno));
         zmq_close(close_thread_socket);
         zmq_close(inproc_socket);
         return DTC_ERR_ZMQ_ERROR;
@@ -564,7 +564,7 @@ static int start_router_socket_handler(dtc_ctx_t *ctx)
     ret = zmq_bind(close_thread_socket, CLOSE_SOCKET_ROUTER_THREAD_BINDING);
     if(ret != 0) {
         LOG(LOG_LVL_CRIT, "Not able to bind inproc socket %s",
-                  zmq_strerror(errno))
+                  zmq_strerror(errno));
         zmq_close(close_thread_socket);
         zmq_close(inproc_socket);
         return DTC_ERR_ZMQ_ERROR;
@@ -573,7 +573,7 @@ static int start_router_socket_handler(dtc_ctx_t *ctx)
     data = (struct router_socket_handler_data *)malloc(
                                 sizeof(struct router_socket_handler_data));
     if(data == NULL) {
-        LOG(LOG_LVL_CRIT, "Not enough memory for router_socket_handler")
+        LOG(LOG_LVL_CRIT, "Not enough memory for router_socket_handler");
         zmq_close(inproc_socket);
         zmq_close(close_thread_socket);
         return DTC_ERR_NOMEM;
@@ -589,7 +589,7 @@ static int start_router_socket_handler(dtc_ctx_t *ctx)
 
     ret = pthread_create(&pid, NULL, router_socket_handler, (void *)data);
     if(ret != 0) {
-        LOG(LOG_LVL_CRIT, "Failed creating pthread.")
+        LOG(LOG_LVL_CRIT, "Failed creating pthread.");
         zmq_close(inproc_socket);
         zmq_close(close_thread_socket);
         return DTC_ERR_INTERN;
@@ -621,7 +621,7 @@ void *router_socket_handler(void *data_)
         if(rc == 0) // Exit
             break;
         if(rc < 0) {
-            LOG(LOG_LVL_INFO, "Poll failed:%s", zmq_strerror(errno))
+            LOG(LOG_LVL_INFO, "Poll failed:%s", zmq_strerror(errno));
             break;
         }
         // Router received a msg.
@@ -629,20 +629,20 @@ void *router_socket_handler(void *data_)
 
             user = s_recv(data->router_socket);
             if(user == NULL) {
-                LOG(LOG_LVL_ERRO, "Error getting user.")
+                LOG(LOG_LVL_ERRO, "Error getting user.");
                 continue;
             }
 
             rc = zmq_msg_init(msg);
             if(rc != 0) {
-                LOG(LOG_LVL_ERRO, "Error initializing msg")
+                LOG(LOG_LVL_ERRO, "Error initializing msg");
                 free(user);
                 continue;
             }
 
             rc = zmq_msg_recv(msg, data->router_socket, 0);
             if(rc == -1) {
-                LOG(LOG_LVL_ERRO, "Error receiving msg")
+                LOG(LOG_LVL_ERRO, "Error receiving msg");
                 free(user);
                 zmq_msg_close(msg);
                 continue;
@@ -656,19 +656,19 @@ void *router_socket_handler(void *data_)
         if(items[1].revents) {
             rc = zmq_msg_init(msg);
             if(rc != 0) {
-                LOG(LOG_LVL_ERRO, "Error initializing msg")
+                LOG(LOG_LVL_ERRO, "Error initializing msg");
                 continue;
             }
             rc = zmq_msg_init(out_msg);
             if(rc != 0) {
-                LOG(LOG_LVL_ERRO, "Error initializing msg")
+                LOG(LOG_LVL_ERRO, "Error initializing msg");
                 zmq_close(msg);
                 continue;
             }
 
             user = s_recv(data->inproc_socket);
             if(user == NULL) {
-                LOG(LOG_LVL_ERRO, "Error getting user.")
+                LOG(LOG_LVL_ERRO, "Error getting user.");
                 zmq_close(msg);
                 zmq_close(out_msg);
                 continue;
@@ -676,7 +676,7 @@ void *router_socket_handler(void *data_)
 
             rc = zmq_msg_recv(msg, data->inproc_socket, 0);
             if(rc == -1) {
-                LOG(LOG_LVL_ERRO, "Error receiving msg")
+                LOG(LOG_LVL_ERRO, "Error receiving msg");
                 free(user);
                 zmq_close(msg);
                 zmq_close(out_msg);
@@ -686,7 +686,7 @@ void *router_socket_handler(void *data_)
             rc = zmq_msg_copy(out_msg, msg);
             zmq_msg_close(msg);
             if(rc != 0) {
-                LOG(LOG_LVL_ERRO, "Error copying msg")
+                LOG(LOG_LVL_ERRO, "Error copying msg");
                 free(user);
                 zmq_msg_close(out_msg);
                 continue;
@@ -695,7 +695,7 @@ void *router_socket_handler(void *data_)
             rc = s_sendmore(data->router_socket, user);
             free(user);
             if(rc == -1) {
-                LOG(LOG_LVL_ERRO, "Error sending msg router socket.")
+                LOG(LOG_LVL_ERRO, "Error sending msg router socket.");
                 zmq_msg_close(out_msg);
                 continue;
             }
@@ -713,7 +713,7 @@ void *router_socket_handler(void *data_)
             poll_timeout = 0;
         }
     }
-    LOG(LOG_LVL_INFO, "Closing router_socket_handler thread")
+    LOG(LOG_LVL_INFO, "Closing router_socket_handler thread");
     zmq_close(data->inproc_socket);
     zmq_close(data->close_thread_socket);
     zmq_close(data->router_socket);
@@ -899,7 +899,7 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
     do{
         ret = send_pub_op(ctx, &pub_op);
         if(ret != DTC_ERR_NONE) {
-            LOG(LOG_LVL_CRIT, "Send pub msg error")
+            LOG(LOG_LVL_CRIT, "Send pub msg error");
             free_buffer(signatures_buffer);
             uht_free(sign_key_data.user_already_signed);
             return ret;
@@ -984,13 +984,13 @@ static int send_pub_op(dtc_ctx_t *ctx, struct op_req *pub_op)
 
     msg_size = serialize_op_req(pub_op, &msg_data);
     if(!msg_size) {
-        LOG(LOG_LVL_CRIT, "Serialize error")
+        LOG(LOG_LVL_CRIT, "Serialize error");
         return DTC_ERR_SERIALIZATION;
     }
 
     ret = zmq_msg_init_data(msg, msg_data, msg_size, free_wrapper, free);
     if(ret) {
-        LOG(LOG_LVL_CRIT, "zmq_msg_init_data: %s", zmq_strerror(errno))
+        LOG(LOG_LVL_CRIT, "zmq_msg_init_data: %s", zmq_strerror(errno));
         free(msg_data);
         return DTC_ERR_INTERN;
     }
@@ -999,7 +999,7 @@ static int send_pub_op(dtc_ctx_t *ctx, struct op_req *pub_op)
     ret = zmq_msg_send(msg, ctx->pub_socket, 0);
     pthread_mutex_unlock(&ctx->pub_socket_mutex);
     if(ret == 1) {
-        LOG(LOG_LVL_CRIT, "Error sending the msg: %s", zmq_strerror(errno))
+        LOG(LOG_LVL_CRIT, "Error sending the msg: %s", zmq_strerror(errno));
         zmq_msg_close(msg);
         return DTC_ERR_COMMUNICATION;
     }
@@ -1035,7 +1035,7 @@ static int create_connect_sockets(const struct configuration *conf,
     monitors[1] = zmq_socket(zmq_ctx, ZMQ_PAIR);
     if(!pub_socket || !monitors[0] || !router_socket || !monitors[1]) {
         LOG(LOG_LVL_CRIT, "Unable to create sockets %s.",
-                  zmq_strerror(errno))
+                  zmq_strerror(errno));
         return DTC_ERR_ZMQ_ERROR;
     }
 
@@ -1054,7 +1054,7 @@ static int create_connect_sockets(const struct configuration *conf,
     ret += zmq_connect(monitors[1], ZMQ_MONITOR_ROUTER_SOCKET);
     if(ret != 0) {
         LOG(LOG_LVL_CRIT, "Error connecting monitors sockets:%s",
-                  zmq_strerror(errno))
+                  zmq_strerror(errno));
         ret = DTC_ERR_ZMQ_ERROR;
         goto err_exit;
     }

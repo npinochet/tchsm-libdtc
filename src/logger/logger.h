@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 NIC Chile Research Labs, Francisco Montoto.
+ * Copyright (c) 2016 NIC Chile Research Labs, Francisco Montoto.
  *
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -49,7 +49,6 @@
 #define LOG_LVL_NOTI LOG_NOTICE
 #define LOG_LVL_INFO LOG_INFO
 #define LOG_LVL_DEBG LOG_DEBUG
-#define LOG_LVL_MAX  // Keep at the end!!
 #endif
 
 
@@ -62,8 +61,6 @@
 
 #else  // NO_LOGGING_
 
-#include <stdio.h>
-
 /**
  * Log a message.
  *
@@ -74,22 +71,23 @@
 #define LOG(level, format,...) \
     do { \
         syslog(level, format, ## __VA_ARGS__); \
-    } while(0);
+    } while(0)
 
 #define PERROR_LOG(level, msg, format,...) \
     do { \
-        LOG(level, "%s:%s", msg, strerror(errno)) \
+        LOG(level, "%s:%s", msg, strerror(errno)); \
         LOG(level, format, ## __VA_ARGS__); \
-    } while(0);
+    } while(0)
 
-#define GET_MACRO(_0, _1, _2, NAME, ...) NAME
+#define GET_MACRO(_0, _1, _2, _3, NAME, ...) NAME
 #define OPEN_LOG0() openlog(NULL, LOG_CONS, LOG_LOCAL0)
-#define OPEN_LOG1 #error "OPEN_LOG receive 0 or 2 arguments, not 1"
-#define OPEN_LOG2(ident, option, facility) openlog(ident, option, facility)
+#define OPEN_LOG1 #error "OPEN_LOG receive 0 or 3 arguments, not 1"
+#define OPEN_LOG2 #error "OPEN_LOG receive 0 or 3 arguments, not 2"
+#define OPEN_LOG3(ident, option, facility) openlog(ident, option, facility)
 
 #define OPEN_LOG(...) \
             GET_MACRO(_0, ##__VA_ARGS__, \
-                      OPEN_LOG2, OPEN_LOG1, OPEN_LOG0)(__VA_ARGS__)
+                      OPEN_LOG3, OPEN_LOG2, OPEN_LOG1, OPEN_LOG0)(__VA_ARGS__)
 #endif  //NO_LOGGING_
 //  The following MACROS will do all the non logging action even if NO_LOGGING_
 //  set.
@@ -106,15 +104,15 @@
  **/
 #define PERROR_RET(val, msg) \
     do { \
-            LOG(LOG_LVL_ERRO, "%s:%s", msg, strerror(errno)) \
+            LOG(LOG_LVL_ERRO, "%s:%s", msg, strerror(errno)); \
             return val; \
-    } while(0);
+    } while(0)
 
 #define LOG_EXIT(format, ...) \
     do {\
-        LOG(LOG_LVL_CRIT, format, ## __VA_ARGS__) \
+        LOG(LOG_LVL_CRIT, format, ## __VA_ARGS__); \
         exit(1); \
-    } while(0);
+    } while(0)
 
 
 /**
@@ -128,14 +126,14 @@
 #define EXIT_ON_FALSE(val, format, ...) \
     do { \
         if (!val) {\
-            LOG_EXIT(format, ## __VA_ARGS__) \
+            LOG_EXIT(format, ## __VA_ARGS__); \
         } \
-    } while(0);
+    } while(0)
 
 #define PERROR_AND_EXIT_ON_FALSE(val, msg, format, ...) \
     do{ \
         if (!val) { \
-            LOG(LOG_LVL_ERRO, "%s: %s", msg, strerror(errno)) \
-            EXIT_ON_FALSE(val, format, ## __VA_ARGS__) \
+            LOG(LOG_LVL_ERRO, "%s: %s", msg, strerror(errno)); \
+            EXIT_ON_FALSE(val, format, ## __VA_ARGS__); \
         } \
-    } while(0);
+    } while(0)

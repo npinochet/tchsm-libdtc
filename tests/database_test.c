@@ -18,7 +18,7 @@
 #include "../src/logger/logger.h"
 
 #define START_MY_TEST(test_name) START_TEST(test_name)\
-                                 LOG(LOG_LVL_INFO, "Testing: %s.", #test_name)
+                                 LOG(LOG_LVL_INFO, "Testing: %s.", #test_name);
 
 #define DT_TCLIB_TEST_DIRECTORY "/tmp/dt_tclib_test/"
 #define FILENAME_BUFF_SIZE 200
