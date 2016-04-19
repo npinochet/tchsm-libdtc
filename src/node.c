@@ -613,7 +613,7 @@ void classify_and_handle_operation(database_t *db_conn, void *outgoing_socket,
             break;
     }
     if(i == TOTAL_SUPPORTED_OPS) {
-        LOG(LOG_LVL_ERRO, "Operation %" PRIu16 " not supported.", op->op);
+        LOG(LOG_LVL_ERRO, "Operation %" PRIu32 " not supported.", op->op);
         return;
     }
     LOG(LOG_LVL_DEBG, "Got an op %u", supported_operations[i]);

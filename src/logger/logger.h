@@ -125,14 +125,14 @@
  **/
 #define EXIT_ON_FALSE(val, format, ...) \
     do { \
-        if (!val) {\
+        if (!(val)) {\
             LOG_EXIT(format, ## __VA_ARGS__); \
         } \
     } while(0)
 
 #define PERROR_AND_EXIT_ON_FALSE(val, msg, format, ...) \
     do{ \
-        if (!val) { \
+        if (!(val)) { \
             LOG(LOG_LVL_ERRO, "%s: %s", msg, strerror(errno)); \
             EXIT_ON_FALSE(val, format, ## __VA_ARGS__); \
         } \
