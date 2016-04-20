@@ -69,7 +69,7 @@ typedef struct dtc_ctx dtc_ctx_t;
  * @param err If it's specified will be set with a proper error by the time the
  *      function returns. Otherwise you can pass NULL.
  */
-dtc_ctx_t *dtc_init_from_struct(struct dtc_configuration *conf, int *err);
+dtc_ctx_t *dtc_init_from_struct(const struct dtc_configuration *conf, int *err);
 
 /**
  * Allocate and create a new context, the returned context is ready to perform

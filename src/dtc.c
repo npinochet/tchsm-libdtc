@@ -306,20 +306,9 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
                                   key_metainfo_t **key_metainfo,
                                   key_share_t **key_shares);
 
-dtc_ctx_t *dtc_init(const char *config_file, int *err)
+dtc_ctx_t *init_from_struct(const struct dtc_configuration *conf, int *err)
 {
-    struct dtc_configuration conf;
     int error;
-    char *default_conf_file = "./config";
-
-    if(!config_file)
-        config_file = default_conf_file;
-
-    conf.nodes_cant = 0;
-    conf.nodes = NULL;
-    conf.public_key = NULL;
-    conf.private_key = NULL;
-    conf.server_id = NULL;
 
     if(!err)
         err = &error;
@@ -334,39 +323,46 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err)
 
     if(pthread_mutex_init(&ret->pub_socket_mutex, NULL) != 0) {
         *err = DTC_ERR_INTERN;
-        goto err_exit;
+        return NULL;
     }
 
-    *err = read_configuration_file(config_file, &conf);
+    ret->server_id = conf->server_id;
+    ret->timeout = conf->timeout;
+
+    *err = create_connect_sockets(conf, ret);
     if(*err != DTC_ERR_NONE)
-        goto err_exit;
-
-    LOG(LOG_LVL_DEBG, "%s\n", configuration_to_string(&conf));
-
-    ret->server_id = conf.server_id;
-    ret->timeout = conf.timeout;
-
-    *err = create_connect_sockets(&conf, ret);
-    if(*err != DTC_ERR_NONE)
-        goto err_exit;
+        return NULL;
 
     if(DTC_ERR_NONE != start_router_socket_handler(ret)) {
         *err = DTC_ERR_INTERN;
         zmq_close(ret->pub_socket);
         zmq_close(ret->router_socket);
         zmq_ctx_term(ret->zmq_ctx);
-        goto err_exit;
+        return NULL;
     }
 
-    conf.server_id = NULL;
-    free_conf(&conf);
+    return ret;
+}
+
+dtc_ctx_t *dtc_init(const char *config_file, int *err)
+{
+    int error;
+    struct dtc_configuration conf;
+    dtc_ctx_t *ret;
+
+    if(!err)
+        err = &error;
+
+    *err = read_configuration_file(config_file, &conf);
+    if(*err != DTC_ERR_NONE)
+        return NULL;
+    LOG(LOG_LVL_DEBG, "%s\n", configuration_to_string(&conf));
+
+    ret = init_from_struct(&conf, err);
+
+    memset((void *) &conf, 0, sizeof(struct dtc_configuration));
 
     return ret;
-
-err_exit:
-    free(ret);
-    free_conf(&conf);
-    return NULL;
 }
 
 void handle_sign_req(void *zmq_ctx, const struct op_req *req, const char *user,
