@@ -48,31 +48,6 @@ struct dtc_ctx {
     Hash_t *expected_msgs[OP_MAX];
 };
 
-struct node_info {
-    char *ip;
-    uint16_t sub_port;
-    uint16_t dealer_port;
-
-    // Communication key.
-    char *public_key;
-};
-
-struct configuration {
-    // Path to the configuration file.
-    const char *configuration_file;
-
-    uint16_t timeout;
-
-    uint32_t nodes_cant;
-    struct node_info *nodes;
-
-    char *server_id;
-
-    // Curve Security
-    char *public_key;
-    char *private_key;
-};
-
 struct router_socket_handler_data {
     void *zmq_ctx;
     void *router_socket;
@@ -106,10 +81,10 @@ static void free_nodes(unsigned int nodes_cant, struct node_info *node)
     free(node);
 }
 
-/* Release the memory allocated within the configuration struct, do not
+/* Release the memory allocated within the dtc_configuration struct, do not
  * release the struct.
  */
-static void free_conf(struct configuration *conf)
+static void free_conf(struct dtc_configuration *conf)
 {
     unsigned i;
     if(!conf)
@@ -137,8 +112,8 @@ void divide_timeout(uint16_t ctx_timeout, unsigned retries,
     *timeout_usecs = (timeout - *timeout_secs) * 1000000; // Secs to microsecs
 }
 
-/* Return a human readable version of the configuration */
-static char* configuration_to_string(const struct configuration *conf)
+/* Return a human readable version of the dtc_configuration */
+static char* configuration_to_string(const struct dtc_configuration *conf)
 {
     /* Be aware, this memory is shared among the aplication, this function
      * should be called just once or the memory of the previous calls might get
@@ -149,10 +124,9 @@ static char* configuration_to_string(const struct configuration *conf)
     unsigned int i;
 
     space_left -= snprintf(buff, space_left,
-                           "Configuration File:\t%s\nTimeout:\t\t%" PRIu16 "\n"
+                           "Timeout:\t\t%" PRIu16 "\n"
                            "Server id:\t\t%s\nNodes:",
-                           conf->configuration_file, conf->timeout,
-                           conf->server_id);
+                           conf->timeout, conf->server_id);
 
     for(i = 0; i < conf->nodes_cant; i++) {
         space_left -= snprintf(
@@ -320,9 +294,10 @@ err_exit:
 static int set_client_socket_security(void *socket,
                                       const char *client_secret_key,
                                       const char *client_public_key);
-static int create_connect_sockets(const struct configuration *conf,
+static int create_connect_sockets(const struct dtc_configuration *conf,
                                   struct dtc_ctx *ctx);
-static int read_configuration_file(struct configuration *conf);
+static int read_configuration_file(const char *conf_file_path,
+                                   struct dtc_configuration *conf);
 static int send_pub_op(dtc_ctx_t *ctx, struct op_req *pub_op);
 static int start_router_socket_handler(dtc_ctx_t *ctx);
 static int close_router_thread(void *zmq_ctx);
@@ -333,14 +308,12 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
 
 dtc_ctx_t *dtc_init(const char *config_file, int *err)
 {
-    struct configuration conf;
+    struct dtc_configuration conf;
     int error;
     char *default_conf_file = "./config";
 
-    if(config_file)
-        conf.configuration_file = config_file;
-    else
-        conf.configuration_file = default_conf_file;
+    if(!config_file)
+        config_file = default_conf_file;
 
     conf.nodes_cant = 0;
     conf.nodes = NULL;
@@ -364,7 +337,7 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err)
         goto err_exit;
     }
 
-    *err = read_configuration_file(&conf);
+    *err = read_configuration_file(config_file, &conf);
     if(*err != DTC_ERR_NONE)
         goto err_exit;
 
@@ -1007,7 +980,7 @@ static int send_pub_op(dtc_ctx_t *ctx, struct op_req *pub_op)
     return DTC_ERR_NONE;
 }
 
-static int create_connect_sockets(const struct configuration *conf,
+static int create_connect_sockets(const struct dtc_configuration *conf,
                                   struct dtc_ctx *ctx)
 {
     void *pub_socket, *router_socket;
@@ -1191,7 +1164,8 @@ static int set_client_socket_security(void *socket,
  * @return DTC_ERR_NONE on success, a proper error code on error.
  *
  **/
-static int read_configuration_file(struct configuration *conf)
+static int read_configuration_file(const char *conf_file_path,
+                                   struct dtc_configuration *conf)
 {
     config_t cfg;
     config_setting_t *root, *master, *nodes, *element;
@@ -1201,7 +1175,7 @@ static int read_configuration_file(struct configuration *conf)
 
     config_init(&cfg);
 
-    if(!config_read_file(&cfg, conf->configuration_file)) {
+    if(!config_read_file(&cfg, conf_file_path)) {
         LOG(LOG_LVL_CRIT, "%s:%d - %s\n", config_error_file(&cfg),
             config_error_line(&cfg), config_error_text(&cfg));
         goto err_exit;
@@ -1211,7 +1185,7 @@ static int read_configuration_file(struct configuration *conf)
     master = config_setting_get_member(root, "master");
     if(!master){
         LOG(LOG_LVL_CRIT, "master was not found in the conf file %s",
-            conf->configuration_file);
+            conf_file_path);
         goto err_exit;
     }
 
