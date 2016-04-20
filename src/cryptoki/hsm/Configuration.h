@@ -22,6 +22,8 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 #include <string>
 #include <vector>
 
+#include <dtc.h>
+
 namespace hsm
 {
 class Configuration
@@ -35,7 +37,7 @@ public:
     Configuration() = default;
     Configuration ( std::string configurationPath );
     Configuration ( Configuration const & ) = default;
-    Configuration ( Configuration && ) = default;    
+    Configuration ( Configuration && ) = default;
     Configuration & operator=(Configuration const &) = default;
     Configuration & operator=(Configuration &&) = default;
 
@@ -51,6 +53,10 @@ private:
     std::vector<SlotConf> slotConf_;
     std::string dtcConfigPath_;
     std::string databasePath_;
+    std::vector<node_info> nodes_;
+    //SecureVector<byte> privateKey_;
+    //std::string
+
     uint16_t nodesNumber_;
     uint16_t threshold_;
 

@@ -27,6 +27,15 @@ find_package(Boost 1.53 REQUIRED)
 find_package(Sqlite3 REQUIRED)
 find_package(Botan REQUIRED)
 find_package(TCLib REQUIRED)
+find_package(LibConfig REQUIRED)
+
+include_directories(${CONFIG_INCLUDE_DIRS})
+
+if (LIBCONFIG_FOUND)
+    include_directories(${LIBCONFIG_INCLUDE_DIRS})
+else()
+    message(FATAL_ERROR "Cannot find LibConfig library")
+endif()
 
 if (Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
@@ -76,7 +85,7 @@ set(HSM_SRC
 
 
 add_library(pkcs11 SHARED pkcs11.cpp ${HSM_SRC})
-target_link_libraries(pkcs11 dtc ${Boost_LIBRARIES} ${SQLITE3_LIBRARIES} ${BOTAN_LIBRARIES})
+target_link_libraries(pkcs11 dtc ${Boost_LIBRARIES} ${SQLITE3_LIBRARIES} ${BOTAN_LIBRARIES} ${LIBCONFIG_LIBRARIES})
 
 
 
