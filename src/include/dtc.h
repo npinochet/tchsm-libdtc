@@ -26,12 +26,11 @@ enum {
 
 struct node_info {
     // Ip of the node to connect.
-    char *ip;
+    const char *ip;
     // Port of the SUBSCRIBER port at the node.
     uint16_t sub_port;
     // Port of the DEALER port at the node.
     uint16_t dealer_port;
-
     // Public key of the node.
     char *public_key;
 };
@@ -45,15 +44,15 @@ struct dtc_configuration {
     // reachable.
     uint32_t nodes_cant;
     // Each node configuration.
-    struct node_info *nodes;
+    const struct node_info *nodes;
 
     // Id of this instance, keys at the nodes will be linked using this id.
-    char *instance_id;
+    const char *instance_id;
 
     // Curve Security, do NOT use the default keys, you should create your own
     // pair, zmq provides an executable to do it.
-    char *public_key;
-    char *private_key;
+    const char *public_key;
+    const char *private_key;
 };
 
 struct dtc_ctx;

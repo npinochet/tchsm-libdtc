@@ -19,10 +19,10 @@
 
 struct master_info {
     // master_id.
-    char *id;
+    const char *id;
 
     // master public key.
-    char *public_key;
+    const char *public_key;
 };
 
 struct configuration {
@@ -30,10 +30,10 @@ struct configuration {
     char *configuration_file;
 
     // Interface to open the connection.
-    char *interface;
+    const char *interface;
 
     // Path to the file with the database.
-    char *database;
+    const char *database;
 
     // Port number to bind the SUB socket in.
     uint16_t sub_port;
@@ -45,9 +45,9 @@ struct configuration {
 
     struct master_info *masters;
 
-    char *public_key;
+    const char *public_key;
 
-    char *private_key;
+    const char *private_key;
 };
 
 struct communication_objects {
@@ -76,7 +76,7 @@ struct zap_handler_data {
     void *socket;
 
     // Path to the database file.
-    char *database;
+    const char *database;
 };
 
 /* Utils */
@@ -115,7 +115,8 @@ static struct communication_objects *create_and_bind_sockets(
         const struct configuration *conf);
 static int node_loop(struct communication_objects *communication_objs,
                      const char * database_path);
-static int set_server_socket_security(void *socket, char *server_secret_key);
+static int set_server_socket_security(void *socket,
+                                      const char *server_secret_key);
 static void zap_handler (void *handler);
 
 /**
@@ -742,7 +743,7 @@ static struct communication_objects *init_node(
     return comm_objs;
 }
 
-static void start_zap_security(void *zmq_ctx, char *database)
+static void start_zap_security(void *zmq_ctx, const char *database)
 {
     int ret_value;
     struct zap_handler_data *zap_data =
@@ -874,7 +875,8 @@ static struct communication_objects *create_and_bind_sockets(
  *   0 on success, a non zero value indicates that the socket is not secure.
  */
 // TODO const the key
-static int set_server_socket_security(void *socket, char *server_secret_key)
+static int set_server_socket_security(void *socket,
+                                      const char *server_secret_key)
 {
     int rc = 0, as_server = 1;
     rc = zmq_setsockopt(socket, ZMQ_CURVE_SERVER, &as_server,

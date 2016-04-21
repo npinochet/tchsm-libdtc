@@ -30,7 +30,7 @@ const uint16_t DEFAULT_TIMEOUT = 10;
 
 struct dtc_ctx {
 
-    char *instance_id;
+    const char *instance_id;
 
     // Timeout for the operations.
     uint16_t timeout;
@@ -76,7 +76,7 @@ static void free_nodes(unsigned int nodes_cant, struct node_info *node)
         return;
     for(i = 0; i < nodes_cant; i++) {
         if(node[i].ip)
-            free(node[i].ip);
+            free((void *)node[i].ip);
     }
     free(node);
 }
@@ -92,16 +92,16 @@ static void free_conf(struct dtc_configuration *conf)
     for(i = 0; i < conf->nodes_cant; i++)
         if(conf->nodes[i].public_key)
             free(conf->nodes[i].public_key);
-    free_nodes(conf->nodes_cant, conf->nodes);
+    free_nodes(conf->nodes_cant, (struct node_info *)conf->nodes);
     conf->nodes_cant = 0;
     if(conf->public_key)
-        free(conf->public_key);
+        free((void *)conf->public_key);
     if(conf->private_key) {
-        memset(conf->private_key, '\0', strlen(conf->private_key));
-        free(conf->private_key);
+        memset((void *)conf->private_key, '\0', strlen(conf->private_key));
+        free((void *)conf->private_key);
     }
     if(conf->instance_id)
-        free(conf->instance_id);
+        free((void *)conf->instance_id);
 }
 
 void divide_timeout(uint16_t ctx_timeout, unsigned retries,
@@ -920,7 +920,7 @@ int dtc_destroy(dtc_ctx_t *ctx)
     for(i = 0; i < OP_MAX; i++)
         ht_free(ctx->expected_msgs[i]);
 
-    free(ctx->instance_id);
+    free((void *)ctx->instance_id);
     free(ctx);
 
     return DTC_ERR_NONE;
@@ -1226,29 +1226,29 @@ static int read_configuration_file(const char *conf_file_path,
     }
 
     for(i = 0; i < nodes_cant; i++) {
-        conf->nodes[i].ip = NULL;
+        memset((void *)&conf->nodes[i], 0, sizeof(struct node_info));
         element = config_setting_get_elem(nodes, i);
         if(element == NULL) {
             LOG(LOG_LVL_CRIT, "Error getting element %u from nodes.", i);
             goto err_exit;
         }
 
-        ret = lookup_string_conf_element(element, "ip", &conf->nodes[i].ip);
+        ret = lookup_string_conf_element(element, "ip", (const char **)&conf->nodes[i].ip);
         if(ret != DTC_ERR_NONE)
             goto err_exit;
 
         ret = lookup_string_conf_element(element, "public_key",
-                                         &conf->nodes[i].public_key);
+                                         (const char **)&conf->nodes[i].public_key);
         if(ret != DTC_ERR_NONE)
             goto err_exit;
 
         ret = lookup_uint16_conf_element(element, "sub_port",
-                                         &conf->nodes[i].sub_port);
+                                         (uint16_t *)&conf->nodes[i].sub_port);
         if(ret != DTC_ERR_NONE)
             goto err_exit;
 
         ret = lookup_uint16_conf_element(element, "dealer_port",
-                                         &conf->nodes[i].dealer_port);
+                                         (uint16_t *)&conf->nodes[i].dealer_port);
         if(ret != DTC_ERR_NONE)
             goto err_exit;
 
@@ -1259,7 +1259,7 @@ static int read_configuration_file(const char *conf_file_path,
     return DTC_ERR_NONE;
 
 err_exit:
-    free_nodes(nodes_cant, conf->nodes);
+    free_nodes(nodes_cant, (struct node_info *)conf->nodes);
     nodes_cant = 0;
     config_destroy(&cfg);
     return ret;
