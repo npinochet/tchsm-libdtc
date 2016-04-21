@@ -30,7 +30,7 @@ const uint16_t DEFAULT_TIMEOUT = 10;
 
 struct dtc_ctx {
 
-    char *server_id;
+    char *instance_id;
 
     // Timeout for the operations.
     uint16_t timeout;
@@ -100,8 +100,8 @@ static void free_conf(struct dtc_configuration *conf)
         memset(conf->private_key, '\0', strlen(conf->private_key));
         free(conf->private_key);
     }
-    if(conf->server_id)
-        free(conf->server_id);
+    if(conf->instance_id)
+        free(conf->instance_id);
 }
 
 void divide_timeout(uint16_t ctx_timeout, unsigned retries,
@@ -126,7 +126,7 @@ static char* configuration_to_string(const struct dtc_configuration *conf)
     space_left -= snprintf(buff, space_left,
                            "Timeout:\t\t%" PRIu16 "\n"
                            "Server id:\t\t%s\nNodes:",
-                           conf->timeout, conf->server_id);
+                           conf->timeout, conf->instance_id);
 
     for(i = 0; i < conf->nodes_cant; i++) {
         space_left -= snprintf(
@@ -326,7 +326,7 @@ dtc_ctx_t *init_from_struct(const struct dtc_configuration *conf, int *err)
         return NULL;
     }
 
-    ret->server_id = conf->server_id;
+    ret->instance_id = conf->instance_id;
     ret->timeout = conf->timeout;
 
     *err = create_connect_sockets(conf, ret);
@@ -732,7 +732,7 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
 
     pub_op.version = 1;
     pub_op.op = OP_STORE_KEY_PUB;
-    store_key_pub.server_id = ctx->server_id;
+    store_key_pub.instance_id = ctx->instance_id;
     store_key_pub.key_id = key_id;
     pub_op.args = args;
 
@@ -920,7 +920,7 @@ int dtc_destroy(dtc_ctx_t *ctx)
     for(i = 0; i < OP_MAX; i++)
         ht_free(ctx->expected_msgs[i]);
 
-    free(ctx->server_id);
+    free(ctx->instance_id);
     free(ctx);
 
     return DTC_ERR_NONE;
@@ -1037,8 +1037,8 @@ static int create_connect_sockets(const struct dtc_configuration *conf,
                                      conf->public_key);
     if(ret)
         goto err_exit;
-    ret_val = zmq_setsockopt(router_socket, ZMQ_IDENTITY, ctx->server_id,
-                             strlen(ctx->server_id));
+    ret_val = zmq_setsockopt(router_socket, ZMQ_IDENTITY, ctx->instance_id,
+                             strlen(ctx->instance_id));
     if(ret_val != 0) {
         ret = DTC_ERR_ZMQ_CURVE;
         goto err_exit;
@@ -1213,7 +1213,7 @@ static int read_configuration_file(const char *conf_file_path,
     if(ret != DTC_ERR_NONE)
         goto err_exit;
 
-    ret = lookup_string_conf_element(master, "server_id", &conf->server_id);
+    ret = lookup_string_conf_element(master, "instance_id", &conf->instance_id);
     if(ret != DTC_ERR_NONE)
         goto err_exit;
 

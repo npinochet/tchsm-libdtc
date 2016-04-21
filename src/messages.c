@@ -23,8 +23,8 @@ static struct json_object *serialize_store_key_pub(
 
     ret = json_object_new_object();
 
-    json_object_object_add(ret, "server_id",
-                            json_object_new_string(store_key_pub->server_id));
+    json_object_object_add(ret, "instance_id",
+                            json_object_new_string(store_key_pub->instance_id));
     json_object_object_add(ret, "key_id",
                            json_object_new_string(store_key_pub->key_id));
     return ret;
@@ -40,11 +40,11 @@ static union command_args *unserialize_store_key_pub(struct json_object *in,
     if(version != 1)
         goto err_exit;
 
-    if(!json_object_object_get_ex(in, "server_id", &temp)){
-        LOG(LOG_LVL_CRIT, "Key \"server_id\" does not exists.");
+    if(!json_object_object_get_ex(in, "instance_id", &temp)){
+        LOG(LOG_LVL_CRIT, "Key \"instance_id\" does not exists.");
         goto err_exit;
     }
-    ret->server_id = strdup(json_object_get_string(temp));
+    ret->instance_id = strdup(json_object_get_string(temp));
 
     if(!json_object_object_get_ex(in, "key_id", &temp)) {
         LOG(LOG_LVL_CRIT, "Key \"key_id\" does not exists.");
@@ -61,7 +61,7 @@ err_exit:
 
 int delete_store_key_pub(union command_args *data) {
     struct store_key_pub *store_key_pub = &data->store_key_pub;
-    free((void *)store_key_pub->server_id);
+    free((void *)store_key_pub->instance_id);
     free((void *)store_key_pub->key_id);
     free(data);
     return 0;

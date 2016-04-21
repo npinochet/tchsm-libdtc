@@ -48,8 +48,7 @@ struct dtc_configuration {
     struct node_info *nodes;
 
     // Id of this instance, keys at the nodes will be linked using this id.
-    // TODO instance id?
-    char *server_id;
+    char *instance_id;
 
     // Curve Security, do NOT use the default keys, you should create your own
     // pair, zmq provides an executable to do it.
