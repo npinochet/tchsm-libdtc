@@ -19,59 +19,101 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 #include <cerrno>
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
 
-#include <libconfig.h++>
+#include <libconfig.h>
 
 #include "Configuration.h"
 #include "TcbError.h"
 #include "pkcs11.h"
 
 using namespace hsm;
-using namespace libconfig;
+
+static uint16_t lookupUint16Value(config_setting_t *setting, const char *name) {
+    long long aux_int64; //
+    if(CONFIG_FALSE == config_setting_lookup_int64(setting, name, &aux_int64)) {
+        throw std::invalid_argument::invalid_argument(name);
+    }
+    if(aux_int64 > UINT16_MAX) {
+        throw std::overflow_error(name);
+    }
+    return static_cast<uint16_t>(aux_int64);
+}
 
 Configuration::Configuration(std::string configurationPath) {
     this->Configuration::load(configurationPath);
 }
 
 void Configuration::load(std::string configurationPath) {
-    Config cfg;
-    Setting cryptoki_settings, dtc_settings;
+    // As libdtc uses the C bindings for libconfig, we don't want to
+    // introduce the c++ bindings as another dependency. That's why this method
+    // is written using the C API of LibConfig.
+    config_t cfg;
+    config_setting_t *root;
+    config_setting_t *cryptoki, *dtc, *slots, *slot;
+    const char *aux_char;
+    int64_t aux_int64;
 
-    try {
-        cfg.readFile(configurationPath, root);
-    } catch(const FileIOException &e) {
-        throw TcbError(configurationPath, "I/O error while reading config file",
+    config_init(&cfg);
+
+    if(CONFIG_TRUE == config_read_file(&cfg, configurationPath.c_str())) {
+        config_destroy(&cfg);
+        throw TcbError(configurationPath, "I/O error at config file",
                        CKR_GENERAL_ERROR);
-    } catch(const ParseException &pex) {
-        std::stringstream ss;
-        ss << "Parse error at " << pex.getFile() << ":" << pex.getLine()
-           << " - " << pex.getError();
-        throw TcbError(ss.str(), CKR_GENERAL_ERROR);
     }
 
-    try {
-        cryptoki_settings = cfg.lookup("cryptoki");
-        dtc_settings = cfg.lookup("libdtc");
-
-    } catch(const SettingNotFoundException &snf) {
-        throw TcbError(configurationPath, "TODO", CKR_GENERAL_ERROR);
+    root = config_root_setting(&cfg);
+    dtc = config_setting_get_member(root, "libdtc");
+    cryptoki = config_setting_get_member(root, "cryptoki");
+    if(!cryptoki || !dtc) {
+        config_destroy(&cfg);
+        throw TcbError(configurationPath,
+                       "cryptoki or libdtc configuration not found",
+                       CKR_GENERAL_ERROR);
     }
 
+    if(CONFIG_FALSE == config_setting_lookup_string(cryptoki, "dtc_config_path",
+                                                    &aux_char)) {
+        config_destroy(&cfg);
+        throw TcbError(configurationPath, "dtc_config_path error",
+                       CKR_GENERAL_ERROR);
+    }
+    dtcConfigPath_ = std::string(aux_char);
+
+    if(CONFIG_FALSE == config_setting_lookup_string(cryptoki, "database_path",
+                                                     &aux_char)) {
+        config_destroy(&cfg);
+        throw TcbError(configurationPath, "database_path error",
+                       CKR_GENERAL_ERROR);
+    }
+    databasePath_ = std::string(aux_char);
+
     try {
-        nodesNumber_ = cryptoki_settings["nodes_number"];
-        threshold_ = cryptoki_settings["threshold"];
-        dtcConfigPath_ = cryptoki_settings["dtc_config_path"];
+        nodesNumber_ = lookupUint16Value(cryptoki, "nodes_number");
+        threshold_ = lookupUint16Value(cryptoki, "threshold");
+    } catch(const std::invalid_argument &e) {
+        config_destroy(&cfg);
+        throw TcbError(e.what(), "Not found.", CKR_GENERAL_ERROR);
+    } catch(const std::overflow_error &e) {
+        config_destroy(&cfg);
+        throw TcbError(e.what(), "Not a valid value, must fit on uint16_t.",
+                       CKR_GENERAL_ERROR);
+    }
 
-        const Setting slots = cryptoki_settings['slots'];
-        int num_slots = slots.getLength();
+    if(!(slots = config_setting_get_member(cryptoki, "slots"))) {
+        config_destroy(&cfg);
+        throw TcbError("slots", "Not found", CKR_GENERAL_ERROR);
+    }
 
-        for(int i = 0; i < num_slots; i++) {
-            const Setting &slot = slots[i];
-            slotConf_.push_back({slot["label"]});
+    for(int i = 0; i < config_setting_length(slots); i++) {
+        slot = config_setting_get_elem(slots, i);
+        if(CONFIG_FALSE == config_setting_lookup_string(slot, "label",
+                                                        &aux_char)) {
+            config_destroy(&cfg);
+            throw TcbError(std::to_string(i), "Not label at slot",
+                            CKR_GENERAL_ERROR);
         }
-
-
-
+        slotConf_.push_back({std::string(aux_char)});
     }
 
     /*
@@ -97,7 +139,7 @@ std::vector<Configuration::SlotConf> const &Configuration::getSlotConf() const {
 }
 
 const std::string &Configuration::getDtcConfigPath() const {
-    return std::string("ASDASD");
+    return dtcConfigPath_;
 }
 
 const uint16_t Configuration::getNodesNumber() const {
@@ -109,6 +151,7 @@ const uint16_t Configuration::getThreshold() const {
 }
 
 const std::string &Configuration::getDatabasePath() const {
+    fprintf(stderr, "Database:%s\n", databasePath_.c_str());
     return databasePath_;
 }
 
