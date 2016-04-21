@@ -32,7 +32,7 @@ using namespace hsm;
 static uint16_t lookupUint16Value(config_setting_t *setting, const char *name) {
     long long aux_int64; //
     if(CONFIG_FALSE == config_setting_lookup_int64(setting, name, &aux_int64)) {
-        throw std::invalid_argument::invalid_argument(name);
+        throw std::invalid_argument(name);
     }
     if(aux_int64 > UINT16_MAX) {
         throw std::overflow_error(name);
@@ -111,7 +111,7 @@ void Configuration::load(std::string configurationPath) {
                                                         &aux_char)) {
             config_destroy(&cfg);
             throw TcbError(std::to_string(i), "Not label at slot",
-                            CKR_GENERAL_ERROR);
+                           CKR_GENERAL_ERROR);
         }
         slotConf_.push_back({std::string(aux_char)});
     }
