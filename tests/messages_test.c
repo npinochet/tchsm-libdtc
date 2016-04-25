@@ -4,7 +4,7 @@
 
 #include "../src/messages.h"
 
-char *TEST_SERVER_ID = "server_01";
+char *TEST_INSTANCE_ID = "instance_01";
 char *TEST_KEY_ID = "key_id_01";
 
 START_TEST(serialize_op_req_store_key_pub_simple) {
@@ -13,7 +13,7 @@ START_TEST(serialize_op_req_store_key_pub_simple) {
     struct op_req operation_request;
 
     union command_args com_args;
-    com_args.store_key_pub.server_id = TEST_SERVER_ID;
+    com_args.store_key_pub.instance_id = TEST_INSTANCE_ID;
     com_args.store_key_pub.key_id = TEST_KEY_ID;
     operation_request.version = 1;
     operation_request.op = OP_STORE_KEY_PUB;
@@ -45,7 +45,7 @@ START_TEST(serialize_unserialize_op_req) {
     struct op_req *unserialized_op_req;
     union command_args com_args;
 
-    com_args.store_key_pub.server_id = TEST_SERVER_ID;
+    com_args.store_key_pub.instance_id = TEST_INSTANCE_ID;
     com_args.store_key_pub.key_id = TEST_KEY_ID;
     operation_request.version = 1;
     operation_request.op = OP_STORE_KEY_PUB;
@@ -58,8 +58,8 @@ START_TEST(serialize_unserialize_op_req) {
 
     ck_assert(unserialized_op_req->version == operation_request.version);
     ck_assert(unserialized_op_req->op == operation_request.op);
-    ck_assert_str_eq(unserialized_op_req->args->store_key_pub.server_id,
-                     com_args.store_key_pub.server_id);
+    ck_assert_str_eq(unserialized_op_req->args->store_key_pub.instance_id,
+                     com_args.store_key_pub.instance_id);
 
     ck_assert_str_eq(unserialized_op_req->args->store_key_pub.key_id,
                      com_args.store_key_pub.key_id);

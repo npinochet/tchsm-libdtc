@@ -19,10 +19,10 @@
 
 struct master_info {
     // master_id.
-    char *id;
+    const char *id;
 
     // master public key.
-    char *public_key;
+    const char *public_key;
 };
 
 struct configuration {
@@ -30,10 +30,10 @@ struct configuration {
     char *configuration_file;
 
     // Interface to open the connection.
-    char *interface;
+    const char *interface;
 
     // Path to the file with the database.
-    char *database;
+    const char *database;
 
     // Port number to bind the SUB socket in.
     uint16_t sub_port;
@@ -45,9 +45,9 @@ struct configuration {
 
     struct master_info *masters;
 
-    char *public_key;
+    const char *public_key;
 
-    char *private_key;
+    const char *private_key;
 };
 
 struct communication_objects {
@@ -76,7 +76,7 @@ struct zap_handler_data {
     void *socket;
 
     // Path to the database file.
-    char *database;
+    const char *database;
 };
 
 /* Utils */
@@ -115,7 +115,8 @@ static struct communication_objects *create_and_bind_sockets(
         const struct configuration *conf);
 static int node_loop(struct communication_objects *communication_objs,
                      const char * database_path);
-static int set_server_socket_security(void *socket, char *server_secret_key);
+static int set_server_socket_security(void *socket,
+                                      const char *server_secret_key);
 static void zap_handler (void *handler);
 
 /**
@@ -139,12 +140,12 @@ static void update_database(struct configuration *conf)
     EXIT_ON_FALSE(db_conn, "Error trying to connect to the database.");
 
     for(i = 0; i < conf->cant_masters; i++) {
-        if(db_add_new_server(db_conn, conf->masters[i].id,
+        if(db_add_new_instance(db_conn, conf->masters[i].id,
                              conf->masters[i].public_key))
-            LOG_EXIT("Error adding new server.");
+            LOG_EXIT("Error adding new instance.");
     }
 
-    EXIT_ON_FALSE(db_update_servers(db_conn) == 0, "Update servers failed.");
+    EXIT_ON_FALSE(db_update_instances(db_conn) == 0, "Update instances failed.");
     db_close_and_free_connection(db_conn);
 }
 
@@ -311,33 +312,33 @@ static int read_configuration(int argc, char *argv[],
     return 0;
 }
 
-static int auth_pub(database_t *conn, const char *server_id,
+static int auth_pub(database_t *conn, const char *instance_id,
                     const char *auth_user)
 {
     char *output;
     int ret;
-    if(DTC_ERR_NONE != db_get_pub_token(conn, server_id, &output))
+    if(DTC_ERR_NONE != db_get_pub_token(conn, instance_id, &output))
         return 0;
     ret = strcmp(output, auth_user) == 0;
     free(output);
     return ret;
 }
 
-static int auth_router(database_t *conn, const char *server_id,
+static int auth_router(database_t *conn, const char *instance_id,
                        const char *auth_user)
 {
     char *output;
     int ret;
-    if(DTC_ERR_NONE != db_get_router_token(conn, server_id, &output))
+    if(DTC_ERR_NONE != db_get_router_token(conn, instance_id, &output))
         return 0;
     ret = strcmp(output, auth_user) == 0;
     free(output);
     return ret;
 }
 
-// Serialize and send an op to router, will write the server id as first frame
+// Serialize and send an op to router, will write the instance id as first frame
 // of the message, that's used to select the destination in a router socket.
-static int send_op(const char *server_id, const struct op_req *op, void *socket)
+static int send_op(const char *instance_id, const struct op_req *op, void *socket)
 {
     size_t msg_size = 0;
     char *msg_data = NULL;
@@ -358,7 +359,7 @@ static int send_op(const char *server_id, const struct op_req *op, void *socket)
         return DTC_ERR_INTERN;
     }
 
-    ret = s_sendmore(socket, server_id);
+    ret = s_sendmore(socket, instance_id);
     if(ret == 0) {
         zmq_msg_close(msg);
         return DTC_ERR_COMMUNICATION;
@@ -369,7 +370,7 @@ static int send_op(const char *server_id, const struct op_req *op, void *socket)
         zmq_msg_close(msg);
         return DTC_ERR_COMMUNICATION;
     }
-    LOG(LOG_LVL_DEBG, "Sending %d to %s\n", op->op, server_id);
+    LOG(LOG_LVL_DEBG, "Sending %d to %s\n", op->op, instance_id);
     return DTC_ERR_NONE;
 }
 
@@ -377,25 +378,25 @@ static int send_op(const char *server_id, const struct op_req *op, void *socket)
  * Store the key received in the database.
  *
  * @param db_conn Active connection with the database.
- * @param server_id Id of the server the key is asociated with.
+ * @param instance_id Id of the instance the key is asociated with.
  * @param res_op Communication struct with the key.
  */
-void store_key(database_t *db_conn, const char *server_id,
+void store_key(database_t *db_conn, const char *instance_id,
                struct store_key_res *res_op)
 {
     int rc;
     char *key_metainfo = tc_serialize_key_metainfo(res_op->meta_info);
     char *key_share = tc_serialize_key_share(res_op->key_share);
     rc = db_store_key(
-            db_conn, server_id, res_op->key_id, key_metainfo, key_share);
+            db_conn, instance_id, res_op->key_id, key_metainfo, key_share);
     free(key_metainfo);
     free(key_share);
     if(rc == DTC_ERR_NONE)
-        LOG(LOG_LVL_INFO, "Successfully stored key %s from server %s.",
-            res_op->key_id, server_id);
+        LOG(LOG_LVL_INFO, "Successfully stored key %s from instance %s.",
+            res_op->key_id, instance_id);
     else
-        LOG(LOG_LVL_NOTI, "Error adding key %s from server %s.", res_op->key_id,
-            server_id);
+        LOG(LOG_LVL_NOTI, "Error adding key %s from instance %s.", res_op->key_id,
+            instance_id);
     return;
 }
 
@@ -428,7 +429,7 @@ void handle_delete_key_share_pub(database_t *db_conn, void *router_socket,
     delete_key_share.key_id = key_id;
     delete_key_share.deleted = db_delete_key(db_conn, auth_user, key_id);
     if(delete_key_share.deleted == DTC_ERR_NONE)
-        LOG(LOG_LVL_INFO, "Successfully deleted key %s from server %s",
+        LOG(LOG_LVL_INFO, "Successfully deleted key %s from instance %s",
             key_id, auth_user);
 
     //TODO Use send_op
@@ -469,7 +470,7 @@ void handle_delete_key_share_pub(database_t *db_conn, void *router_socket,
     return;
 }
 
-const signature_share_t *sign(database_t *db_conn, const char *server_id,
+const signature_share_t *sign(database_t *db_conn, const char *instance_id,
                               const char *key_id, const bytes_t *msg_bytes)
 {
     signature_share_t *signature;
@@ -479,10 +480,10 @@ const signature_share_t *sign(database_t *db_conn, const char *server_id,
     key_metainfo_t *k_metainfo;
     int ret;
 
-    ret = db_get_key(db_conn, server_id, key_id, &key_share, &key_metainfo);
+    ret = db_get_key(db_conn, instance_id, key_id, &key_share, &key_metainfo);
     if(ret != DTC_ERR_NONE) {
-        LOG(LOG_LVL_NOTI, "Error (%d) getting keys for server %s and key %s.",
-            ret, server_id, key_id);
+        LOG(LOG_LVL_NOTI, "Error (%d) getting keys for instance %s and key %s.",
+            ret, instance_id, key_id);
         return NULL;
     }
 
@@ -553,7 +554,7 @@ void handle_sign_pub(database_t *db_conn, void *router_socket,
 void handle_store_key_pub(database_t *db_conn, void *outgoing_socket,
                           struct op_req *pub_op, const char *auth_user)
 {
-    const char *server_id;
+    const char *instance_id;
     struct op_req req_op;
     struct store_key_req store_key_req;
     int ret;
@@ -563,12 +564,12 @@ void handle_store_key_pub(database_t *db_conn, void *outgoing_socket,
         return;
     }
 
-    server_id = pub_op->args->store_key_pub.server_id;
-    ret = strcmp(auth_user, pub_op->args->store_key_pub.server_id);
-    printf("%s %s\n", server_id, auth_user);
+    instance_id = pub_op->args->store_key_pub.instance_id;
+    ret = strcmp(auth_user, pub_op->args->store_key_pub.instance_id);
+    printf("%s %s\n", instance_id, auth_user);
     if(ret) {
         LOG(LOG_LVL_NOTI, "Unauthorized user (%s) dropped at store_key_pub.",
-            server_id);
+            instance_id);
         return;
     }
     store_key_req.key_id = pub_op->args->store_key_pub.key_id;
@@ -578,9 +579,9 @@ void handle_store_key_pub(database_t *db_conn, void *outgoing_socket,
     req_op.args = (union command_args *)&store_key_req;
 
     store_key_req.key_id_accepted =
-            db_is_key_id_available(db_conn, server_id, store_key_req.key_id);
+            db_is_key_id_available(db_conn, instance_id, store_key_req.key_id);
 
-    ret = send_op(server_id, &req_op, outgoing_socket);
+    ret = send_op(instance_id, &req_op, outgoing_socket);
     if(ret != DTC_ERR_NONE) {
         LOG(LOG_LVL_CRIT, "Error replying from handle_store_key_pub: %s",
             dtc_get_error_msg(ret));
@@ -742,7 +743,7 @@ static struct communication_objects *init_node(
     return comm_objs;
 }
 
-static void start_zap_security(void *zmq_ctx, char *database)
+static void start_zap_security(void *zmq_ctx, const char *database)
 {
     int ret_value;
     struct zap_handler_data *zap_data =
@@ -874,7 +875,8 @@ static struct communication_objects *create_and_bind_sockets(
  *   0 on success, a non zero value indicates that the socket is not secure.
  */
 // TODO const the key
-static int set_server_socket_security(void *socket, char *server_secret_key)
+static int set_server_socket_security(void *socket,
+                                      const char *server_secret_key)
 {
     int rc = 0, as_server = 1;
     rc = zmq_setsockopt(socket, ZMQ_CURVE_SERVER, &as_server,
@@ -897,7 +899,7 @@ static int node_loop(struct communication_objects *communication_objs,
     zmq_msg_t *rcvd_msg = &rcvd_msg_, *out_msg = &out_msg_;
     const unsigned poll_items = 3;
     const char *auth_user_id;
-    char *server_id, *identity;
+    char *instance_id, *identity;
     int rc = 0;
     void *out_sock;
 
@@ -948,10 +950,10 @@ static int node_loop(struct communication_objects *communication_objs,
                 continue;
             }
 
-            rc = db_get_server_id_from_pub_token(db_conn, auth_user_id,
-                                                 &server_id);
+            rc = db_get_instance_id_from_pub_token(db_conn, auth_user_id,
+                                                   &instance_id);
             if(rc != DTC_ERR_NONE) {
-                LOG(LOG_LVL_ERRO, "Error retrieving server_id from DB: %d",
+                LOG(LOG_LVL_ERRO, "Error retrieving instance_id from DB: %d",
                     rc);
                 zmq_msg_close(rcvd_msg);
                 continue;
@@ -982,29 +984,29 @@ static int node_loop(struct communication_objects *communication_objs,
                 continue;
             }
 
-            rc = db_get_server_id_from_router_token(db_conn, auth_user_id,
-                                                    &server_id);
+            rc = db_get_instance_id_from_router_token(db_conn, auth_user_id,
+                                                      &instance_id);
             if(rc != DTC_ERR_NONE) {
-                LOG(LOG_LVL_ERRO, "Error retrieving server_id from DB: %d",
+                LOG(LOG_LVL_ERRO, "Error retrieving instance_id from DB: %d",
                     rc);
                 zmq_msg_close(rcvd_msg);
                 free(identity);
                 continue;
             }
 
-            if(strcmp(identity, server_id) != 0) {
+            if(strcmp(identity, instance_id) != 0) {
                 LOG(LOG_LVL_ERRO,
-                    "Auth server_id does not match router identity");
+                    "Auth instance_id does not match router identity");
                 zmq_msg_close(rcvd_msg);
                 free(identity);
-                free(server_id);
+                free(instance_id);
                 continue;
             }
         }
 
         else if(items[2].revents) { // Probably else is enough.
-            server_id = s_recv(communication_objs->outgoing_socket);
-            if(server_id == NULL) {
+            instance_id = s_recv(communication_objs->outgoing_socket);
+            if(instance_id == NULL) {
                 LOG(LOG_LVL_ERRO, "Error reading frame 1 of outgoing_socket");
                 zmq_msg_close(rcvd_msg);
                 continue;
@@ -1013,7 +1015,7 @@ static int node_loop(struct communication_objects *communication_objs,
             rc = zmq_msg_recv(rcvd_msg, communication_objs->outgoing_socket, 0);
             if(rc == -1) {
                 zmq_msg_close(rcvd_msg);
-                free(server_id);
+                free(instance_id);
                 LOG_EXIT("Error reading second frame of pull socket");
             }
 
@@ -1023,7 +1025,7 @@ static int node_loop(struct communication_objects *communication_objs,
         if(rc == -1) {
             LOG(LOG_LVL_CRIT, "MSG init failed:%s", zmq_strerror(errno));
             zmq_msg_close(rcvd_msg);
-            free(server_id);
+            free(instance_id);
             continue; //TODO or break?
         }
         //
@@ -1037,27 +1039,27 @@ static int node_loop(struct communication_objects *communication_objs,
         if(rc != 0) {
             LOG(LOG_LVL_ERRO, "Unable to copy the msg:%s",
                 zmq_strerror(errno));
-            free(server_id);
+            free(instance_id);
             continue;
         }
 
-        rc = s_sendmore(out_sock, server_id);
+        rc = s_sendmore(out_sock, instance_id);
         if(rc == -1) {
             LOG(LOG_LVL_ERRO, "Unable to send msg: %s", zmq_strerror(errno));
             zmq_msg_close(out_msg);
-            free(server_id);
+            free(instance_id);
             continue;
         }
 
         rc = zmq_msg_send(out_msg, out_sock, 0);
         if(rc == -1) {
             zmq_msg_close(out_msg);
-            free(server_id);
+            free(instance_id);
             // TODO Not sure how to handle an error sending second part
             // of multipart msg, investigate it and remove the EXIT.
             LOG_EXIT("Unable to send msg: %s", zmq_strerror(errno));
         }
-        free(server_id);
+        free(instance_id);
 
     }
 

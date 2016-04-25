@@ -24,8 +24,50 @@ enum {
     DTC_ERR_MAX_ // Keep at the end!!
 };
 
+struct node_info {
+    // Ip of the node to connect.
+    const char *ip;
+    // Port of the SUBSCRIBER port at the node.
+    uint16_t sub_port;
+    // Port of the DEALER port at the node.
+    uint16_t dealer_port;
+    // Public key of the node.
+    char *public_key;
+};
+
+struct dtc_configuration {
+
+    // Secs before failing an operation with the nodes.
+    uint16_t timeout;
+
+    // Nodes to connect to. When the key is generated all of the should be
+    // reachable.
+    uint32_t nodes_cant;
+    // Each node configuration.
+    const struct node_info *nodes;
+
+    // Id of this instance, keys at the nodes will be linked using this id.
+    const char *instance_id;
+
+    // Curve Security, do NOT use the default keys, you should create your own
+    // pair, zmq provides an executable to do it.
+    const char *public_key;
+    const char *private_key;
+};
+
 struct dtc_ctx;
 typedef struct dtc_ctx dtc_ctx_t;
+
+
+/**
+ * Allocate and create a new context, the returned context is ready to perform
+ * operations.
+ *
+ * @param config Struct with the desired configuration.
+ * @param err If it's specified will be set with a proper error by the time the
+ *      function returns. Otherwise you can pass NULL.
+ */
+dtc_ctx_t *dtc_init_from_struct(const struct dtc_configuration *conf, int *err);
 
 /**
  * Allocate and create a new context, the returned context is ready to perform

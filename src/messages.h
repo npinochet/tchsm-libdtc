@@ -21,7 +21,7 @@ enum OP {
 };
 
 struct store_key_pub{
-    const char *server_id;
+    const char *instance_id;
     const char *key_id;
 };
 

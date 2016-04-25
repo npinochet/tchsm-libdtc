@@ -52,27 +52,27 @@ static void close_and_remove_db(char *file, database_t *db) {
 }
 
 // Testing only, do not use it, it allows SQL injection.
-static int insert_server(sqlite3 *db, const char *server_key,
-                         const char *server_id, const char *token) {
+static int insert_instance(sqlite3 *db, const char *instance_key,
+                         const char *instance_id, const char *token) {
     char *err;
     size_t ret;
     int rc;
-    char *sql_template  = "INSERT INTO server (public_key, server_id, "
+    char *sql_template  = "INSERT INTO instance (public_key, instance_id, "
                                               "router_token, pub_token)\n"
                           "    VALUES('%s', '%s', '%s', '%s');";
     size_t len = strlen(sql_template) +
-                 strlen(server_key) +
-                 strlen(server_id) +
+                 strlen(instance_key) +
+                 strlen(instance_id) +
                  strlen(token) +
                  strlen(token) + 1; // %s will be replaced, this isn't needed.
     char *sql_query = (char *) malloc(sizeof(char) * len);
-    ret = snprintf(sql_query, len, sql_template, server_key, server_id, token,
+    ret = snprintf(sql_query, len, sql_template, instance_key, instance_id, token,
                    token);
     ck_assert(ret < len);
 
     rc = sqlite3_exec(db, sql_query, NULL, NULL, &err);
     if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "Error inserting server: %s\n%s", err, sql_query);
+        LOG(LOG_LVL_ERRO, "Error inserting instance: %s\n%s", err, sql_query);
         sqlite3_free(err);
         free(sql_query);
         return DTC_ERR_DATABASE;
@@ -146,21 +146,21 @@ END_TEST
 
 START_MY_TEST(test_get_new_token_empty_db) {
     char *result;
-    const char *server_p_key = "a98478teqgdkg129*&&%^$%#$";
+    const char *instance_p_key = "a98478teqgdkg129*&&%^$%#$";
     char *database_file = get_filepath("test_get_new_token_empty_db");
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
     database_t *conn = db_init_connection(database_file);
     ck_assert(conn != NULL);
     ck_assert_int_eq(-1,
-                     db_get_new_router_token(conn, server_p_key, &result));
+                     db_get_new_router_token(conn, instance_p_key, &result));
 
     close_and_remove_db(database_file, conn);
 }
 END_TEST
 
-START_MY_TEST(test_get_new_token_server_not_found) {
-    char *database_file = get_filepath("test_get_new_token_server_not_found");
+START_MY_TEST(test_get_new_token_instance_not_found) {
+    char *database_file = get_filepath("test_get_new_token_instance_not_found");
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
@@ -179,9 +179,9 @@ END_TEST
 START_MY_TEST(test_get_new_token_consistency) {
 
     char *database_file = get_filepath("test_get_new_token_consistency");
-    char *server_key = "1(*A&S^DYHJA]&TYHJ@aklut*&@2128ha";
+    char *instance_key = "1(*A&S^DYHJA]&TYHJ@aklut*&@2128ha";
     char *old_token = "no_token";
-    char *server_id = "server_id";
+    char *instance_id = "instance_id";
     char *current_token = NULL;
     char *result;
     sqlite3 *ppDb;
@@ -194,17 +194,17 @@ START_MY_TEST(test_get_new_token_consistency) {
     ck_assert_int_eq(DTC_ERR_NONE, create_tables(conn));
 
     ck_assert_int_eq(DTC_ERR_NONE,
-                     insert_server(ppDb, server_key, server_id, old_token));
+                     insert_instance(ppDb, instance_key, instance_id, old_token));
     ck_assert_int_eq(DTC_ERR_NONE,
-                     insert_server(ppDb, "other_key", "rand_id", "token"));
+                     insert_instance(ppDb, "other_key", "rand_id", "token"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
-                    db_get_new_router_token(conn, server_key, &result));
+                    db_get_new_router_token(conn, instance_key, &result));
     free((void *)result);
 
     // Check changed token.
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_get_router_token(conn, server_id, &current_token));
+                     db_get_router_token(conn, instance_id, &current_token));
     ck_assert_str_ne(old_token, current_token);
     ck_assert_str_ne("token", current_token);
     free(current_token);
@@ -246,7 +246,7 @@ START_MY_TEST(test_db_is_an_authorized_key) {
 
     ck_assert_int_eq(DTC_ERR_NONE, create_tables(conn));
     ck_assert_int_eq(DTC_ERR_NONE,
-                     insert_server(ppDb, "valid_key", "id", "token"));
+                     insert_instance(ppDb, "valid_key", "id", "token"));
 
     ck_assert_int_eq(1, db_is_an_authorized_key(conn, "valid_key"));
     ck_assert_int_eq(0, db_is_an_authorized_key(conn, "not_valid_key"));
@@ -255,8 +255,8 @@ START_MY_TEST(test_db_is_an_authorized_key) {
 }
 END_TEST
 
-START_MY_TEST(test_db_add_new_server) {
-    char *database_file = get_filepath("test_db_add_new_server");
+START_MY_TEST(test_db_add_new_instance) {
+    char *database_file = get_filepath("test_db_add_new_instance");
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
@@ -265,35 +265,35 @@ START_MY_TEST(test_db_add_new_server) {
 
     ck_assert_int_eq(DTC_ERR_NONE, create_tables(conn));
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_add_new_server(conn, "id_1", "key_1"));
+                     db_add_new_instance(conn, "id_1", "key_1"));
     ck_assert_int_eq(DTC_ERR_DATABASE,
-                     db_add_new_server(conn, "id_1", "key_3"));
+                     db_add_new_instance(conn, "id_1", "key_3"));
     ck_assert_int_eq(DTC_ERR_DATABASE,
-                     db_add_new_server(conn, "id_n", "key_1"));
+                     db_add_new_instance(conn, "id_n", "key_1"));
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_add_new_server(conn, "id_n", "key_n"));
+                     db_add_new_instance(conn, "id_n", "key_n"));
 
     close_and_remove_db(database_file, conn);
 }
 END_TEST
 
-START_MY_TEST(test_update_servers_empty_db) {
-    char *database_file = get_filepath("test_update_server_empty_tables");
+START_MY_TEST(test_update_instances_empty_db) {
+    char *database_file = get_filepath("test_update_instance_empty_tables");
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
     database_t *conn = db_init_connection(database_file);
     ck_assert(conn != NULL);
 
-    ck_assert_int_eq(DTC_ERR_NONE, db_update_servers(conn));
+    ck_assert_int_eq(DTC_ERR_NONE, db_update_instances(conn));
 
     close_and_remove_db(database_file, conn);
 }
 END_TEST
 
-START_MY_TEST(test_update_servers_no_old_servers) {
+START_MY_TEST(test_update_instances_no_old_instances) {
     char *aux;
-    char *database_file = get_filepath("test_update_servers_no_old_servers");
+    char *database_file = get_filepath("test_update_instances_no_old_instances");
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
@@ -301,30 +301,30 @@ START_MY_TEST(test_update_servers_no_old_servers) {
     ck_assert(conn != NULL);
 
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_add_new_server(conn, "id", "key"));
+                     db_add_new_instance(conn, "id", "key"));
     ck_assert_int_eq(DTC_ERR_DATABASE,
-                     db_add_new_server(conn, "id", "key_2"));
+                     db_add_new_instance(conn, "id", "key_2"));
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_add_new_server(conn, "id_2", "key_2"));
+                     db_add_new_instance(conn, "id_2", "key_2"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_update_servers(conn));
+                     db_update_instances(conn));
 
 
-    ck_assert_int_eq(DTC_ERR_NONE, db_get_server_id(conn, "key", &aux));
+    ck_assert_int_eq(DTC_ERR_NONE, db_get_instance_id(conn, "key", &aux));
     ck_assert_str_eq("id", aux);
     free(aux);
 
-    ck_assert_int_eq(DTC_ERR_NONE, db_get_server_id(conn, "key_2", &aux));
+    ck_assert_int_eq(DTC_ERR_NONE, db_get_instance_id(conn, "key_2", &aux));
     ck_assert_str_eq("id_2", aux);
     free(aux);
     close_and_remove_db(database_file, conn);
 }
 END_TEST
 
-START_MY_TEST(test_update_servers_update_only) {
+START_MY_TEST(test_update_instances_update_only) {
     char *aux;
-    char *database_file = get_filepath("test_update_servers_update_only");
+    char *database_file = get_filepath("test_update_instances_update_only");
     sqlite3 *ppDb;
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
@@ -333,16 +333,16 @@ START_MY_TEST(test_update_servers_update_only) {
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
-    ck_assert_int_eq(0, insert_server(ppDb, "key", "id", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key", "id", "token"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_add_new_server(conn, "id", "key2"));
+                     db_add_new_instance(conn, "id", "key2"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_update_servers(conn));
+                     db_update_instances(conn));
 
 
-    ck_assert_int_eq(DTC_ERR_NONE, db_get_server_id(conn, "key2", &aux));
+    ck_assert_int_eq(DTC_ERR_NONE, db_get_instance_id(conn, "key2", &aux));
     ck_assert_str_eq("id", aux);
     free(aux);
 
@@ -350,9 +350,9 @@ START_MY_TEST(test_update_servers_update_only) {
 }
 END_TEST
 
-START_MY_TEST(test_update_servers_replace) {
+START_MY_TEST(test_update_instances_replace) {
     char *aux;
-    char *database_file = get_filepath("test_update_servers_replace");
+    char *database_file = get_filepath("test_update_instances_replace");
     sqlite3 *ppDb;
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
@@ -361,16 +361,16 @@ START_MY_TEST(test_update_servers_replace) {
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
-    ck_assert_int_eq(0, insert_server(ppDb, "key", "id", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key", "id", "token"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_add_new_server(conn, "id2", "key"));
+                     db_add_new_instance(conn, "id2", "key"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_update_servers(conn));
+                     db_update_instances(conn));
 
 
-    ck_assert_int_eq(DTC_ERR_NONE, db_get_server_id(conn, "key", &aux));
+    ck_assert_int_eq(DTC_ERR_NONE, db_get_instance_id(conn, "key", &aux));
     ck_assert_str_eq("id2", aux);
     free(aux);
 
@@ -378,9 +378,9 @@ START_MY_TEST(test_update_servers_replace) {
 }
 END_TEST
 
-START_MY_TEST(test_update_servers_nothing_to_update) {
+START_MY_TEST(test_update_instances_nothing_to_update) {
     char *aux;
-    char *database_file = get_filepath("test_update_servers_nothing_to_update");
+    char *database_file = get_filepath("test_update_instances_nothing_to_update");
     sqlite3 *ppDb;
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
@@ -389,25 +389,25 @@ START_MY_TEST(test_update_servers_nothing_to_update) {
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
-    ck_assert_int_eq(0, insert_server(ppDb, "key", "id", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key", "id", "token"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_add_new_server(conn, "id", "key"));
+                     db_add_new_instance(conn, "id", "key"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_update_servers(conn));
+                     db_update_instances(conn));
 
 
-    ck_assert_int_eq(DTC_ERR_NONE, db_get_server_id(conn, "key", &aux));
+    ck_assert_int_eq(DTC_ERR_NONE, db_get_instance_id(conn, "key", &aux));
     ck_assert_str_eq("id", aux);
     free(aux);
 
     close_and_remove_db(database_file, conn);
 }
 END_TEST
-START_MY_TEST(test_update_servers_delete_only) {
+START_MY_TEST(test_update_instances_delete_only) {
     char *aux;
-    char *database_file = get_filepath("test_update_servers_delete_only");
+    char *database_file = get_filepath("test_update_instances_delete_only");
     sqlite3 *ppDb;
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
@@ -416,23 +416,23 @@ START_MY_TEST(test_update_servers_delete_only) {
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
-    ck_assert_int_eq(0, insert_server(ppDb, "key", "id", "token"));
-    ck_assert_int_eq(0, insert_server(ppDb, "key2", "id2", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key", "id", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key2", "id2", "token"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_update_servers(conn));
+                     db_update_instances(conn));
 
 
-    ck_assert_int_eq(-1, db_get_server_id(conn, "key", &aux));
-    ck_assert_int_eq(-1, db_get_server_id(conn, "key2", &aux));
+    ck_assert_int_eq(-1, db_get_instance_id(conn, "key", &aux));
+    ck_assert_int_eq(-1, db_get_instance_id(conn, "key2", &aux));
 
     close_and_remove_db(database_file, conn);
 }
 END_TEST
 
-START_MY_TEST(test_update_servers_mix_operations) {
+START_MY_TEST(test_update_instances_mix_operations) {
     char *aux;
-    char *database_file = get_filepath("test_update_servers_just_update");
+    char *database_file = get_filepath("test_update_instances_just_update");
     sqlite3 *ppDb;
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
@@ -441,27 +441,27 @@ START_MY_TEST(test_update_servers_mix_operations) {
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
-    ck_assert_int_eq(0, insert_server(ppDb, "key", "id", "token"));
-    ck_assert_int_eq(0, insert_server(ppDb, "key2", "id2", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key", "id", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key2", "id2", "token"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_add_new_server(conn, "id2", "updatedkey2"));
+                     db_add_new_instance(conn, "id2", "updatedkey2"));
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_add_new_server(conn, "id3", "key3"));
+                     db_add_new_instance(conn, "id3", "key3"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_update_servers(conn));
+                     db_update_instances(conn));
 
 
-    ck_assert_int_eq(-1, db_get_server_id(conn, "key", &aux));
-    ck_assert_int_eq(-1, db_get_server_id(conn, "key2", &aux));
+    ck_assert_int_eq(-1, db_get_instance_id(conn, "key", &aux));
+    ck_assert_int_eq(-1, db_get_instance_id(conn, "key2", &aux));
 
 
-    ck_assert_int_eq(DTC_ERR_NONE, db_get_server_id(conn, "updatedkey2", &aux));
+    ck_assert_int_eq(DTC_ERR_NONE, db_get_instance_id(conn, "updatedkey2", &aux));
     ck_assert_str_eq("id2", aux);
     free(aux);
 
-    ck_assert_int_eq(DTC_ERR_NONE, db_get_server_id(conn, "key3", &aux));
+    ck_assert_int_eq(DTC_ERR_NONE, db_get_instance_id(conn, "key3", &aux));
     ck_assert_str_eq("id3", aux);
     free(aux);
 
@@ -501,14 +501,14 @@ START_MY_TEST(test_store_key_simple) {
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
-    ck_assert_int_eq(0, insert_server(ppDb, "key", "s_id", "token"));
-    //ck_assert_int_eq(0, insert_server(conn->ppDb, "key2", "s_id2", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key", "s_id", "token"));
+    //ck_assert_int_eq(0, insert_instance(conn->ppDb, "key2", "s_id2", "token"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
                      db_store_key(conn, "s_id", "k_id", keys[0], keys[1]));
     rc = sqlite3_exec(ppDb, "SELECT key_metainfo, key_share\n"
                             "FROM key\n"
-                            "WHERE server_id = 's_id' and "
+                            "WHERE instance_id = 's_id' and "
                                   "key_id = 'k_id';\n",
                       get_keys_callback, &keys, NULL);
 
@@ -518,7 +518,7 @@ START_MY_TEST(test_store_key_simple) {
 
     keys[0] = "key_metainfo_";
     keys[1] = "k_share_";
-    ck_assert_int_eq(0, insert_server(ppDb, "key2", "s2_id", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key2", "s2_id", "token"));
     ck_assert_int_eq(DTC_ERR_NONE,
                      db_store_key(conn, "s2_id", "k_id", keys[0], keys[1]));
     ck_assert_int_ne(DTC_ERR_NONE,
@@ -548,7 +548,7 @@ START_MY_TEST(test_get_key) {
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
-    ck_assert_int_eq(0, insert_server(ppDb, "key" ,"s_id", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key" ,"s_id", "token"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
                      db_store_key(conn, "s_id", "k_1", keys[0][0], keys[0][1]));
@@ -579,7 +579,7 @@ START_TEST(test_delete_key_simple) {
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
-    ck_assert_int_eq(0, insert_server(ppDb, "key", "s_id", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key", "s_id", "token"));
 
     ck_assert_int_eq(-1,
                      db_delete_key(conn, "s_id", "k_id"));
@@ -601,24 +601,24 @@ void add_test_cases(Suite *s) {
 
     tcase_add_test(test_case, test_create_db);
     tcase_add_test(test_case, test_create_tables);
-    //printf("%p\n%p\n", test_get_new_token_empty_db, test_get_new_token_server_not_found);
+    //printf("%p\n%p\n", test_get_new_token_empty_db, test_get_new_token_instance_not_found);
 
     tcase_add_test(test_case, test_get_new_token_empty_db);
-    tcase_add_test(test_case, test_get_new_token_server_not_found);
+    tcase_add_test(test_case, test_get_new_token_instance_not_found);
     tcase_add_test(test_case, test_get_new_token_consistency);
 
     tcase_add_test(test_case, test_db_is_an_authorized_key_empty_db);
     tcase_add_test(test_case, test_db_is_an_authorized_key);
 
-    tcase_add_test(test_case, test_db_add_new_server);
+    tcase_add_test(test_case, test_db_add_new_instance);
 
-    tcase_add_test(test_case, test_update_servers_empty_db);
-    tcase_add_test(test_case, test_update_servers_no_old_servers);
-    tcase_add_test(test_case, test_update_servers_update_only);
-    tcase_add_test(test_case, test_update_servers_nothing_to_update);
-    tcase_add_test(test_case, test_update_servers_replace);
-    tcase_add_test(test_case, test_update_servers_delete_only);
-    tcase_add_test(test_case, test_update_servers_mix_operations);
+    tcase_add_test(test_case, test_update_instances_empty_db);
+    tcase_add_test(test_case, test_update_instances_no_old_instances);
+    tcase_add_test(test_case, test_update_instances_update_only);
+    tcase_add_test(test_case, test_update_instances_nothing_to_update);
+    tcase_add_test(test_case, test_update_instances_replace);
+    tcase_add_test(test_case, test_update_instances_delete_only);
+    tcase_add_test(test_case, test_update_instances_mix_operations);
 
     tcase_add_test(test_case, test_store_key_simple);
 

@@ -32,7 +32,7 @@ int lookup_uint16_conf_element(const config_setting_t *setting,
 }
 
 int lookup_string_conf_element(const config_setting_t *setting,
-                               const char *name, char **value)
+                               const char *name, const char **value)
 {
 
     int ret;

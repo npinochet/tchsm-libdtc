@@ -1,9 +1,0 @@
-{
-  "database_path" : "tchsm.db",
-  "dtc_config_path" : "dtc_config.conf",
-  "nodes_number": 3,
-  "threshold": 2 ,
-  "slots" : [
-    { "label": "TCBHSM" }
-  ]
-}

@@ -58,9 +58,9 @@ int create_tables(database_t *db) {
     unsigned int i;
     int rc;
     // TODO public_key also have to be NOT NULL
-    const char *server_stmt =
-                    "CREATE TABLE IF NOT EXISTS server (\n"\
-                    "   server_id       TEXT PRIMARY KEY,\n"\
+    const char *instance_stmt =
+                    "CREATE TABLE IF NOT EXISTS instance (\n"\
+                    "   instance_id       TEXT PRIMARY KEY,\n"\
                     "   public_key      TEXT UNIQUE,\n"\
                     "   router_token    TEXT,\n"\
                     "   pub_token       TEXT\n"\
@@ -68,23 +68,23 @@ int create_tables(database_t *db) {
     const char *key_stmt =
                     "CREATE TABLE IF NOT EXISTS key (\n"
                     "   key_id          TEXT NOT NULL,\n"
-                    "   server_id       TEXT NOT NULL,\n"
+                    "   instance_id       TEXT NOT NULL,\n"
                     "   key_share       TEXT NOT NULL,\n"
                     "   key_metainfo    TEXT NOT NULL,\n"
-                    "   PRIMARY KEY(server_id, key_id),\n"
-                    "   FOREIGN KEY(server_id) REFERENCES server(server_id) "
+                    "   PRIMARY KEY(instance_id, key_id),\n"
+                    "   FOREIGN KEY(instance_id) REFERENCES instance(instance_id) "
                                                           "ON DELETE CASCADE"
                     ");\n";
 
-    const char *new_server_stms =
-                    "CREATE TABLE IF NOT EXISTS new_server (\n"\
-                    "   server_id   TEXT PRIMARY KEY,\n"\
+    const char *new_instance_stms =
+                    "CREATE TABLE IF NOT EXISTS new_instance (\n"\
+                    "   instance_id   TEXT PRIMARY KEY,\n"\
                     "   public_key  TEXT UNIQUE\n"\
                     ");";
 
-    const char *tables[3][2] = {{"server", server_stmt},
+    const char *tables[3][2] = {{"instance", instance_stmt},
                                 {"key", key_stmt},
-                                {"new_server", new_server_stms},
+                                {"new_instance", new_instance_stms},
                                };
 
     for(i = 0; i < 3; i++) {
@@ -171,11 +171,11 @@ void db_close_and_free_connection(database_t *db) {
     free(db);
 }
 
-int db_add_new_server(database_t *db, const char *id, const char *public_key) {
+int db_add_new_instance(database_t *db, const char *id, const char *public_key) {
     int rc, affected_rows, step;
     sqlite3_stmt *stmt = NULL;
     char *add_template  =
-            "INSERT OR ABORT INTO new_server (server_id, public_key)\n"\
+            "INSERT OR ABORT INTO new_instance (instance_id, public_key)\n"\
             "    VALUES(?, ?);";
 
     rc = prepare_bind_stmt(db->ppDb, add_template, &stmt, 2, id, public_key);
@@ -187,84 +187,84 @@ int db_add_new_server(database_t *db, const char *id, const char *public_key) {
     if(step == SQLITE_DONE) {
         affected_rows = sqlite3_changes(db->ppDb);
         if(affected_rows != 1) {
-            LOG(LOG_LVL_CRIT, "Add server affected %d rows instead of 1",
+            LOG(LOG_LVL_CRIT, "Add instance affected %d rows instead of 1",
                 affected_rows);
             return DTC_ERR_DATABASE;
         }
         return DTC_ERR_NONE;
     }
     else {
-        LOG(LOG_LVL_ERRO, "Add new server failed: %s",
+        LOG(LOG_LVL_ERRO, "Add new instance failed: %s",
             sqlite3_errmsg(db->ppDb));
         return DTC_ERR_DATABASE;
     }
 }
 
-int db_update_servers(database_t *db) {
+int db_update_instances(database_t *db) {
     int rc;
     static const char *delete =
         "DELETE\n"
-        "FROM server\n"
-        "WHERE server_id NOT IN\n"
-        "   (SELECT server_id\n"
-        "    FROM new_server\n"
-        "    WHERE server.server_id = new_server.server_id);\n";
+        "FROM instance\n"
+        "WHERE instance_id NOT IN\n"
+        "   (SELECT instance_id\n"
+        "    FROM new_instance\n"
+        "    WHERE instance.instance_id = new_instance.instance_id);\n";
 
     static const char *update_existing =
-        "UPDATE server\n"
+        "UPDATE instance\n"
         "SET public_key = (SELECT public_key\n"
-        "                  FROM new_server\n"
-        "                  WHERE server_id = server.server_id)\n"
-        "WHERE server_id IN\n"
-        "   (SELECT server_id\n"
-        "    FROM new_server\n"
-        "    WHERE (server_id = new_server.server_id and\n"
-        "        public_key != server.public_key))\n";
+        "                  FROM new_instance\n"
+        "                  WHERE instance_id = instance.instance_id)\n"
+        "WHERE instance_id IN\n"
+        "   (SELECT instance_id\n"
+        "    FROM new_instance\n"
+        "    WHERE (instance_id = new_instance.instance_id and\n"
+        "        public_key != instance.public_key))\n";
 
     static const char *create_new =
-        "INSERT INTO server(server_id, public_key)\n"
-        "SELECT server_id, public_key\n"
-        "FROM new_server\n"
-        "WHERE server_id NOT IN (SELECT server_id FROM server);\n";
+        "INSERT INTO instance(instance_id, public_key)\n"
+        "SELECT instance_id, public_key\n"
+        "FROM new_instance\n"
+        "WHERE instance_id NOT IN (SELECT instance_id FROM instance);\n";
 
     static const char *delete_table =
-        "DELETE FROM new_server";
+        "DELETE FROM new_instance";
 
     rc = create_tables(db);
     if(rc != DTC_ERR_NONE)
         return rc;
 
-    // First, delete all servers not in new_servers.
+    // First, delete all instances not in new_instances.
     rc = sqlite3_my_blocking_exec(db->ppDb, delete);
     if(rc != DTC_ERR_NONE) {
-        LOG(LOG_LVL_CRIT, "Error deleting server.");
+        LOG(LOG_LVL_CRIT, "Error deleting instance.");
         return rc;
     }
-    LOG(LOG_LVL_INFO, "%d deleted servers on update.",
+    LOG(LOG_LVL_INFO, "%d deleted instances on update.",
         sqlite3_changes(db->ppDb));
 
     // Then update existing.
     rc = sqlite3_my_blocking_exec(db->ppDb, update_existing);
     if(rc != DTC_ERR_NONE) {
-        LOG(LOG_LVL_CRIT, "Error updating server.");
+        LOG(LOG_LVL_CRIT, "Error updating instance.");
         return rc;
     }
 
-    LOG(LOG_LVL_INFO, "%d servers were updated with a different public_key.",
+    LOG(LOG_LVL_INFO, "%d instances were updated with a different public_key.",
         sqlite3_changes(db->ppDb));
 
-    // And move the new servers from new_server to server.
+    // And move the new instances from new_instance to instance.
     rc = sqlite3_my_blocking_exec(db->ppDb, create_new);
     if(rc != DTC_ERR_NONE) {
-        LOG(LOG_LVL_CRIT, "Error inserting new servers.");
+        LOG(LOG_LVL_CRIT, "Error inserting new instances.");
         return rc;
     }
-    LOG(LOG_LVL_INFO, "%d new servers were added.", sqlite3_changes(db->ppDb));
+    LOG(LOG_LVL_INFO, "%d new instances were added.", sqlite3_changes(db->ppDb));
 
 
     rc = sqlite3_my_blocking_exec(db->ppDb, delete_table);
     if(rc != DTC_ERR_NONE) {
-        LOG(LOG_LVL_CRIT, "Error deleting new_server table.");
+        LOG(LOG_LVL_CRIT, "Error deleting new_instance table.");
         return rc;
     }
 
@@ -272,10 +272,10 @@ int db_update_servers(database_t *db) {
     return DTC_ERR_NONE;
 }
 
-static int get_server_id(database_t *db, const char *sql_query, const char* key,
-                         char **output) {
+static int get_instance_id(database_t *db, const char *sql_query,
+                           const char* key, char **output) {
     int rc, step;
-    const char *server_id;
+    const char *instance_id;
     sqlite3_stmt *stmt = NULL;
 
     rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 1, key);
@@ -284,7 +284,7 @@ static int get_server_id(database_t *db, const char *sql_query, const char* key,
 
     step = sqlite3_blocking_step(stmt);
     if(step == SQLITE_ROW) {
-        server_id = (const char *)sqlite3_column_text(stmt, 0);
+        instance_id = (const char *)sqlite3_column_text(stmt, 0);
     }
     else if(step == SQLITE_DONE) {
         sqlite3_finalize(stmt);
@@ -296,7 +296,7 @@ static int get_server_id(database_t *db, const char *sql_query, const char* key,
         return DTC_ERR_DATABASE;
     }
 
-    *output = strdup((const char *)server_id);
+    *output = strdup((const char *)instance_id);
 
     rc = sqlite3_finalize(stmt);
     if(rc != SQLITE_OK)
@@ -306,7 +306,7 @@ static int get_server_id(database_t *db, const char *sql_query, const char* key,
 
 }
 
-int db_get_key(database_t *db, const char *server_id, const char *key_id,
+int db_get_key(database_t *db, const char *instance_id, const char *key_id,
                char **key_share, char **key_metainfo)
 {
     int rc, step;
@@ -314,9 +314,9 @@ int db_get_key(database_t *db, const char *server_id, const char *key_id,
 
     const char *sql_query = "SELECT key_share, key_metainfo\n"
                             "FROM key\n"
-                            "WHERE key_id = ? and server_id = ?;";
+                            "WHERE key_id = ? and instance_id = ?;";
 
-    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2, key_id, server_id);
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2, key_id, instance_id);
     if(rc != DTC_ERR_NONE)
         return rc;
 
@@ -342,38 +342,38 @@ int db_get_key(database_t *db, const char *server_id, const char *key_id,
     return DTC_ERR_NONE;
 }
 
-int db_get_server_id(database_t *db, const char *public_key, char **output) {
-    static const char *sql_query = "SELECT server_id\n"
-                                   "FROM server\n"
+int db_get_instance_id(database_t *db, const char *public_key, char **output) {
+    static const char *sql_query = "SELECT instance_id\n"
+                                   "FROM instance\n"
                                    "WHERE public_key = ?;";
-    return get_server_id(db, sql_query, public_key, output);
+    return get_instance_id(db, sql_query, public_key, output);
 }
 
-int db_get_server_id_from_pub_token(database_t *db, const char *pub_token,
+int db_get_instance_id_from_pub_token(database_t *db, const char *pub_token,
                                     char **output) {
-    static const char *sql_query = "SELECT server_id\n"
-                                   "FROM server\n"
+    static const char *sql_query = "SELECT instance_id\n"
+                                   "FROM instance\n"
                                    "WHERE pub_token = ?;";
-    return get_server_id(db, sql_query, pub_token, output);
+    return get_instance_id(db, sql_query, pub_token, output);
 }
 
-int db_get_server_id_from_router_token(database_t *db, const char *router_token,
+int db_get_instance_id_from_router_token(database_t *db, const char *router_token,
                                        char **output){
-    static const char *sql_query = "SELECT server_id\n"
-                                   "FROM server\n"
+    static const char *sql_query = "SELECT instance_id\n"
+                                   "FROM instance\n"
                                    "WHERE router_token = ?;";
-    return get_server_id(db, sql_query, router_token, output);
+    return get_instance_id(db, sql_query, router_token, output);
 }
 
-int db_is_key_id_available(database_t *db, const char *server_id,
+int db_is_key_id_available(database_t *db, const char *instance_id,
                            const char *key_id) {
     sqlite3_stmt *stmt;
     int rc, step;
-    char *sql_query = "SELECT server_id\n"
+    char *sql_query = "SELECT instance_id\n"
                       "FROM key\n"
-                      "WHERE server_id = ? and key_id = ?;\n";
+                      "WHERE instance_id = ? and key_id = ?;\n";
 
-    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2, server_id, key_id);
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2, instance_id, key_id);
     if(rc != DTC_ERR_NONE)
         return 2;
 
@@ -390,14 +390,14 @@ int db_is_key_id_available(database_t *db, const char *server_id,
     return 2;
 }
 
-static int db_get_current_token(database_t *db, const char *server_id,
+static int db_get_current_token(database_t *db, const char *instance_id,
                                 const char *sql_query, char **output) {
 
     int rc, step;
     sqlite3_stmt *stmt = NULL;
     const char *token;
 
-    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 1, server_id);
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 1, instance_id);
     if(rc != DTC_ERR_NONE)
         return rc;
 
@@ -427,28 +427,28 @@ err_exit:
     return DTC_ERR_DATABASE;
 }
 
-int db_get_router_token(database_t *db, const char *server_id, char **output) {
+int db_get_router_token(database_t *db, const char *instance_id, char **output) {
     return db_get_current_token(
-            db, server_id, "SELECT router_token\n"
-                           "FROM server\n"
-                           "WHERE server_id= ?;\n", output);
+            db, instance_id, "SELECT router_token\n"
+                           "FROM instance\n"
+                           "WHERE instance_id= ?;\n", output);
 }
 
-int db_get_pub_token(database_t *db, const char *server_id, char **output) {
+int db_get_pub_token(database_t *db, const char *instance_id, char **output) {
     return db_get_current_token(
-            db, server_id, "SELECT pub_token\n"
-                           "FROM server\n"
-                           "WHERE server_id=?;\n", output);
+            db, instance_id, "SELECT pub_token\n"
+                           "FROM instance\n"
+                           "WHERE instance_id=?;\n", output);
 }
 
-int db_get_new_temp_token(database_t *db, const char *server_public_key,
+int db_get_new_temp_token(database_t *db, const char *instance_public_key,
                           const char *sql_query, char **output) {
     int rc, step, affected_rows;
     char token[37];
     sqlite3_stmt *stmt = NULL;
 
     rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2,
-                           get_uuid_as_char(&token[0]), server_public_key);
+                           get_uuid_as_char(&token[0]), instance_public_key);
     if(rc != DTC_ERR_NONE)
         return rc;
 
@@ -482,32 +482,32 @@ err_exit:
     return DTC_ERR_DATABASE;
 }
 
-int db_get_new_router_token(database_t *db, const char *server_public_key,
+int db_get_new_router_token(database_t *db, const char *instance_public_key,
                             char **output) {
     return db_get_new_temp_token(
-            db, server_public_key, "UPDATE server\n"
+            db, instance_public_key, "UPDATE instance\n"
                                    "SET router_token = ?\n"
                                    "WHERE public_key = ?;", output);
 }
 
-int db_get_new_pub_token(database_t *db, const char *server_public_key,
+int db_get_new_pub_token(database_t *db, const char *instance_public_key,
                          char **output) {
     return db_get_new_temp_token(
-            db, server_public_key, "UPDATE server\n"
+            db, instance_public_key, "UPDATE instance\n"
                                    "SET pub_token = ?\n"
                                    "WHERE public_key = ?;", output);
 }
 
-int db_store_key(database_t *db, const char *server_id, const char *key_id,
+int db_store_key(database_t *db, const char *instance_id, const char *key_id,
                  const char *metainfo, const char *key_share) {
 
     int rc, step, affected_rows;
     sqlite3_stmt *stmt;
     char *sql_query  = "INSERT INTO key "
-                       "(server_id, key_id, key_metainfo, key_share)\n"
+                       "(instance_id, key_id, key_metainfo, key_share)\n"
                        "VALUES (?, ?, ?, ?);";
 
-    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 4, server_id, key_id,
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 4, instance_id, key_id,
                            metainfo, key_share);
     if(rc != DTC_ERR_NONE)
         return rc;
@@ -521,8 +521,8 @@ int db_store_key(database_t *db, const char *server_id, const char *key_id,
     affected_rows = sqlite3_changes(db->ppDb);
     if(affected_rows != 1) {
         sqlite3_finalize(stmt);
-        LOG(LOG_LVL_ERRO, "Key %s from server %s couldn't be inserted.", key_id,
-            server_id);
+        LOG(LOG_LVL_ERRO, "Key %s from instance %s couldn't be inserted.", key_id,
+            instance_id);
         return DTC_ERR_DATABASE;
     }
 
@@ -544,8 +544,8 @@ err_exit:
 int db_is_an_authorized_key(database_t *db, const char *key) {
     int rc, step;
     sqlite3_stmt *stmt = NULL;
-    static const char *sql_query = "SELECT server_id\n"
-                                   "FROM server\n"
+    static const char *sql_query = "SELECT instance_id\n"
+                                   "FROM instance\n"
                                    "WHERE public_key=?;";
     rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 1, key);
     if(rc != DTC_ERR_NONE)
@@ -570,14 +570,14 @@ err_exit:
     return -1;
 }
 
-int db_delete_key(database_t *db, const char *server_id, const char *key_id){
+int db_delete_key(database_t *db, const char *instance_id, const char *key_id){
     int rc, step, affected_rows;
     sqlite3_stmt *stmt = NULL;
     static const char *sql_query = "DELETE\n"
                                    "FROM key\n"
-                                   "WHERE server_id = ? and key_id = ?;";
+                                   "WHERE instance_id = ? and key_id = ?;";
 
-    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2, server_id, key_id);
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2, instance_id, key_id);
     if(rc != DTC_ERR_NONE)
         return rc;
 
@@ -592,7 +592,7 @@ int db_delete_key(database_t *db, const char *server_id, const char *key_id){
     if(affected_rows != 1) {
         sqlite3_finalize(stmt);
         LOG(LOG_LVL_ERRO, "Tried to delete a unexistent key, %s:%s",
-            server_id, key_id);
+            instance_id, key_id);
         return -1;
     }
 

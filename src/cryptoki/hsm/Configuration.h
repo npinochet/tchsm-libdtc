@@ -21,6 +21,11 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <string>
 #include <vector>
+#include <memory>
+
+#include <botan/secmem.h>
+
+#include <dtc.h>
 
 namespace hsm
 {
@@ -35,25 +40,32 @@ public:
     Configuration() = default;
     Configuration ( std::string configurationPath );
     Configuration ( Configuration const & ) = default;
-    Configuration ( Configuration && ) = default;    
+    Configuration ( Configuration && ) = default;
     Configuration & operator=(Configuration const &) = default;
     Configuration & operator=(Configuration &&) = default;
 
     std::vector<SlotConf> const & getSlotConf() const;
     const std::string & getDtcConfigPath() const;
-    const uint16_t getNodesNumber() const;
-    const uint16_t getThreshold() const;
+    uint16_t getNodesNumber() const;
+    uint16_t getThreshold() const;
     const std::string & getDatabasePath() const;
     void load(std::string configurationPath);
+    std::unique_ptr<struct dtc_configuration> getDtcConf() const;
 
     ~Configuration() = default;
 private:
     std::vector<SlotConf> slotConf_;
     std::string dtcConfigPath_;
     std::string databasePath_;
+
     uint16_t nodesNumber_;
     uint16_t threshold_;
 
+    std::vector<struct node_info> nodes_;
+    Botan::secure_vector<char> privateKey_;
+    std::string publicKey_;
+    std::string instanceId_;
+    uint16_t timeout_;
 };
 }
 
