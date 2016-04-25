@@ -92,6 +92,8 @@ target_link_libraries(pkcs11 dtc ${Boost_LIBRARIES} ${SQLITE3_LIBRARIES} ${BOTAN
 add_executable(pkcs11_test test.c)
 target_link_libraries(pkcs11_test pkcs11 ${Boost_LIBRARIES} ${SQLITE3_LIBRARIES} ${BOTAN_LIBRARIES})
 
+install(TARGETS pkcs11 DESTINATION lib)
+install(FILES ./cryptoki.conf DESTINATION etc)
 #add_executable(botanmain main.cpp)
 #target_link_libraries(botanmain ${TCLIB_LIBRARY} ${BOTAN_LIBRARIES})
 
