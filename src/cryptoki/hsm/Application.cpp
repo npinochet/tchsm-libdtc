@@ -57,7 +57,7 @@ Application::Application(std::ostream &out)
     }
 
     int err;
-    dtcCtx_.reset(dtc_init(configuration_.getDtcConfigPath().data(), &err));
+    dtcCtx_.reset(dtc_init_from_struct(configuration_.getDtcConf().get(), &err));
     if (!dtcCtx_) {
         throw TcbError("Application::Application", dtc_get_error_msg(err), CKR_DEVICE_ERROR);
     }

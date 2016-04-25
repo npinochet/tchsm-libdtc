@@ -187,8 +187,8 @@ void Configuration::load(std::string configurationPath) {
         aux_node_info.public_key = strdup(aux_char);
 
         try {
-            aux_node_info.sub_port = lookupUint16Value(dtc, "sub_port");
-            aux_node_info.dealer_port = lookupUint16Value(dtc, "dealer_port");
+            aux_node_info.sub_port = lookupUint16Value(node, "sub_port");
+            aux_node_info.dealer_port = lookupUint16Value(node, "dealer_port");
         } catch(const std::invalid_argument &e) {
             config_destroy(&cfg);
             throw TcbError(e.what(), "Not found at node.", CKR_GENERAL_ERROR);
@@ -223,9 +223,7 @@ const std::string &Configuration::getDatabasePath() const {
 }
 
 std::unique_ptr<struct dtc_configuration> Configuration::getDtcConf() const {
-    struct dtc_configuration *ptr =
-            reinterpret_cast<struct dtc_configuration *>(
-                    malloc(sizeof(struct dtc_configuration)));
+    struct dtc_configuration *ptr = new struct dtc_configuration;
     std::unique_ptr<struct dtc_configuration> ret(ptr);
     if(!ret)
         return nullptr;
