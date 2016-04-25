@@ -306,7 +306,7 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
                                   key_metainfo_t **key_metainfo,
                                   key_share_t **key_shares);
 
-dtc_ctx_t *init_from_struct(const struct dtc_configuration *conf, int *err)
+dtc_ctx_t *dtc_init_from_struct(const struct dtc_configuration *conf, int *err)
 {
     int error;
 
@@ -326,7 +326,7 @@ dtc_ctx_t *init_from_struct(const struct dtc_configuration *conf, int *err)
         return NULL;
     }
 
-    ret->instance_id = conf->instance_id;
+    ret->instance_id = strdup(conf->instance_id);
     ret->timeout = conf->timeout;
 
     *err = create_connect_sockets(conf, ret);
@@ -358,7 +358,7 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err)
         return NULL;
     LOG(LOG_LVL_DEBG, "%s\n", configuration_to_string(&conf));
 
-    ret = init_from_struct(&conf, err);
+    ret = dtc_init_from_struct(&conf, err);
 
     memset((void *) &conf, 0, sizeof(struct dtc_configuration));
 
