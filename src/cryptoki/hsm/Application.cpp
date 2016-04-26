@@ -33,11 +33,13 @@ using namespace hsm;
 
 Application::Application(std::ostream &out)
         : out_(out) {
+    static const char *env_config_file_path = "TCHSM_CONFIG";
     // First, read and setup the configuration.
-    char const *configPath = std::getenv("TCB_CONFIG_FILE");
+    char const *configPath = std::getenv(env_config_file_path);
     if (configPath == nullptr) {
         throw TcbError("Application::Application",
-                       "TCB_CONFIG_FILE environment variable has not setted yet",
+                       std::string(env_config_file_path) +
+                            " environment variable has not been set.",
                        CKR_DEVICE_ERROR);
     }
 
