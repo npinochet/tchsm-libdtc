@@ -32,4 +32,4 @@ cd /tmp/zeromq-4.1.4 && ./configure --with-libsodium && make && sudo make instal
 cd /tmp/tchsm-libtc-master && mkdir build && cd build && cmake .. && sudo make install
 
 #cd /tmp/Botan-1.11.29 && ./configure.py && make && sudo make install
-cd /tmp/botan && rsync -av * /usr/local
+cd /tmp/botan && sudo rsync -av * /usr/local
