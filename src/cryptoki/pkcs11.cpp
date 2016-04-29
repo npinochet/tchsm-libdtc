@@ -153,11 +153,11 @@ CK_RV C_Initialize(CK_VOID_PTR pInitArgs) {
             return CKR_ARGUMENTS_BAD;
         }
 
-        if (args->flags | CKF_LIBRARY_CANT_CREATE_OS_THREADS) {
+        if (args->flags & CKF_LIBRARY_CANT_CREATE_OS_THREADS) {
             return CKR_NEED_TO_CREATE_THREADS;
         }
 
-        if (args->flags | CKF_OS_LOCKING_OK) {
+        if (args->flags & CKF_OS_LOCKING_OK) {
             return CKR_CANT_LOCK;
         }
 
