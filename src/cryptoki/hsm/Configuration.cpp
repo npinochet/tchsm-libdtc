@@ -176,7 +176,8 @@ void Configuration::load(std::string configurationPath) {
                            CKR_GENERAL_ERROR);
         }
 
-        aux_node_info.ip = strdup(aux_char);
+        aux_node_info.ip = std::strcpy(
+                (char*)std::malloc(std::strlen(aux_char)), aux_char);
 
         if(CONFIG_FALSE == config_setting_lookup_string(node, "public_key",
                                                         &aux_char)) {
@@ -184,7 +185,8 @@ void Configuration::load(std::string configurationPath) {
             throw TcbError(std::to_string(i),
                            "Node public_key not found", CKR_GENERAL_ERROR);
         }
-        aux_node_info.public_key = strdup(aux_char);
+        aux_node_info.public_key = std::strcpy(
+                (char*)std::malloc(std::strlen(aux_char)), aux_char);
 
         try {
             aux_node_info.sub_port = lookupUint16Value(node, "sub_port");
@@ -199,6 +201,13 @@ void Configuration::load(std::string configurationPath) {
                            CKR_GENERAL_ERROR);
         }
         nodes_.push_back(aux_node_info);
+    }
+}
+
+Configuration::~Configuration() {
+    for(struct node_info &node_info: nodes_) {
+        std::free((void*)node_info.ip);
+        std::free((void*)node_info.public_key);
     }
 }
 
