@@ -40,7 +40,7 @@
 
 using namespace hsm;
 
-CK_RV OSCreateMutex(CK_VOID_PTR_PTR newMutex)
+CK_RV hsm::OSCreateMutex(CK_VOID_PTR_PTR newMutex)
 {
 	int rv;
 
@@ -64,7 +64,7 @@ CK_RV OSCreateMutex(CK_VOID_PTR_PTR newMutex)
 	return CKR_OK;
 }
 
-CK_RV OSDestroyMutex(CK_VOID_PTR mutex)
+CK_RV hsm::OSDestroyMutex(CK_VOID_PTR mutex)
 {
 	int rv;
 	pthread_mutex_t* pthreadMutex = (pthread_mutex_t*) mutex;
@@ -84,7 +84,7 @@ CK_RV OSDestroyMutex(CK_VOID_PTR mutex)
 	return CKR_OK;
 }
 
-CK_RV OSLockMutex(CK_VOID_PTR mutex)
+CK_RV hsm::OSLockMutex(CK_VOID_PTR mutex)
 {
 	int rv;
 	pthread_mutex_t* pthreadMutex = (pthread_mutex_t*) mutex;
@@ -102,7 +102,7 @@ CK_RV OSLockMutex(CK_VOID_PTR mutex)
 	return CKR_OK;
 }
 
-CK_RV OSUnlockMutex(CK_VOID_PTR mutex)
+CK_RV hsm::OSUnlockMutex(CK_VOID_PTR mutex)
 {
 	int rv;
 	pthread_mutex_t* pthreadMutex = (pthread_mutex_t*) mutex;

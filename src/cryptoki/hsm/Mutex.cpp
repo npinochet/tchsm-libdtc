@@ -53,6 +53,6 @@ void Mutex::unlock() {
 
 // Default mutex functions (pthread ones!)
 CK_CREATEMUTEX Mutex::createMutex_ = OSCreateMutex;
-CK_DESTROYMUTEX destroyMutex_ = OSDestroyMutex;
-CK_LOCKMUTEX lockMutex_ = OSLockMutex;
-CK_UNLOCKMUTEX unlockMutex_ = OSUnlockMutex;
+CK_DESTROYMUTEX Mutex::destroyMutex_ = OSDestroyMutex;
+CK_LOCKMUTEX Mutex::lockMutex_ = OSLockMutex;
+CK_UNLOCKMUTEX Mutex::unlockMutex_ = OSUnlockMutex;
