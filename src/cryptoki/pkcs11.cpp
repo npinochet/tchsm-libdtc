@@ -244,7 +244,10 @@ CK_RV C_InitToken(CK_SLOT_ID slotID, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinLen, CK
         std::string pin(reinterpret_cast<char *> ( pPin ), ulPinLen);
         Slot &slot = app->getSlot(slotID);
 
+        Mutex mutex; // RAII
+        mutex.lock();
         slot.insertToken(new Token(label, pin, pin));
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -263,7 +266,10 @@ CK_RV C_InitPIN(CK_SESSION_HANDLE hSession, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPin
 
     try {
         std::string pin(reinterpret_cast<char *> ( pPin ), ulPinLen);
+        Mutex mutex;
+        mutex.lock();
         app->getSession(hSession).getCurrentSlot().getToken().setUserPin(pin);
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -425,7 +431,10 @@ CK_RV C_OpenSession(CK_SLOT_ID slotID, CK_FLAGS flags,
             return CKR_TOKEN_NOT_RECOGNIZED;
         }
 
+        Mutex mutex;
+        mutex.lock();
         *phSession = slot.openSession(flags, pApplication, notify);
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -439,7 +448,10 @@ CK_RV C_CloseSession(CK_SESSION_HANDLE hSession) {
     }
 
     try {
+        Mutex mutex;
+        mutex.lock();
         app->getSessionSlot(hSession).closeSession(hSession);
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -453,7 +465,10 @@ CK_RV C_CloseAllSessions(CK_SLOT_ID slotID) {
     }
 
     try {
+        Mutex mutex;
+        mutex.lock();
         app->getSlot(slotID).closeAllSessions();
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -484,7 +499,10 @@ CK_RV C_Login(CK_SESSION_HANDLE hSession,
     }
 
     try {
+        Mutex mutex;
+        mutex.lock();
         app->getSession(hSession).login(userType, pPin, ulPinLen);
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -497,7 +515,10 @@ CK_RV C_Logout(CK_SESSION_HANDLE hSession) {
     }
 
     try {
+        Mutex mutex;
+        mutex.lock();
         app->getSession(hSession).logout();
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -517,7 +538,10 @@ CK_RV C_CreateObject(CK_SESSION_HANDLE hSession, CK_ATTRIBUTE_PTR pTemplate, CK_
             return CKR_ARGUMENTS_BAD;
         }
 
+        Mutex mutex;
+        mutex.lock();
         *phObject = session.createObject(pTemplate, ulCount);
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -531,7 +555,10 @@ CK_RV C_DestroyObject(CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE hObject) {
     }
 
     try {
+        Mutex mutex;
+        mutex.lock();
         app->getSession(hSession).destroyObject(hObject);
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -546,7 +573,10 @@ CK_RV C_FindObjectsInit(CK_SESSION_HANDLE hSession, CK_ATTRIBUTE_PTR pTemplate, 
     }
 
     try {
+        Mutex mutex;
+        mutex.lock();
         app->getSession(hSession).findObjectsInit(pTemplate, ulCount);
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -567,7 +597,10 @@ CK_RV C_FindObjects(CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE_PTR phObject, C
             return CKR_ARGUMENTS_BAD;
         }
 
+        Mutex mutex;
+        mutex.lock();
         std::vector<CK_OBJECT_HANDLE> handles(session.findObjects(ulMaxObjectCount));
+        mutex.unlock();
         // handles tiene a lo mas ulMaxObjectCount elementos, por lo que no hay que verificar.
         CK_ULONG i = 0;
         for (auto &handle: handles) {
@@ -589,7 +622,10 @@ CK_RV C_FindObjectsFinal(CK_SESSION_HANDLE hSession) {
     }
 
     try {
+        Mutex mutex;
+        mutex.lock();
         app->getSession(hSession).findObjectsFinal();
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -604,7 +640,10 @@ CK_RV C_GetAttributeValue(CK_SESSION_HANDLE sessionHandle, CK_OBJECT_HANDLE obje
     }
 
     try {
+        Mutex mutex;
+        mutex.lock();
         app->getSession(sessionHandle).getObject(objectHandle).copyAttributes(pTemplate, ulCount);
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -627,9 +666,12 @@ CK_RV C_GenerateKeyPair(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism,
             return CKR_ARGUMENTS_BAD;
         }
 
+        Mutex mutex;
+        mutex.lock();
         KeyPair keysHandle = session.generateKeyPair(pMechanism,
                 pPublicKeyTemplate, ulPublicKeyAttributeCount,
                 pPrivateKeyTemplate, ulPrivateKeyAttributeCount);
+        mutex.unlock();
 
         *phPrivateKey = keysHandle.first;
         *phPublicKey = keysHandle.second;
@@ -647,7 +689,10 @@ CK_RV C_SignInit(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism, CK_OBJ
     }
 
     try {
+        Mutex mutex;
+        mutex.lock();
         app->getSession(hSession).signInit(pMechanism, hKey);
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -661,7 +706,10 @@ CK_RV C_SignUpdate(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pPart, CK_ULONG ulPar
     }
 
     try {
+        Mutex mutex;
+        mutex.lock();
         app->getSession(hSession).signUpdate(pPart, ulPartLen);
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -675,7 +723,10 @@ CK_RV C_SignFinal(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pSignature, CK_ULONG_P
     }
 
     try {
+        Mutex mutex;
+        mutex.lock();
         app->getSession(hSession).signFinal(pSignature, pulSignatureLen);
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -691,8 +742,11 @@ CK_RV C_Sign(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData, CK_ULONG ulDataLen, 
 
     try {
         Session &session = app->getSession(hSession);
+        Mutex mutex;
+        mutex.lock();
         session.signUpdate(pData, ulDataLen);
         session.signFinal(pSignature, pulSignatureLen);
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -706,7 +760,10 @@ CK_RV C_VerifyInit(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism, CK_O
     }
 
     try {
+        Mutex mutex;
+        mutex.lock();
         app->getSession(hSession).verifyInit(pMechanism, hKey);
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -721,8 +778,12 @@ CK_RV C_Verify(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData, CK_ULONG ulDataLen
     }
 
     try {
+        Mutex mutex;
+        mutex.lock();
         app->getSession(hSession).verifyUpdate(pData, ulDataLen);
-        return app->getSession(hSession).verifyFinal(pSignature, ulSignatureLen)? CKR_OK : CKR_SIGNATURE_INVALID;
+        bool verifies = app->getSession(hSession).verifyFinal(pSignature, ulSignatureLen);
+        mutex.unlock();
+        return verifies? CKR_OK : CKR_SIGNATURE_INVALID;
     } catch (TcbError &e) {
         return error(e);
     }
@@ -734,7 +795,10 @@ CK_RV C_VerifyUpdate(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pPart, CK_ULONG ulP
     }
 
     try {
+        Mutex mutex;
+        mutex.lock();
         app->getSession(hSession).verifyUpdate(pPart, ulPartLen);
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -748,7 +812,11 @@ CK_RV C_VerifyFinal(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pSignature, CK_ULONG
     }
 
     try {
-        return app->getSession(hSession).verifyFinal(pSignature, ulSignatureLen)? CKR_OK : CKR_SIGNATURE_INVALID;
+        Mutex mutex;
+        mutex.lock();
+        bool verifies = app->getSession(hSession).verifyFinal(pSignature, ulSignatureLen);
+        mutex.unlock();
+        return verifies? CKR_OK : CKR_SIGNATURE_INVALID;
     } catch (TcbError &e) {
         return error(e);
     }
@@ -760,7 +828,10 @@ CK_RV C_DigestInit(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism) {
     }
 
     try {
+        Mutex mutex;
+        mutex.lock();
         app->getSession(hSession).digestInit(pMechanism);
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -775,7 +846,10 @@ CK_RV C_Digest(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData, CK_ULONG ulDataLen
     }
 
     try {
+        Mutex mutex;
+        mutex.lock();
         app->getSession(hSession).digest(pData, ulDataLen, pDigest, pulDigestLen);
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -789,7 +863,10 @@ CK_RV C_SeedRandom(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pSeed, CK_ULONG ulSee
     }
 
     try {
+        Mutex mutex;
+        mutex.lock();
         app->getSession(hSession).seedRandom(pSeed, ulSeedLen);
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
@@ -803,7 +880,10 @@ CK_RV C_GenerateRandom(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pRandomData, CK_U
     }
 
     try {
+        Mutex mutex;
+        mutex.lock();
         app->getSession(hSession).generateRandom(pRandomData, ulRandomLen);
+        mutex.unlock();
     } catch (TcbError &e) {
         return error(e);
     }
