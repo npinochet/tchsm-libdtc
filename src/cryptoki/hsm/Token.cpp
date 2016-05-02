@@ -138,33 +138,34 @@ void Token::login ( CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinL
     }
 
     if ( pPin == nullptr ) {
-        throw TcbError ( "Token::login", "pPin == nullptr", CKR_ARGUMENTS_BAD );
+        throw TcbError("Token::login", "pPin == nullptr", CKR_ARGUMENTS_BAD);
     }
 
     switch ( userType ) {
-    case CKU_SO:
-        securityLevel_ = checkSecurityOfficerPin ( pPin, ulPinLen );
-        break;
-    case CKU_USER:
-        securityLevel_ = checkUserPin ( pPin, ulPinLen );
-        break;
-    case CKU_CONTEXT_SPECIFIC:
-        switch ( securityLevel_ ) {
-        case SecurityLevel::PUBLIC:
-            throw TcbError ( "Token::login", "Mal userType", CKR_OPERATION_NOT_INITIALIZED );
-
-        case SecurityLevel::USER:
-            securityLevel_ = checkUserPin ( pPin, ulPinLen );
+        case CKU_SO:
+            securityLevel_ = checkSecurityOfficerPin(pPin, ulPinLen);
             break;
-
-        case SecurityLevel::SECURITY_OFFICER:
-            securityLevel_ = checkSecurityOfficerPin ( pPin, ulPinLen );
+        case CKU_USER:
+            securityLevel_ = checkUserPin(pPin, ulPinLen);
             break;
-        }
-        break;
-    default:
-        throw TcbError ( "Token::login", "Mal userType", CKR_USER_TYPE_INVALID );
-        break;
+        case CKU_CONTEXT_SPECIFIC:
+            switch ( securityLevel_ ) {
+                case SecurityLevel::PUBLIC:
+                    throw TcbError("Token::login", "Mal userType", 
+                                    CKR_OPERATION_NOT_INITIALIZED);
+
+                case SecurityLevel::USER:
+                    securityLevel_ = checkUserPin(pPin, ulPinLen);
+                    break;
+
+                case SecurityLevel::SECURITY_OFFICER:
+                    securityLevel_ = checkSecurityOfficerPin(pPin, ulPinLen);
+                    break;
+            }
+            break;
+        default:
+            throw TcbError("Token::login", "Mal userType", CKR_USER_TYPE_INVALID);
+            break;
     }
 
     loggedIn_ = true;
@@ -179,7 +180,8 @@ void Token::logout()
 CK_OBJECT_HANDLE Token::addObject ( CryptoObject * object )
 {
     CK_OBJECT_HANDLE handle = object->getHandle();
-    ( objects_[handle] ).reset ( object );
+    ScopedMutexLocker locker(mutex_);
+    objects_[handle].reset ( object );
     return handle;
 }
 
@@ -190,6 +192,7 @@ string Token::getLabel() const
 
 CryptoObject & Token::getObject ( CK_OBJECT_HANDLE handle )
 {
+    ScopedMutexLocker locker(mutex_);
     return * ( objects_.at ( handle ) );
 }
 

@@ -43,6 +43,11 @@ namespace hsm {
     CK_RV OSDestroyMutex(CK_VOID_PTR mutex);
     CK_RV OSLockMutex(CK_VOID_PTR mutex);
     CK_RV OSUnlockMutex(CK_VOID_PTR mutex);
+
+    CK_RV VoidCreateMutex(CK_VOID_PTR_PTR newMutex);
+    CK_RV VoidDestroyMutex(CK_VOID_PTR mutex);
+    CK_RV VoidLockMutex(CK_VOID_PTR mutex);
+    CK_RV VoidUnlockMutex(CK_VOID_PTR mutex);
 }
 
 #endif // HSM_OSMUTEX_H

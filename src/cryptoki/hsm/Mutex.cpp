@@ -56,3 +56,11 @@ CK_CREATEMUTEX Mutex::createMutex_ = OSCreateMutex;
 CK_DESTROYMUTEX Mutex::destroyMutex_ = OSDestroyMutex;
 CK_LOCKMUTEX Mutex::lockMutex_ = OSLockMutex;
 CK_UNLOCKMUTEX Mutex::unlockMutex_ = OSUnlockMutex;
+
+ScopedMutexLocker::ScopedMutexLocker(Mutex &mutex) : mutex_(mutex){
+    mutex_.lock();
+}
+
+ScopedMutexLocker::~ScopedMutexLocker() {
+    mutex_.unlock();
+}

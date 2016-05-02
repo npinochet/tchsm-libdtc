@@ -28,6 +28,13 @@ namespace hsm {
             static CK_UNLOCKMUTEX unlockMutex_;
 
     };
+
+    class ScopedMutexLocker {
+        Mutex &mutex_;
+        public:
+            ScopedMutexLocker(Mutex &mutex);
+            virtual ~ScopedMutexLocker();
+    };
 }
 
 #endif // HSM_MUTEX_H

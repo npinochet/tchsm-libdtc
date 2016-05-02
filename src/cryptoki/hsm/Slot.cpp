@@ -41,8 +41,10 @@ Slot::openSession ( CK_FLAGS flags, CK_VOID_PTR pApplication, CK_NOTIFY notify )
     Session * sessionPtr = new Session ( flags, pApplication, notify, *this );
 
     CK_SESSION_HANDLE handle = sessionPtr->getHandle();
-    sessions_[handle].reset ( sessionPtr );
 
+    ScopedMutexLocker locker(mutex_);
+    sessions_[handle].reset ( sessionPtr );
+    
     return handle;
 }
 
@@ -52,6 +54,7 @@ void Slot::closeSession ( CK_SESSION_HANDLE handle )
         throw TcbError ( "Slot::openSession", "Token not present", CKR_TOKEN_NOT_PRESENT );
     }
 
+    ScopedMutexLocker locker(mutex_);
     if ( sessions_.erase ( handle ) == 0 ) {
         throw TcbError ( "Slot::closeSession", "Session handle doesn't exists in this slot",
                          CKR_SESSION_HANDLE_INVALID );
@@ -64,6 +67,7 @@ void Slot::closeAllSessions()
         throw TcbError ( "Slot::openSession", "Token not present", CKR_TOKEN_NOT_PRESENT );
     }
 
+    ScopedMutexLocker locker(mutex_);
     sessions_.clear();
 }
 
@@ -74,6 +78,7 @@ Session & Slot::getSession ( CK_SESSION_HANDLE handle )
     }
 
     try {
+        ScopedMutexLocker locker(mutex_);
         return * ( sessions_.at ( handle ) );
     } catch ( ... ) {
         throw TcbError ( "Slot::getSession", "Session handle doesn't exists in this slot",
@@ -83,11 +88,14 @@ Session & Slot::getSession ( CK_SESSION_HANDLE handle )
 
 bool Slot::hasSession ( CK_SESSION_HANDLE handle )
 {
+
+    ScopedMutexLocker locker(mutex_);
     return sessions_.count ( handle ) > 0;
 }
 
-CK_ULONG Slot::sessionsCount() const
+CK_ULONG Slot::sessionsCount() 
 {
+    ScopedMutexLocker locker(mutex_);
     return sessions_.size();
 }
 

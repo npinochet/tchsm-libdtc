@@ -120,3 +120,19 @@ CK_RV hsm::OSUnlockMutex(CK_VOID_PTR mutex)
 	return CKR_OK;
 }
 
+CK_RV hsm::VoidCreateMutex(CK_VOID_PTR_PTR newMutex) {
+    *newMutex = nullptr;
+    return CKR_OK;
+}
+
+CK_RV hsm::VoidDestroyMutex(CK_VOID_PTR mutex) {
+    return CKR_OK;
+}
+
+CK_RV hsm::VoidLockMutex(CK_VOID_PTR mutex) {
+    return CKR_OK;
+}
+
+CK_RV hsm::VoidUnlockMutex(CK_VOID_PTR mutex) {
+    return CKR_OK;
+}
