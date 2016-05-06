@@ -43,6 +43,15 @@ static uint16_t lookupUint16Value(config_setting_t *setting, const char *name) {
     return static_cast<uint16_t>(aux_int64);
 }
 
+/*
+ * Function that duplicates a C string. Notice that it will find for the byte '\0'.
+ */
+namespace {
+    inline char * compatibleStrdup(const char *s) {
+        return std::strcpy((char*)std::malloc(std::strlen(s)), s); 
+    }
+}
+
 Configuration::Configuration(std::string configurationPath) {
     this->Configuration::load(configurationPath);
 }
@@ -176,15 +185,14 @@ void Configuration::load(std::string configurationPath) {
                            CKR_GENERAL_ERROR);
         }
 
-        aux_node_info.ip = strdup(aux_char);
-
+        aux_node_info.ip = compatibleStrdup(aux_char);
         if(CONFIG_FALSE == config_setting_lookup_string(node, "public_key",
                                                         &aux_char)) {
             config_destroy(&cfg);
             throw TcbError(std::to_string(i),
                            "Node public_key not found", CKR_GENERAL_ERROR);
         }
-        aux_node_info.public_key = strdup(aux_char);
+        aux_node_info.public_key = compatibleStrdup(aux_char);
 
         try {
             aux_node_info.sub_port = lookupUint16Value(node, "sub_port");
@@ -199,6 +207,13 @@ void Configuration::load(std::string configurationPath) {
                            CKR_GENERAL_ERROR);
         }
         nodes_.push_back(aux_node_info);
+    }
+}
+
+Configuration::~Configuration() {
+    for(struct node_info &node_info: nodes_) {
+        std::free((void*)node_info.ip);
+        std::free((void*)node_info.public_key);
     }
 }
 

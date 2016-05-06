@@ -52,7 +52,7 @@ public:
     void load(std::string configurationPath);
     std::unique_ptr<struct dtc_configuration> getDtcConf() const;
 
-    ~Configuration() = default;
+    ~Configuration();
 private:
     std::vector<SlotConf> slotConf_;
     std::string dtcConfigPath_;
