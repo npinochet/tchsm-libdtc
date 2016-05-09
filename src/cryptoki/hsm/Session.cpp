@@ -671,7 +671,7 @@ KeyPair Session::generateKeyPair(CK_MECHANISM_PTR pMechanism, CK_ATTRIBUTE_PTR p
             }
                 break;
             case CKA_PUBLIC_EXPONENT: {
-                publicExponent.reset(tc_init_bytes(skTemplate[i].pValue, pkTemplate[i].ulValueLen));
+                publicExponent.reset(tc_init_bytes(pkTemplate[i].pValue, pkTemplate[i].ulValueLen));
             }
                 break;
             default:
