@@ -48,7 +48,7 @@ static uint16_t lookupUint16Value(config_setting_t *setting, const char *name) {
  */
 namespace {
     inline char * compatibleStrdup(const char *s) {
-        return std::strcpy((char*)std::malloc(std::strlen(s)), s); 
+        return std::strcpy((char*)std::malloc(std::strlen(s) + 1), s);
     }
 }
 
