@@ -25,6 +25,7 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 #include <string>
 #include <memory>
 
+#include "Mutex.h"
 #include "pkcs11.h"
 
 namespace hsm
@@ -76,6 +77,7 @@ private:
 //     int rwSessionCount; // TODO
 
     std::map<CK_OBJECT_HANDLE, CryptoObjectPtr> objects_;
+    Mutex mutex_;
 };
 
 }

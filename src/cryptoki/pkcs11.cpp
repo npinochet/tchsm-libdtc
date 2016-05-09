@@ -30,6 +30,8 @@
 #include "Slot.h"
 #include "TcbError.h"
 #include "Token.h"
+#include "Mutex.h"
+#include "OSMutex.h"
 
 #include <functional>
 #include <algorithm>
@@ -148,40 +150,66 @@ CK_RV C_Initialize(CK_VOID_PTR pInitArgs) {
     }
 
     if (args != nullptr) {
-
         if (args->pReserved != nullptr) {
             return CKR_ARGUMENTS_BAD;
         }
 
+        // As the distributed system's master node is multithreaded
+        // we NEED to create OS level thread. At least on our implementation.
         if (args->flags & CKF_LIBRARY_CANT_CREATE_OS_THREADS) {
             return CKR_NEED_TO_CREATE_THREADS;
         }
 
-        if (args->flags & CKF_OS_LOCKING_OK) {
-            return CKR_CANT_LOCK;
-        }
-
+        // Argument parsing
+        // Check if some of the functions are give, but not all
+        // of them.
         bool someButNotAll =
-                !(args->CreateMutex &&
-                  args->DestroyMutex &&
-                  args->LockMutex &&
-                  args->UnlockMutex)
+            !(args->CreateMutex &&
+                    args->DestroyMutex &&
+                    args->LockMutex &&
+                    args->UnlockMutex) &&
+            (args->CreateMutex ||
+             args->DestroyMutex ||
+             args->LockMutex ||
+             args->UnlockMutex);
 
-                &&
-
-                (args->CreateMutex ||
-                 args->DestroyMutex ||
-                 args->LockMutex ||
-                 args->UnlockMutex);
-
-        if (someButNotAll) {
+        if(someButNotAll) { 
             return CKR_ARGUMENTS_BAD;
         }
 
-        if (args->CreateMutex && args->DestroyMutex && args->LockMutex && args->UnlockMutex) {
-            return CKR_CANT_LOCK;
+        // !someButNotAll => Or every function is set, or no one
+        // So if every function is set or no one, and one is set, all are set.
+        bool functionsGiven = (!someButNotAll) && (args->CreateMutex);
+
+        if (args->flags & CKF_OS_LOCKING_OK) { // is possible to use OS Locking?
+            if(functionsGiven){ // functions are supplied
+                Mutex::setFunctions(args->CreateMutex,
+                        args->DestroyMutex,
+                        args->LockMutex,
+                        args->UnlockMutex);
+            }
+
+            // Functions aren't supplied, will use default functions
+            // (see Mutex.cpp, OSMutex.cpp)
+        } else {
+            if(functionsGiven){
+                // App will do multithreaded access, but only with supplied
+                // functions.
+                Mutex::setFunctions(args->CreateMutex,
+                        args->DestroyMutex,
+                        args->LockMutex,
+                        args->UnlockMutex);
+            }
+            // App won't do multithreaded access. 
+            //
+            
+            Mutex::setFunctions(hsm::VoidCreateMutex,
+                    hsm::VoidDestroyMutex,
+                    hsm::VoidLockMutex,
+                    hsm::VoidUnlockMutex);
         }
     }
+
     try {
         app.reset(new Application(std::cerr));
     } catch (TcbError &e) {
@@ -251,7 +279,7 @@ CK_RV C_InitPIN(CK_SESSION_HANDLE hSession, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPin
 }
 
 CK_RV C_SetPIN(CK_SESSION_HANDLE hSession, CK_UTF8CHAR_PTR pOldPin, CK_ULONG ulOldLen, CK_UTF8CHAR_PTR pNewPin,
-               CK_ULONG ulNewLen) {
+        CK_ULONG ulNewLen) {
     return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
@@ -270,18 +298,18 @@ CK_RV C_GetInfo(CK_INFO_PTR pInfo) {
     pInfo->cryptokiVersion.minor = 20;
 
     std::fill(pInfo->manufacturerID,
-              pInfo->manufacturerID + 32,
-              ' ');
+            pInfo->manufacturerID + 32,
+            ' ');
     std::copy(manufacturer.cbegin(),
-              manufacturer.cend(),
-              pInfo->manufacturerID);
+            manufacturer.cend(),
+            pInfo->manufacturerID);
 
     std::fill(pInfo->libraryDescription,
-              pInfo->libraryDescription + 32,
-              ' ');
+            pInfo->libraryDescription + 32,
+            ' ');
     std::copy(description.cbegin(),
-              description.cend(),
-              pInfo->libraryDescription);
+            description.cend(),
+            pInfo->libraryDescription);
 
     pInfo->flags = 0;
 
@@ -383,8 +411,8 @@ CK_RV C_GetTokenInfo(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR pInfo) {
 }
 
 CK_RV C_OpenSession(CK_SLOT_ID slotID, CK_FLAGS flags,
-                    CK_VOID_PTR pApplication, CK_NOTIFY notify,
-                    CK_SESSION_HANDLE_PTR phSession) {
+        CK_VOID_PTR pApplication, CK_NOTIFY notify,
+        CK_SESSION_HANDLE_PTR phSession) {
     if (!appIsInited()) {
         return CKR_CRYPTOKI_NOT_INITIALIZED;
     }
@@ -454,9 +482,9 @@ CK_RV C_GetSessionInfo(CK_SESSION_HANDLE hSession, CK_SESSION_INFO_PTR pInfo) {
 }
 
 CK_RV C_Login(CK_SESSION_HANDLE hSession,
-              CK_USER_TYPE userType,
-              CK_UTF8CHAR_PTR pPin,
-              CK_ULONG ulPinLen) {
+        CK_USER_TYPE userType,
+        CK_UTF8CHAR_PTR pPin,
+        CK_ULONG ulPinLen) {
     if (!appIsInited()) {
         return CKR_CRYPTOKI_NOT_INITIALIZED;
     }
@@ -483,7 +511,7 @@ CK_RV C_Logout(CK_SESSION_HANDLE hSession) {
 }
 
 CK_RV C_CreateObject(CK_SESSION_HANDLE hSession, CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount,
-                     CK_OBJECT_HANDLE_PTR phObject) {
+        CK_OBJECT_HANDLE_PTR phObject) {
     if (!appIsInited()) {
         return CKR_CRYPTOKI_NOT_INITIALIZED;
     }
@@ -533,7 +561,7 @@ CK_RV C_FindObjectsInit(CK_SESSION_HANDLE hSession, CK_ATTRIBUTE_PTR pTemplate, 
 }
 
 CK_RV C_FindObjects(CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE_PTR phObject, CK_ULONG ulMaxObjectCount,
-                    CK_ULONG_PTR pulObjectCount) {
+        CK_ULONG_PTR pulObjectCount) {
     if (!appIsInited()) {
         return CKR_CRYPTOKI_NOT_INITIALIZED;
     }
@@ -576,7 +604,7 @@ CK_RV C_FindObjectsFinal(CK_SESSION_HANDLE hSession) {
 }
 
 CK_RV C_GetAttributeValue(CK_SESSION_HANDLE sessionHandle, CK_OBJECT_HANDLE objectHandle, CK_ATTRIBUTE_PTR pTemplate,
-                          CK_ULONG ulCount) {
+        CK_ULONG ulCount) {
     if (!appIsInited()) {
         return CKR_CRYPTOKI_NOT_INITIALIZED;
     }
@@ -591,9 +619,9 @@ CK_RV C_GetAttributeValue(CK_SESSION_HANDLE sessionHandle, CK_OBJECT_HANDLE obje
 }
 
 CK_RV C_GenerateKeyPair(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism, CK_ATTRIBUTE_PTR pPublicKeyTemplate,
-                        CK_ULONG ulPublicKeyAttributeCount, CK_ATTRIBUTE_PTR pPrivateKeyTemplate,
-                        CK_ULONG ulPrivateKeyAttributeCount,
-                        CK_OBJECT_HANDLE_PTR phPublicKey, CK_OBJECT_HANDLE_PTR phPrivateKey) {
+        CK_ULONG ulPublicKeyAttributeCount, CK_ATTRIBUTE_PTR pPrivateKeyTemplate,
+        CK_ULONG ulPrivateKeyAttributeCount,
+        CK_OBJECT_HANDLE_PTR phPublicKey, CK_OBJECT_HANDLE_PTR phPrivateKey) {
     if (!appIsInited()) {
         return CKR_CRYPTOKI_NOT_INITIALIZED;
     }
@@ -606,8 +634,8 @@ CK_RV C_GenerateKeyPair(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism,
         }
 
         KeyPair keysHandle = session.generateKeyPair(pMechanism,
-                                                     pPublicKeyTemplate, ulPublicKeyAttributeCount,
-                                                     pPrivateKeyTemplate, ulPrivateKeyAttributeCount);
+                pPublicKeyTemplate, ulPublicKeyAttributeCount,
+                pPrivateKeyTemplate, ulPrivateKeyAttributeCount);
 
         *phPrivateKey = keysHandle.first;
         *phPublicKey = keysHandle.second;
@@ -662,7 +690,7 @@ CK_RV C_SignFinal(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pSignature, CK_ULONG_P
 }
 
 CK_RV C_Sign(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pSignature,
-             CK_ULONG_PTR pulSignatureLen) {
+        CK_ULONG_PTR pulSignatureLen) {
     if (!appIsInited()) {
         return CKR_CRYPTOKI_NOT_INITIALIZED;
     }
@@ -693,14 +721,15 @@ CK_RV C_VerifyInit(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism, CK_O
 }
 
 CK_RV C_Verify(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pSignature,
-               CK_ULONG ulSignatureLen) {
+        CK_ULONG ulSignatureLen) {
     if (!appIsInited()) {
         return CKR_CRYPTOKI_NOT_INITIALIZED;
     }
 
     try {
         app->getSession(hSession).verifyUpdate(pData, ulDataLen);
-        return app->getSession(hSession).verifyFinal(pSignature, ulSignatureLen)? CKR_OK : CKR_SIGNATURE_INVALID;
+        bool verifies = app->getSession(hSession).verifyFinal(pSignature, ulSignatureLen);
+        return verifies? CKR_OK : CKR_SIGNATURE_INVALID;
     } catch (TcbError &e) {
         return error(e);
     }
@@ -726,7 +755,8 @@ CK_RV C_VerifyFinal(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pSignature, CK_ULONG
     }
 
     try {
-        return app->getSession(hSession).verifyFinal(pSignature, ulSignatureLen)? CKR_OK : CKR_SIGNATURE_INVALID;
+        bool verifies = app->getSession(hSession).verifyFinal(pSignature, ulSignatureLen);
+        return verifies? CKR_OK : CKR_SIGNATURE_INVALID;
     } catch (TcbError &e) {
         return error(e);
     }
@@ -747,7 +777,7 @@ CK_RV C_DigestInit(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism) {
 }
 
 CK_RV C_Digest(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData, CK_ULONG ulDataLen,
-               CK_BYTE_PTR pDigest, CK_ULONG_PTR pulDigestLen) {
+        CK_BYTE_PTR pDigest, CK_ULONG_PTR pulDigestLen) {
     if (!appIsInited()) {
         return CKR_CRYPTOKI_NOT_INITIALIZED;
     }
@@ -815,7 +845,7 @@ CK_RV C_GetObjectSize(CK_SESSION_HANDLE, CK_OBJECT_HANDLE, CK_ULONG_PTR) {
 }
 
 CK_RV C_SetAttributeValue(CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE hObject, CK_ATTRIBUTE_PTR pTemplate,
-                          CK_ULONG ulCount) {
+        CK_ULONG ulCount) {
     return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
@@ -824,7 +854,7 @@ CK_RV C_EncryptInit(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism, CK_
 }
 
 CK_RV C_Encrypt(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData, CK_ULONG ulDataLen,
-                CK_BYTE_PTR pEncryptedData, CK_ULONG_PTR pulEncryptedDataLen) {
+        CK_BYTE_PTR pEncryptedData, CK_ULONG_PTR pulEncryptedDataLen) {
     return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
@@ -841,7 +871,7 @@ CK_RV C_DecryptInit(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism, CK_
 }
 
 CK_RV C_Decrypt(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pEncryptedData, CK_ULONG ulEncryptedDataLen,
-                CK_BYTE_PTR pData, CK_ULONG_PTR pulDataLen) {
+        CK_BYTE_PTR pData, CK_ULONG_PTR pulDataLen) {
     return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
@@ -903,17 +933,17 @@ CK_RV C_GenerateKey(CK_SESSION_HANDLE, CK_MECHANISM_PTR, CK_ATTRIBUTE_PTR, CK_UL
 }
 
 CK_RV C_WrapKey(CK_SESSION_HANDLE, CK_MECHANISM_PTR, CK_OBJECT_HANDLE, CK_OBJECT_HANDLE,
-                CK_BYTE_PTR, CK_ULONG_PTR) {
+        CK_BYTE_PTR, CK_ULONG_PTR) {
     return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
 CK_RV C_UnwrapKey(CK_SESSION_HANDLE, CK_MECHANISM_PTR, CK_OBJECT_HANDLE, CK_BYTE_PTR, CK_ULONG,
-                  CK_ATTRIBUTE_PTR, CK_ULONG, CK_OBJECT_HANDLE_PTR) {
+        CK_ATTRIBUTE_PTR, CK_ULONG, CK_OBJECT_HANDLE_PTR) {
     return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
 CK_RV C_DeriveKey(CK_SESSION_HANDLE, CK_MECHANISM_PTR, CK_OBJECT_HANDLE, CK_ATTRIBUTE_PTR,
-                  CK_ULONG, CK_OBJECT_HANDLE_PTR) {
+        CK_ULONG, CK_OBJECT_HANDLE_PTR) {
     return CKR_FUNCTION_NOT_SUPPORTED;
 }
 

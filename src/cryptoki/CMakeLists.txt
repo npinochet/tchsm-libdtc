@@ -81,6 +81,10 @@ set(HSM_SRC
   hsm/CryptoObject.h
   hsm/Application.cpp
   hsm/Application.h
+  hsm/Mutex.cpp
+  hsm/Mutex.h
+  hsm/OSMutex.cpp
+  hsm/OSMutex.h
   )
 
 

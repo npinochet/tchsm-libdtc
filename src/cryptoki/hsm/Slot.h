@@ -24,6 +24,7 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 #include <map>
 #include <memory>
 
+#include "Mutex.h"
 #include "pkcs11.h"
 #include "Configuration.h"
 
@@ -49,6 +50,7 @@ class Slot
     std::map<CK_SESSION_HANDLE, SessionPtr> sessions_;
     // A token can be unplugged...
     TokenPtr token_;
+    Mutex mutex_;
     
     CK_SLOT_ID id_;
 public:
@@ -64,7 +66,7 @@ public:
     void closeAllSessions();
     Session & getSession ( CK_SESSION_HANDLE handle );
     bool hasSession ( CK_SESSION_HANDLE handle );
-    CK_ULONG sessionsCount() const;
+    CK_ULONG sessionsCount();
 
     Application & getApplication();
     CK_SLOT_ID getId() const;
