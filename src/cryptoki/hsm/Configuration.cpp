@@ -85,14 +85,6 @@ void Configuration::load(std::string configurationPath) {
                        CKR_GENERAL_ERROR);
     }
 
-    if(CONFIG_FALSE == config_setting_lookup_string(cryptoki, "dtc_config_path",
-                                                    &aux_char)) {
-        config_destroy(&cfg);
-        throw TcbError(configurationPath, "dtc_config_path error",
-                       CKR_GENERAL_ERROR);
-    }
-    dtcConfigPath_ = std::string(aux_char);
-
     if(CONFIG_FALSE == config_setting_lookup_string(cryptoki, "database_path",
                                                      &aux_char)) {
         config_destroy(&cfg);
@@ -219,10 +211,6 @@ Configuration::~Configuration() {
 
 std::vector<Configuration::SlotConf> const &Configuration::getSlotConf() const {
     return slotConf_;
-}
-
-const std::string &Configuration::getDtcConfigPath() const {
-    return dtcConfigPath_;
 }
 
 uint16_t Configuration::getNodesNumber() const {

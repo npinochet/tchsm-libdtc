@@ -45,7 +45,6 @@ public:
     Configuration & operator=(Configuration &&) = default;
 
     std::vector<SlotConf> const & getSlotConf() const;
-    const std::string & getDtcConfigPath() const;
     uint16_t getNodesNumber() const;
     uint16_t getThreshold() const;
     const std::string & getDatabasePath() const;
@@ -55,7 +54,6 @@ public:
     ~Configuration();
 private:
     std::vector<SlotConf> slotConf_;
-    std::string dtcConfigPath_;
     std::string databasePath_;
 
     uint16_t nodesNumber_;
