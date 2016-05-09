@@ -36,6 +36,7 @@ void Mutex::lock() {
         throw TcbError("Mutex::lock", "Tried to lock an already locked mutex!", CKR_MUTEX_BAD);
     }
     CK_RV rv = lockMutex_(mutex_);
+    isLocked_ = true;
     if (rv != CKR_OK) {
         throw TcbError("Mutex::lock", "Mutex error!", rv);
     }
@@ -45,6 +46,7 @@ void Mutex::unlock() {
     if (!isLocked_) {
         throw TcbError("Mutex::unlock", "Tried to unlock an not locked mutex!", CKR_MUTEX_BAD);
     }
+    isLocked_ = false;
     CK_RV rv = unlockMutex_(mutex_);
     if (rv != CKR_OK) {
         throw TcbError("Mutex::lock", "Mutex error!", rv);
