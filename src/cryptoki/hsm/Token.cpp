@@ -37,6 +37,12 @@ Token::Token ( string label, string userPin, string soPin )
     } else {
         throw TcbError ( "Token::Token", "Etiqueta con mas de 32 caracteres", CKR_ARGUMENTS_BAD );
     }
+
+    tokenFlags_ = CKF_RNG |
+                  CKF_WRITE_PROTECTED |
+                  CKF_LOGIN_REQUIRED |
+                  CKF_USER_PIN_INITIALIZED |
+                  CKF_TOKEN_INITIALIZED;
 }
 
 Token::~Token()
@@ -151,7 +157,7 @@ void Token::login ( CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinL
         case CKU_CONTEXT_SPECIFIC:
             switch ( securityLevel_ ) {
                 case SecurityLevel::PUBLIC:
-                    throw TcbError("Token::login", "Mal userType", 
+                    throw TcbError("Token::login", "Mal userType",
                                     CKR_OPERATION_NOT_INITIALIZED);
 
                 case SecurityLevel::USER:
