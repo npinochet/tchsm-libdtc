@@ -17,25 +17,22 @@ __email__ = "daniel_avivnotario@hotmail.com"
 __credits__ = ["Francisco Montoto", "Francisco Cifuentes"]
 __status__ = "Development"
 
-#
 DEFAULT_TIMEOUT = 10
 
-#
 DEFAULT_MASTER_ID = "MASTER_MOCK_ID"
 
-#
 DEFAULT_INTERFACE = "*"
 
-#
 DEFAULT_DATABASE = "node"
 
-#
 DEFAULT_CRYPTOKI_DATABASE = "cryptoki"
-
-#
 
 
 def parse_nodes(nodes_info):
+    """Tranforms the user input in a node info dictionary.
+
+    nodes_info -- an array with the node info in the format ip:router_port:sub:port
+    """
     node_dict = {}
 
     count = 0
@@ -51,8 +48,6 @@ def parse_nodes(nodes_info):
 
     return node_dict
 
-#
-
 
 def create_n_master_config(
     nodes,
@@ -60,6 +55,14 @@ def create_n_master_config(
      nb_of_masters,
      instance_id,
      timeout):
+    """Creates one config file for each master
+
+    nodes -- dictionary containing the info of the nodes, where the key is the an id, and the value an array containing the info.
+    output_path -- where the config files will land
+    nb_of_masters -- number of masters
+    instance_id -- the prefix that the masters will have as id
+    timeout -- conection timeout in the masters config
+    """
     masters = {}
 
     for i in range(1, nb_of_masters + 1):
@@ -81,8 +84,6 @@ def create_n_master_config(
 
     return masters
 
-#
-
 
 def create_master_config(
     title,
@@ -91,6 +92,14 @@ def create_master_config(
      instance_id,
      timeout,
      master_info=None):
+    """Creates one master configuration into the specified file.
+
+    title -- title in the header
+    config_file -- file handler where the config will be outputted
+    instance_id -- master id in the config
+    timeout -- conection timeout in the master config
+    master_info -- if provided, the config will use this as public and private key (default None)
+    """
     config_file.write(title + ":\n{\n")
     config_file.write("\tnodes = (\n")
 
@@ -118,8 +127,6 @@ def create_master_config(
 
     return instance_id, master_info[0], master_info[1]
 
-#
-
 
 def create_node_config(
     config_file,
@@ -128,6 +135,15 @@ def create_node_config(
      index,
      interface,
      database):
+    """Creates one node configuration into the specified file.
+
+    config_file -- file handler where the config will be outputted
+    node_info -- a dictionary containing the node information such as ports and keys
+    masters -- a dictionary in which the keys are the mastrs ids and the value the masters public keys
+    index -- node id
+    interface -- interface in the node config
+    database -- prefix in the database path in the nodes config
+    """
     config_file.write("node:\n{\n")
     config_file.write("\tmasters = (\n")
 
@@ -156,10 +172,9 @@ def create_node_config(
     config_file.write("\tinterface=\"" + interface + "\"\n")
     config_file.write("}")
 
-#
-
 
 def get_keygen():
+    """Parses the keygen output and returns just the public and private key as strings"""
     keygen_output = commands.getoutput("curve_keygen")
 
     private_key = keygen_output[-40:]
@@ -167,17 +182,23 @@ def get_keygen():
 
     return public_key, private_key
 
-#
-
 
 def create_n_cryptoki_config(
     nodes,
      output_path,
      masters,
      timeout,
-     interface,
      cryptoki_database,
      threshold):
+    """Creates one cryptoki config file for each master.
+
+    nodes -- dictionary containing the info of the nodes, where the key is the an id, and the value an array containing the info.
+    output_path -- where the config files will land
+    masters -- dictionary of masters information
+    timeout -- conection timeout in the masters config
+    cryptoki_database -- prefix in the database path in the cryptoki config
+    threshold -- min amount of nodes to the sign to occurr
+    """
     for master_id, master_info in masters.iteritems():
         index = ""
         if len(masters) != 1:
@@ -200,22 +221,26 @@ def create_n_cryptoki_config(
             cryptoki_config_file,
             len(nodes),
             index,
-            interface,
             cryptoki_database,
             threshold)
 
         cryptoki_config_file.close()
-
-#
 
 
 def create_cryptoki_config(
     config_file,
      amount_of_nodes,
      index,
-     interface,
      database_path,
      threshold):
+    """Creates one cryptoki configuration into the specified file.
+
+    config_file -- file handler where the config will be outputted
+    amount_of_nodes -- total amount of nodes
+    index -- cryptoki master id
+    database_path -- prefix in the database path in the nodes config
+    threshold -- min amount of nodes to the sign to occurr
+    """
     config_file.write("\ncryptoki:\n{\n")
     config_file.write(
         "\tdatabase_path=\"" +
@@ -225,13 +250,12 @@ def create_cryptoki_config(
      "\",\n")
     config_file.write("\tnodes_number=" + str(amount_of_nodes) + ",\n")
     config_file.write("\tthreshold=" + str(threshold) + ",\n")
-    config_file.write("\tinterface=\"" + interface + "\"\n")
+    config_file.write("\tslots = (\n\t\t{label=\"TCBHSM\"},\n\t)\n")
     config_file.write("}")
-
-#
 
 
 def get_default_threshold(amount_of_nodes):
+    """Computes default threshold"""
     return int(floor(float(amount_of_nodes) / 2) + 1)
 
 
@@ -301,7 +325,7 @@ def main(argv=None):
     try:
         nodes = parse_nodes(args.nodes)
     except ValueError as e:
-        print("ERROR: " + str(e))  # TODO
+        print("ERROR: " + str(e))
         return 1
 
     masters = create_n_master_config(
@@ -347,7 +371,6 @@ def main(argv=None):
         args.output_dir,
      masters,
      args.timeout,
-     args.interface,
      args.cryptoki_database,
      threshold)
 
