@@ -59,30 +59,118 @@ Database &Database::operator=(Database &&db) {
     return *this;
 }
 
-
 Database::~Database() {
     sqlite3_close(db_);
 }
 
-void Database::init(std::string path) {
+void Database::create_cryptoki_tables(sqlite3 *db_) {
+    unsigned int i;
+
+    const char *token_stmt =
+            "CREATE TABLE IF NOT EXISTS TOKEN (\n"\
+            "   TKN_LABEL    PRIMARY KEY,\n"\
+            "   TKN_PIN      TEXT,\n"\
+            "   TKN_SO_PIN   TEXT\n"\
+            ");\n";
+    const char *crypto_object_stmt =
+            "CREATE TABLE IF NOT EXISTS CRYPTO_OBJECT (\n"\
+            "   TKN_LABEL    TEXT,\n"\
+            "   CO_HANDLE    INTEGER,\n"\
+            "   PRIMARY KEY  (TKN_LABEL, CO_HANDLE)\n"\
+            ");\n";
+    const char *attribute_stmt =
+            "CREATE TABLE IF NOT EXISTS ATTRIBUTE (\n"\
+            "   TKN_LABEL    TEXT,\n"\
+            "   CO_HANDLE    INTEGER,\n"\
+            "   ATT_TYPE     INTEGER,\n"\
+            "   ATT_VALUE    BLOB,\n"\
+            "   PRIMARY KEY  (TKN_LABEL, CO_HANDLE, ATT_TYPE)\n"\
+            ");\n";
+
+    const char *tables[3][2] = {{"token", token_stmt},
+                                {"crypto_object", crypto_object_stmt},
+                                {"attribute", attribute_stmt}
+    };
+
     int rc;
-    rc = sqlite3_open(path.c_str(), &db_);
-    if (rc) {
-        sqlite3_close(db_);
-        throw TcbError("Database::init", "Couldn't open database", CKR_GENERAL_ERROR);
+    for(i = 0; i < 3; i++) {
+        sqlite3_stmt *stmt;
+        rc = sqlite3_prepare_v2(db_, tables[i][1], std::string(tables[i][1]).size(), &stmt, nullptr);
+
+        if(rc != SQLITE_OK) {
+            sqlite3_close(db_);
+            throw TcbError("Database::create_cryptoki_tables", "Couldn't prepare statements", CKR_GENERAL_ERROR);
+        }
+
+        int step;
+        step = sqlite3_step(stmt);
+        rc = sqlite3_finalize(stmt);
+        if (rc != SQLITE_OK) {
+            sqlite3_close(db_);
+            throw TcbError("Database::create_cryptoki_tables", "Couldn't finalize statements", CKR_GENERAL_ERROR);
+        }
+        if(step != SQLITE_DONE) {
+            sqlite3_close(db_);
+            throw TcbError("Database::create_cryptoki_tables", "Error blocking step", CKR_GENERAL_ERROR);
+        }
     }
+}
+
+void Database::insert_token(sqlite3 *db_) {
+    int rc, step;
+
+    const char *token_insertion_stmt =
+            "INSERT INTO TOKEN VALUES (\"TCBHSM\", \"1234\", \"1234\");";
 
     sqlite3_stmt *stmt;
+    rc = sqlite3_prepare_v2(db_, token_insertion_stmt, std::string(token_insertion_stmt).size(), &stmt, nullptr);
 
-    sqlite3_prepare_v2(db_, GET_MAX_CO_QUERY, std::string(GET_MAX_CO_QUERY).size(), &stmt, nullptr);
+    if(rc != SQLITE_OK) {
+        sqlite3_close(db_);
+        throw TcbError("Database::insert_token", "Couldn't prepare statement", CKR_GENERAL_ERROR);
+    }
+
+    step = sqlite3_step(stmt);
+    rc = sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_OK && rc != SQLITE_CONSTRAINT) {
+        sqlite3_close(db_);
+        throw TcbError("Database::insert_token", "Couldn't finalize statement", CKR_GENERAL_ERROR);
+    }
+    if(step != SQLITE_DONE && rc != SQLITE_CONSTRAINT) {
+        sqlite3_close(db_);
+        throw TcbError("Database::insert_token", "Error blocking step", CKR_GENERAL_ERROR);
+    }
+}
+
+void Database::assign_crypto_object_handle(sqlite3 *pSqlite3) {
+    //int step;
+    int rc;
+
+    sqlite3_stmt *stmt;
+    rc = sqlite3_prepare_v2(db_, GET_MAX_CO_QUERY, std::string(GET_MAX_CO_QUERY).size(), &stmt, nullptr);
 
     if (sqlite3_step(stmt) == SQLITE_ROW) {
         CryptoObject::actualHandle = sqlite3_column_int(stmt, 0);
     } else {
         sqlite3_finalize(stmt);
-        throw TcbError("Database::init", "Cannot get max handle", CKR_GENERAL_ERROR);
+        throw TcbError("Database::assign_crypto_object_handle", "Cannot get max handle", CKR_GENERAL_ERROR);
     }
     sqlite3_finalize(stmt);
+}
+
+void Database::init(std::string path) {
+    int rc;
+    rc = sqlite3_open_v2(path.c_str(), &db_, SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db_);
+        throw TcbError("Database::init", "Couldn't open database", CKR_GENERAL_ERROR);
+    }
+
+    create_cryptoki_tables(db_);
+    insert_token(db_);
+    assign_crypto_object_handle(db_);
 }
 
 hsm::Token *Database::getToken(std::string label) {
@@ -179,4 +267,8 @@ void Database::saveToken(hsm::Token &token) {
     sqlite3_finalize(cleanAttributesStmt);
     sqlite3_finalize(insertAttributesStmt);
 }
+
+
+
+
 

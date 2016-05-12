@@ -45,6 +45,12 @@ public:
     
     virtual hsm::Token* getToken(std::string label);
     virtual void saveToken(hsm::Token& token);
+
+    void create_cryptoki_tables(sqlite3 *pSqlite3);
+
+    void insert_token(sqlite3 *db_);
+
+    void assign_crypto_object_handle(sqlite3 *pSqlite3);
 };
 }
 
