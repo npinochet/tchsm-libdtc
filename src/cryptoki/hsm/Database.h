@@ -50,7 +50,7 @@ public:
 
     void insert_token(sqlite3 *db_);
 
-    void assign_crypto_object_handle(sqlite3 *pSqlite3);
+    void get_max_handle(sqlite3 *pSqlite3);
 };
 }
 

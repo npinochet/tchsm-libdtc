@@ -143,12 +143,9 @@ void Database::insert_token(sqlite3 *db_) {
     }
 }
 
-void Database::assign_crypto_object_handle(sqlite3 *pSqlite3) {
-    //int step;
-    int rc;
-
+void Database::get_max_handle(sqlite3 *db_) {
     sqlite3_stmt *stmt;
-    rc = sqlite3_prepare_v2(db_, GET_MAX_CO_QUERY, std::string(GET_MAX_CO_QUERY).size(), &stmt, nullptr);
+    sqlite3_prepare_v2(db_, GET_MAX_CO_QUERY, std::string(GET_MAX_CO_QUERY).size(), &stmt, nullptr);
 
     if (sqlite3_step(stmt) == SQLITE_ROW) {
         CryptoObject::actualHandle = sqlite3_column_int(stmt, 0);
@@ -170,7 +167,7 @@ void Database::init(std::string path) {
 
     create_cryptoki_tables(db_);
     insert_token(db_);
-    assign_crypto_object_handle(db_);
+    get_max_handle(db_);
 }
 
 hsm::Token *Database::getToken(std::string label) {
@@ -267,8 +264,3 @@ void Database::saveToken(hsm::Token &token) {
     sqlite3_finalize(cleanAttributesStmt);
     sqlite3_finalize(insertAttributesStmt);
 }
-
-
-
-
-
