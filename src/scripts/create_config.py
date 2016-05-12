@@ -358,11 +358,20 @@ def main(argv=None):
 
     threshold = 0
     if(args.custom_threshold):
-        if (args.threshold < 0 or args.threshold > len(nodes)):
+        custom_threshold = args.threshold
+        custom_threshold_as_int = 0
+
+        try:
+            custom_threshold_as_int = int(custom_threshold)
+        except ValueError as e:
             print("ERROR: Inadaquate threshold")
             return 1
 
-        threshold = args.threshold
+        if (custom_threshold_as_int < 0 or custom_threshold_as_int > len(nodes)):
+            print("ERROR: Inadaquate threshold")
+            return 1
+
+        threshold = custom_threshold_as_int
     else:
         threshold = get_default_threshold(len(nodes))
 
