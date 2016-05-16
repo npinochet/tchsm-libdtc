@@ -2,9 +2,12 @@
 # -*- coding: utf-8 -*-
 
 import sys
+from os.path import exists
+from tempfile import mkdtemp
+import shutil
 
 """
-This module creates the configuration files of nodes and masters for testing purposes.
+
 """
 
 __author__ = "Daniel Aviv"
@@ -12,13 +15,28 @@ __email__ = "daniel_avivnotario@hotmail.com"
 __credits__ = ["Francisco Montoto", "Francisco Cifuentes"]
 __status__ = "Development"
 
-DUMP = "../test-dump"
+DUMP = ""
+
 
 def erase_dump():
-	
+    if exists(DUMP):
+        shutil.rmtree(DUMP)
+    return 0
+
+
+def test_one_node():
+    pass
+
 
 def main(argv=None):
-	return 0
+    global DUMP
+    DUMP = mkdtemp(dir="../")
+
+    test_one_node()
+
+    erase_dump()
+    return 0
+
 
 if __name__ == "__main__":
-	main(sys.argv)
+    main(sys.argv)
