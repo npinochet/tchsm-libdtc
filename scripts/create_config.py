@@ -1,12 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+<<<<<<< c15d3a5652c84d08d1f0cadefa4fcd43eb88e912
 import argparse
 import commands
 import os
 import sys
 from math import floor
 from os.path import join
+=======
+import sys
+import os
+from os.path import join
+import argparse
+import commands
+from math import floor
+>>>>>>> Moved scripts out of src folder, system_test is now ready to commence testing
 
 """
 This module creates the configuration files of nodes and masters for testing purposes.
