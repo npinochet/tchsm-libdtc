@@ -37,14 +37,21 @@ def exec_node(config):
         return None, 1, "FAILURE: Path doesn't exists >> " + NODE_EXEC + "/bin"
 
     node = subprocess.Popen([NODE_EXEC + "/bin/node", "-c", DUMP + "/" + config + ".conf"], stderr=subprocess.PIPE)
-    timer = Timer(TEST_TIMEOUT, node.kill)
+    timer = Timer(TEST_TIMEOUT, node.terminate)
+    timer.start()
 
     stdout_lines = iter(node.stderr.readline, "")
     for stdout_line in stdout_lines:
         if NODE_RDY in stdout_line:
             node.stderr.close()
             node.terminate()
-            return node, 0, ""
+            break
+
+    if timer.is_alive():
+        timer.cancel()
+        return node, 0, ""
+    else:
+        return node, 1, "FAILURE: Timeout"
 
     return node, 1, "FAILURE: Node was unable to get ready"
 
