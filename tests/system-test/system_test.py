@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
+from os import chdir
 from os.path import exists, abspath, isdir
 from tempfile import mkdtemp
 import shutil
@@ -12,7 +13,9 @@ import argparse
 from time import time
 
 """
+Module for System Testing
 
+To add a new test add it in the test array in main.
 """
 
 __author__ = "Daniel Aviv"
@@ -37,7 +40,7 @@ def exec_node(config):
     if not isdir(NODE_EXEC + "/bin"):
         return None, 1, "FAILURE: Path doesn't exists >> " + NODE_EXEC + "/bin"
 
-    node = subprocess.Popen([NODE_EXEC + "/bin/node", "-c", DUMP + "/" + config + ".conf"], stderr=subprocess.PIPE)
+    node = subprocess.Popen([NODE_EXEC + "/bin/node", "-c", config + ".conf"], stderr=subprocess.PIPE)
     timer = Timer(TEST_TIMEOUT, node.terminate)
     timer.start()
 
@@ -101,14 +104,18 @@ def test_opening_closing_node():
     return ret, mess
 
 
+def test_master_one_node():
+    return 1, "FAILURE"
+
+
 def test_fail():
     return 1, "FAILURE: This is suppose to fail"
 
 
-def pretty_print(index, name, result, mess, time, verbosity):
+def pretty_print(index, name, result, mess, runtime, verbosity):
     if result == 0:
         if verbosity:
-            print str(index) + " .- " + name + " passed! Running time: " + str(time)[:6] + " seconds."
+            print str(index) + " .- " + name + " passed! Running time: " + str(runtime)[:6] + " seconds."
     else:
         print str(index) + " .- " + name + " failed!"
         print "      " + str(mess)
@@ -125,10 +132,12 @@ def main(argv=None):
                         help="specify this if you want to see every running test",
                         default=False,
                         action="store_true")
+    parser.add_argument("-s",
+                        "--store_failed_dumps",
+                        help="specify this if you want to save dump folders",
+                        default=False,
+                        action="store_true")
     args = parser.parse_args()
-
-    global DUMP
-    DUMP = mkdtemp(dir="./")
 
     global NODE_EXEC
     NODE_EXEC = abspath(args.node_exec)
@@ -137,26 +146,36 @@ def main(argv=None):
     tests = [("TEST ONE NODE", test_one_node),
              ("TEST TWO NODE", test_two_nodes),
              ("TEST OPEN CLOSED NODE", test_opening_closing_node),
-             ("TEST FAIL", test_fail)]
+             ("TEST FAIL", test_fail)
+             ("TEST MASTER ONE NODE"), test_master_one_node]
 
     tests_passed = 0
     tests_runned = len(tests)
 
     for index, test in zip(range(1, len(tests) + 1), tests):
+        global DUMP
+        DUMP = mkdtemp(prefix="test_" + str(index) + "_", dir="./")
+        chdir(DUMP)
+
         name, func = test
 
         start = time()
         result, mess = func()
         end = time()
 
+        chdir("..")
         if result == 0:
             tests_passed += 1
+            erase_dump()
+
+        if not args.store_failed_dumps:
+            erase_dump()
 
         pretty_print(index, name, result, mess, end - start, args.verbosity)
 
     passing_string = "|"*tests_passed + " "*(tests_runned-tests_passed)
     print("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_runned) + ": [" + passing_string + "] ---")
-    erase_dump()
+
     return 0
 
 
