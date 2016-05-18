@@ -9,6 +9,7 @@ from commands import getstatusoutput
 import subprocess
 from threading import Timer
 import argparse
+from time import time
 
 """
 
@@ -43,8 +44,6 @@ def exec_node(config):
     stdout_lines = iter(node.stderr.readline, "")
     for stdout_line in stdout_lines:
         if NODE_RDY in stdout_line:
-            node.stderr.close()
-            node.terminate()
             break
 
     if timer.is_alive():
@@ -106,10 +105,10 @@ def test_fail():
     return 1, "FAILURE: This is suppose to fail"
 
 
-def pretty_print(index, name, result, mess, verbosity):
+def pretty_print(index, name, result, mess, time, verbosity):
     if result == 0:
         if verbosity:
-            print str(index) + " .- " + name + " passed!"
+            print str(index) + " .- " + name + " passed! Running time: " + str(time)[:6] + " seconds."
     else:
         print str(index) + " .- " + name + " failed!"
         print "      " + str(mess)
@@ -134,7 +133,7 @@ def main(argv=None):
     global NODE_EXEC
     NODE_EXEC = abspath(args.node_exec)
 
-    print(" --- Testing commencing --- \n")
+    print(" --- Testing starting --- \n")
     tests = [("TEST ONE NODE", test_one_node),
              ("TEST TWO NODE", test_two_nodes),
              ("TEST OPEN CLOSED NODE", test_opening_closing_node),
@@ -145,12 +144,15 @@ def main(argv=None):
 
     for index, test in zip(range(1, len(tests) + 1), tests):
         name, func = test
+
+        start = time()
         result, mess = func()
+        end = time()
 
         if result == 0:
             tests_passed += 1
 
-        pretty_print(index, name, result, mess,  args.verbosity)
+        pretty_print(index, name, result, mess, end - start, args.verbosity)
 
     passing_string = "|"*tests_passed + " "*(tests_runned-tests_passed)
     print("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_runned) + ": [" + passing_string + "] ---")
