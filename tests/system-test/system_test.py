@@ -95,9 +95,14 @@ def test_opening_closing_node():
     return ret, mess
 
 
-def pretty_print(index, name, result, mess):
+def test_fail():
+    return 1, "FAILURE: This is suppose to fail"
+
+
+def pretty_print(index, name, result, mess, verbosity):
     if result == 0:
-        print str(index) + " .- " + name + " passed!"
+        if verbosity:
+            print str(index) + " .- " + name + " passed!"
     else:
         print str(index) + " .- " + name + " failed!"
         print "      " + str(mess)
@@ -125,7 +130,8 @@ def main(argv=None):
     print(" --- Testing commencing --- \n")
     tests = [("TEST ONE NODE", test_one_node),
              ("TEST TWO NODE", test_two_nodes),
-             ("TEST OPEN CLOSED NODE", test_opening_closing_node)]
+             ("TEST OPEN CLOSED NODE", test_opening_closing_node),
+             ("TEST FAIL", test_fail)]
 
     tests_passed = 0
     tests_runned = len(tests)
@@ -137,8 +143,10 @@ def main(argv=None):
         if result == 0:
             tests_passed += 1
 
-        pretty_print(index, name, result, mess)
+        pretty_print(index, name, result, mess,  args.verbosity)
 
+    passing_string = "|"*tests_passed + " "*(tests_runned-tests_passed)
+    print("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_runned) + ": [" + passing_string + "] ---")
     erase_dump()
     return 0
 
