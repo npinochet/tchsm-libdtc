@@ -3,7 +3,7 @@
 
 import sys
 from os import chdir, environ
-from os.path import exists, abspath, isdir
+from os.path import exists, abspath, isdir, isfile
 from tempfile import mkdtemp
 import shutil
 from commands import getstatusoutput
@@ -39,7 +39,7 @@ def erase_dump():
 
 def exec_node(config):
     if not isdir(NODE_EXEC + "/bin"):
-        return None, 1, "FAILURE: Path doesn't exists >> " + NODE_EXEC + "/bin"
+        return None, 1, "ERROR: Path doesn't exists >> " + NODE_EXEC + "/bin"
 
     node = subprocess.Popen([NODE_EXEC + "/bin/node", "-c", config + ".conf"], stderr=subprocess.PIPE)
     timer = Timer(TEST_TIMEOUT, node.terminate)
@@ -58,9 +58,12 @@ def exec_node(config):
 
 
 def exec_master(signing_file):
-    environ["TCHSM_CONFIG"] = abspath("cryptoki.conf")
+    if isfile("cryptoki.conf"):
+        environ["TCHSM_CONFIG"] = abspath("cryptoki.conf")
+    else:
+        return 1, "ERROR: TCHSM_CONFIG env. var. could not be set."
 
-    master = subprocess.Popen(["pkcs11_test", "-f", signing_file, "-p", "1234"], stderr=subprocess.PIPE)
+    master = subprocess.Popen([abspath("../pkcs11_test"), "-f", signing_file, "-p", "1234"], stderr=subprocess.PIPE)
     timer = Timer(TEST_TIMEOUT, master.terminate)
     timer.start()
 
@@ -70,7 +73,7 @@ def exec_master(signing_file):
 
     if timer.is_alive():
         timer.cancel()
-        return master, 0, ""
+        return master, 1, ""
     else:
         return master, 1, "FAILURE: Timeout"
 
@@ -143,26 +146,23 @@ def test_pkcs11_basic():
 
     if node_ret == 1:
         return 1, node_mess
-    print "aca"
     dummy_file = create_dummy_file()
 
-    """
     master_proc, master_ret, master_mess = exec_master(dummy_file.name)
     dummy_file.close()
 
     if master_ret == 1:
         return 1, master_mess
-    """
+
     if node_proc is not None:
         node_proc.stderr.close()
         node_proc.terminate()
 
-    #if master_proc is not None:
-    #    master_proc.stderr.close()
-    #    master_proc.terminate()
+    if master_proc is not None:
+        master_proc.stderr.close()
+        master_proc.terminate()
 
-    #return master_ret, master_mess
-    return None, ""
+    return master_ret, master_mess
 
 
 def test_fail():
@@ -201,14 +201,17 @@ def main(argv=None):
 
     print(" --- Testing starting --- \n")
 
-    tests = [("TEST ONE NODE", test_one_node),
-             ("TEST TWO NODE", test_two_nodes),
-             ("TEST OPEN CLOSED NODE", test_opening_closing_node),
-             ("TEST FAIL", test_fail),
-             ("TEST PKCS11 BASIC", test_pkcs11_basic)]
+    #tests = [("TEST ONE NODE", test_one_node),
+     #        ("TEST TWO NODE", test_two_nodes),
+      #       ("TEST OPEN CLOSED NODE", test_opening_closing_node),
+       #      ("TEST FAIL", test_fail),
+        #     ("TEST PKCS11 BASIC", test_pkcs11_basic)]
+
+    tests = [("TEST PKCS11 BASIC", test_pkcs11_basic)]
 
     tests_passed = 0
     tests_runned = len(tests)
+    total_time = 0
 
     for index, test in zip(range(1, len(tests) + 1), tests):
         global DUMP
@@ -220,6 +223,7 @@ def main(argv=None):
         start = time()
         result, mess = func()
         end = time()
+        total_time += end - start
 
         chdir("..")
         if result == 0:
@@ -233,6 +237,7 @@ def main(argv=None):
 
     passing_string = "|"*tests_passed + " "*(tests_runned-tests_passed)
     print("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_runned) + ": [" + passing_string + "] ---")
+    print("\n --- Total time elapsed: " + str(total_time) + " seconds ---")
 
     return 0
 
