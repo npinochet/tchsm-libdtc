@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
-from os import chdir
+from os import chdir, environ
 from os.path import exists, abspath, isdir
 from tempfile import mkdtemp
 import shutil
@@ -25,6 +25,7 @@ __status__ = "Development"
 
 DUMP = ""
 NODE_EXEC = ""
+CONFIG_CREATOR_PATH = abspath("../../scripts/create_config.py")
 
 NODE_RDY = "Both socket binded, node ready to talk with the Master."
 TEST_TIMEOUT = 10
@@ -55,11 +56,36 @@ def exec_node(config):
     else:
         return node, 1, "FAILURE: Timeout"
 
-    return node, 1, "FAILURE: Node was unable to get ready"
+
+def exec_master(signing_file):
+    environ["TCHSM_CONFIG"] = abspath("cryptoki.conf")
+
+    master = subprocess.Popen(["pkcs11_test", "-f", signing_file, "-p", "1234"], stderr=subprocess.PIPE)
+    timer = Timer(TEST_TIMEOUT, master.terminate)
+    timer.start()
+
+    stdout_lines = iter(master.stderr.readline, "")
+    for stdout_line in stdout_lines:
+        print "OUTPUT: " + stdout_line
+
+    if timer.is_alive():
+        timer.cancel()
+        return master, 0, ""
+    else:
+        return master, 1, "FAILURE: Timeout"
+
+
+def create_dummy_file():
+    fd = open("to_sign.txt", "w")
+    fd.write(":)\n")
+    return fd
 
 
 def test_one_node():
-    getstatusoutput("python ../../scripts/create_config.py 127.0.0.1:2121:2122 -o " + DUMP)
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
+    if(status != 0):
+        return 1, "ERROR: Configuration files could not be created."
+
     proc, ret, mess = exec_node("node1")
 
     if proc is not None:
@@ -70,7 +96,9 @@ def test_one_node():
 
 
 def test_two_nodes():
-    getstatusoutput("python ../../scripts/create_config.py 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -o " + DUMP)
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
+    if(status != 0):
+        return 1, "ERROR: Configuration files could not be created."
 
     node1, ret1, mess1 = exec_node("node1")
     if ret1 == 1:
@@ -90,7 +118,9 @@ def test_two_nodes():
 
 
 def test_opening_closing_node():
-    getstatusoutput("python ../../scripts/create_config.py 127.0.0.1:2121:2122 -o " + DUMP)
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
+    if(status != 0):
+        return 1, "ERROR: Configuration files could not be created."
 
     node, ret, mess = exec_node("node1")
     if ret == 1:
@@ -104,8 +134,35 @@ def test_opening_closing_node():
     return ret, mess
 
 
-def test_master_one_node():
-    return 1, "FAILURE"
+def test_pkcs11_basic():
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
+    if(status != 0):
+        return 1, "ERROR: Configuration files could not be created."
+
+    node_proc, node_ret, node_mess = exec_node("node1")
+
+    if node_ret == 1:
+        return 1, node_mess
+    print "aca"
+    dummy_file = create_dummy_file()
+
+    """
+    master_proc, master_ret, master_mess = exec_master(dummy_file.name)
+    dummy_file.close()
+
+    if master_ret == 1:
+        return 1, master_mess
+    """
+    if node_proc is not None:
+        node_proc.stderr.close()
+        node_proc.terminate()
+
+    #if master_proc is not None:
+    #    master_proc.stderr.close()
+    #    master_proc.terminate()
+
+    #return master_ret, master_mess
+    return None, ""
 
 
 def test_fail():
@@ -143,11 +200,12 @@ def main(argv=None):
     NODE_EXEC = abspath(args.node_exec)
 
     print(" --- Testing starting --- \n")
+
     tests = [("TEST ONE NODE", test_one_node),
              ("TEST TWO NODE", test_two_nodes),
              ("TEST OPEN CLOSED NODE", test_opening_closing_node),
-             ("TEST FAIL", test_fail)
-             ("TEST MASTER ONE NODE"), test_master_one_node]
+             ("TEST FAIL", test_fail),
+             ("TEST PKCS11 BASIC", test_pkcs11_basic)]
 
     tests_passed = 0
     tests_runned = len(tests)
