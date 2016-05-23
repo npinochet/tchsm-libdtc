@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
 import argparse
 import shutil
 import subprocess
@@ -10,6 +11,17 @@ from os import chdir, environ
 from os.path import join, exists, abspath, isdir, isfile
 from tempfile import mkdtemp
 from threading import Timer
+=======
+import sys
+from os import chdir, environ
+from os.path import exists, abspath, isdir, isfile
+from tempfile import mkdtemp
+import shutil
+from commands import getstatusoutput
+import subprocess
+from threading import Timer
+import argparse
+>>>>>>> Added tests related to the master, more to be added soon
 from time import time
 
 """
@@ -24,6 +36,7 @@ __credits__ = ["Francisco Montoto", "Francisco Cifuentes"]
 __status__ = "Development"
 
 DUMP = ""
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
 EXEC_PATH = ""
 CONFIG_CREATOR_PATH = abspath("../../scripts/create_config.py")
 
@@ -31,6 +44,15 @@ NODE_RDY = "Both socket binded, node ready to talk with the Master."
 
 NODE_TIMEOUT = 5
 MASTER_TIMEOUT = 20
+=======
+NODE_EXEC = ""
+TEST_EXEC_FOLDER = abspath("../../build/tests/system_test")
+
+CONFIG_CREATOR_PATH = abspath("../../scripts/create_config.py")
+
+NODE_RDY = "Both socket binded, node ready to talk with the Master."
+TEST_TIMEOUT = 10
+>>>>>>> Added tests related to the master, more to be added soon
 
 
 def erase_dump():
@@ -40,6 +62,7 @@ def erase_dump():
 
 
 def exec_node(config):
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
     if not isdir(EXEC_PATH):
         return None, 1, "ERROR: Path doesn't exists >> " + EXEC_PATH
 
@@ -58,6 +81,18 @@ def exec_node(config):
         return node, 1, "ERROR: Exec could not be accesed >> " + EXEC_PATH + "/src/node"
 
     timer = Timer(NODE_TIMEOUT, node.terminate)
+=======
+    if not isdir(NODE_EXEC):
+        return None, 1, "ERROR: Path doesn't exists >> " + NODE_EXEC
+
+    node = None
+    try:
+        node = subprocess.Popen([NODE_EXEC + "/node", "-c", config + ".conf"], stderr=subprocess.PIPE)
+    except OSError as e:
+        return node, 1, "ERROR: Exec could not be accesed >> " + NODE_EXEC + "/node"
+
+    timer = Timer(TEST_TIMEOUT, node.terminate)
+>>>>>>> Added tests related to the master, more to be added soon
     timer.start()
 
     stdout_lines = iter(node.stderr.readline, "")
@@ -72,6 +107,7 @@ def exec_node(config):
         return node, 1, "FAILURE: Timeout"
 
 
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
 def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
     if isfile(cryptoki_conf):
         environ["TCHSM_CONFIG"] = abspath(cryptoki_conf)
@@ -98,10 +134,40 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
         if master.returncode != 0:
             return master, master.returncode, "FAILURE: Master return code: " + str(master.returncode)
         return None, master.returncode, ""
+=======
+def exec_master(signing_file, with_key=False):
+    if isfile("cryptoki.conf"):
+        environ["TCHSM_CONFIG"] = abspath("cryptoki.conf")
+    else:
+        return 1, "ERROR: TCHSM_CONFIG env. var. could not be set."
+
+    master_args = [TEST_EXEC_FOLDER + "/pkcs_11_test", "-f", signing_file, "-p", "1234"]
+
+    if with_key:
+        master_args = [TEST_EXEC_FOLDER + "/pkcs_11_test", "-c", "-f", signing_file, "-p", "1234"]
+
+    master = None
+    try:
+        master = subprocess.Popen(master_args)
+    except OSError as e:
+        return master, 1, "ERROR: Exec could not be accesed >> pkcs_11_test"
+
+    timer = Timer(TEST_TIMEOUT, master.terminate)
+    timer.start()
+
+    while master.returncode is not None:
+        if master.returncode != 0:
+            return master, 1, "FAILURE: Master return code: " + master.returncode
+
+    if timer.is_alive():
+        timer.cancel()
+        return master, 0, ""
+>>>>>>> Added tests related to the master, more to be added soon
     else:
         return master, 1, "FAILURE: Timeout"
 
 
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
 def close_node(node_proc):
     if node_proc is not None:
         node_proc.stderr.close()
@@ -119,6 +185,8 @@ def close_nodes(nodes):
         close_node(node)
 
 
+=======
+>>>>>>> Added tests related to the master, more to be added soon
 def create_dummy_file():
     fd = open("to_sign.txt", "w")
     fd.write(":)\n")
@@ -127,41 +195,76 @@ def create_dummy_file():
 
 # NODE ONLY TESTS
 def test_one_node():
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
+=======
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
+>>>>>>> Added tests related to the master, more to be added soon
     if(status != 0):
         return 1, "ERROR: Configuration files could not be created."
 
     proc, ret, mess = exec_node("node1")
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
     close_node(proc)
+=======
+
+    if proc is not None:
+        proc.stderr.close()
+        proc.terminate()
+
+>>>>>>> Added tests related to the master, more to be added soon
     return ret, mess
 
 
 def test_two_nodes():
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
+=======
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
+>>>>>>> Added tests related to the master, more to be added soon
     if(status != 0):
         return 1, "ERROR: Configuration files could not be created."
 
     node1, ret1, mess1 = exec_node("node1")
     if ret1 == 1:
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
         close_node(node1)
+=======
+>>>>>>> Added tests related to the master, more to be added soon
         return 1, mess1
 
     node2, ret2, mess2 = exec_node("node2")
 
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
     close_nodes([node1, node2])
+=======
+    if node1 is not None:
+        node1.stderr.close()
+        node1.terminate()
+
+    if node2 is not None:
+        node2.stderr.close()
+        node2.terminate()
+
+>>>>>>> Added tests related to the master, more to be added soon
     return ret2, mess2
 
 
 def test_opening_closing_node():
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
+=======
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
+>>>>>>> Added tests related to the master, more to be added soon
     if(status != 0):
         return 1, "ERROR: Configuration files could not be created."
 
     node, ret, mess = exec_node("node1")
     if ret == 1:
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
         close_node(node)
         return 1, mess
 
@@ -169,22 +272,39 @@ def test_opening_closing_node():
 
     node, ret, mess = exec_node("node1")
     close_node(node)
+=======
+        return 1, mess
+
+    if node is not None:
+        node.stderr.close()
+        node.terminate()
+
+    node, ret, mess = exec_node("node1")
+>>>>>>> Added tests related to the master, more to be added soon
     return ret, mess
 
 
 def test_open_close_with_node_open():
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
+=======
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
+>>>>>>> Added tests related to the master, more to be added soon
     if(status != 0):
         return 1, "ERROR: Configuration files could not be created."
 
     node1, ret1, mess1 = exec_node("node1")
     if ret1 == 1:
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
         close_node(node1)
+=======
+>>>>>>> Added tests related to the master, more to be added soon
         return 1, mess1
 
     node2, ret2, mess2 = exec_node("node2")
 
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
     close_node(node1)
 
     node3, ret3, mess3 = exec_node("node1")
@@ -240,10 +360,35 @@ def test_stress_simultaneous():
 def test_master_one_node(master_args, master_name):
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2131:2132")
+=======
+    if node1 is not None:
+        node1.stderr.close()
+        node1.terminate()
+
+    node3, ret3, mess3 = exec_node("node1")
+    if ret3 == 1:
+        return 1, mess3
+
+    if node3 is not None:
+        node3.stderr.close()
+        node3.terminate()
+
+    if node2 is not None:
+        node2.stderr.close()
+        node2.terminate()
+
+    return ret2, mess2
+
+
+# MASTER TESTS
+def test_pkcs11_basic(with_key=False):
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2131:2132")
+>>>>>>> Added tests related to the master, more to be added soon
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
     node_proc, node_ret, node_mess = exec_node("node1")
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
     if node_ret == 1:
         close_node(node_proc)
         return 1, node_mess
@@ -350,10 +495,40 @@ def test_three_nodes_one_down(master_args, master_name):
 def test_insuff_threshold_bordercase(master_args, master_name):
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 -ct -th 0")
+=======
+
+    if node_ret == 1:
+        return 1, node_mess
+    dummy_file = create_dummy_file()
+
+    master_proc, master_ret, master_mess = exec_master(dummy_file.name, with_key)
+    dummy_file.close()
+
+    if master_ret == 1:
+        return 1, master_mess
+
+    if node_proc is not None:
+        node_proc.stderr.close()
+        node_proc.terminate()
+
+    if master_proc is not None:
+        master_proc.terminate()
+
+    return master_ret, master_mess
+
+
+def test_pkcs11_creating_key():
+    return test_pkcs11_basic(True)
+
+
+def test_pkcs11_two_nodes(with_key=False):
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2131:2132")
+>>>>>>> Added tests related to the master, more to be added soon
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
     node_proc, node_ret, node_mess = exec_node("node1")
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
     if node_ret == 1:
         close_node(node_proc)
         return 1, node_mess
@@ -702,16 +877,52 @@ def pretty_print(index, name, result, mess, runtime, verbosity):
             print str(index) + ".- " + name + " passed! Run time: " + str(runtime)[:6] + " seconds."
     else:
         print str(index) + ".- " + name + " failed!"
+=======
+
+    if node_ret == 1:
+        return 1, node_mess
+    dummy_file = create_dummy_file()
+
+    master_proc, master_ret, master_mess = exec_master(dummy_file.name, with_key)
+    dummy_file.close()
+
+    if master_ret == 1:
+        return 1, master_mess
+
+    if node_proc is not None:
+        node_proc.stderr.close()
+        node_proc.terminate()
+
+    if master_proc is not None:
+        master_proc.terminate()
+
+    return master_ret, master_mess
+
+
+def pretty_print(index, name, result, mess, runtime, verbosity):
+    if result == 0:
+        if verbosity:
+            print str(index) + " .- " + name + " passed! Running time: " + str(runtime)[:6] + " seconds."
+    else:
+        print str(index) + " .- " + name + " failed!"
+>>>>>>> Added tests related to the master, more to be added soon
         print "      " + str(mess)
 
 
 def main(argv=None):
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
     global NODE_TIMEOUT
     global MASTER_TIMEOUT
 
     parser = argparse.ArgumentParser(description="System Testing")
     parser.add_argument("build_path",
                         help="path of the folder where the project is build",
+=======
+    parser = argparse.ArgumentParser(
+        description="System Testing")
+    parser.add_argument("node_exec",
+                        help="path of the folder where node executable is",
+>>>>>>> Added tests related to the master, more to be added soon
                         type=str)
     parser.add_argument("-v",
                         "--verbosity",
@@ -723,6 +934,7 @@ def main(argv=None):
                         help="specify this if you want to save dump folders",
                         default=False,
                         action="store_true")
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
     parser.add_argument("-nt",
                         "--node_timeout",
                         help="maximum time for nodes to respond (default: 5 seg)",
@@ -810,6 +1022,22 @@ def main(argv=None):
 
     if args.with_stress_tests:
         tests.extend(stress_tests)
+=======
+    args = parser.parse_args()
+
+    global NODE_EXEC
+    NODE_EXEC = abspath(args.node_exec)
+
+    print(" --- Testing starting --- \n")
+
+    tests = [("TEST ONE NODE", test_one_node),
+             ("TEST TWO NODE", test_two_nodes),
+             ("TEST OPEN CLOSED NODE", test_opening_closing_node),
+             ("TEST OPEN CLOSE w/ NODE OPEN", test_open_close_with_node_open),
+             ("TEST PKCS11 BASIC", test_pkcs11_basic),
+             ("TEST PKCS11 CREATE KEY", test_pkcs11_creating_key),
+             ("TEST PKCS11 TWO NODES", test_pkcs11_two_nodes)]
+>>>>>>> Added tests related to the master, more to be added soon
 
     tests_passed = 0
     tests_runned = len(tests)
@@ -820,6 +1048,7 @@ def main(argv=None):
         DUMP = mkdtemp(prefix="test_" + str(index) + "_", dir="./")
         chdir(DUMP)
 
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
         name, func, func_args = test
 
         start = time()
@@ -829,6 +1058,12 @@ def main(argv=None):
         else:
             result, mess = func(func_args)
 
+=======
+        name, func = test
+
+        start = time()
+        result, mess = func()
+>>>>>>> Added tests related to the master, more to be added soon
         end = time()
         total_time += end - start
 
@@ -842,6 +1077,7 @@ def main(argv=None):
 
         pretty_print(index, name, result, mess, end - start, args.verbosity)
 
+<<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
     test_percentage = str(
         100 * float(tests_passed) / float(tests_runned))[:5] + "%"
     passing_string = "|" * tests_passed + " " * (tests_runned - tests_passed)
@@ -850,6 +1086,13 @@ def main(argv=None):
     print(" --- Total run time: " + str(total_time)[:6] + " seconds ---")
 
     return tests_runned - tests_passed
+=======
+    passing_string = "|"*tests_passed + " "*(tests_runned-tests_passed)
+    print("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_runned) + ": [" + passing_string + "] ---")
+    print(" --- Total run time: " + str(total_time)[:6] + " seconds ---")
+
+    return 0
+>>>>>>> Added tests related to the master, more to be added soon
 
 
 if __name__ == "__main__":
