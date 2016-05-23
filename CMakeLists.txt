@@ -8,6 +8,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${libdtc_SOURCE_DIR}/cmake)
 set(CMAKE_CTEST_COMMAND ctest -V)
 
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})
+add_custom_target(system_test)
 #TODO if?
 enable_testing()
 
