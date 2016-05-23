@@ -6,6 +6,8 @@ include_directories(${TCLIB_INCLUDE_DIRS})
 find_package(CHECK REQUIRED)
 include_directories(${CHECK_INCLUDE_DIRS})
 
+add_subdirectory(system_test)
+
 set(tests
         structs_test
         messages_test
