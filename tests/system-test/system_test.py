@@ -41,7 +41,12 @@ def exec_node(config):
     if not isdir(NODE_EXEC + "/bin"):
         return None, 1, "ERROR: Path doesn't exists >> " + NODE_EXEC + "/bin"
 
-    node = subprocess.Popen([NODE_EXEC + "/bin/node", "-c", config + ".conf"], stderr=subprocess.PIPE)
+    node = None
+    try:
+        node = subprocess.Popen([NODE_EXEC + "/bin/node", "-c", config + ".conf"], stderr=subprocess.PIPE)
+    except OSError as e:
+        return node, 1, "ERROR: Exec could not be accesed >> " + NODE_EXEC + "/bin/node"
+
     timer = Timer(TEST_TIMEOUT, node.terminate)
     timer.start()
 
@@ -63,7 +68,12 @@ def exec_master(signing_file):
     else:
         return 1, "ERROR: TCHSM_CONFIG env. var. could not be set."
 
-    master = subprocess.Popen([abspath("../pkcs11_test"), "-f", signing_file, "-p", "1234"], stderr=subprocess.PIPE)
+    master = None
+    try:
+        master = subprocess.Popen([abspath("../pkcs11_test"), "-f", signing_file, "-p", "1234"], stderr=subprocess.PIPE)
+    except OSError as e:
+        return master, 1, "ERROR: Exec could not be accesed >> pkcs11_test"
+
     timer = Timer(TEST_TIMEOUT, master.terminate)
     timer.start()
 
@@ -84,6 +94,7 @@ def create_dummy_file():
     return fd
 
 
+# NODE ONLY TESTS
 def test_one_node():
     status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
     if(status != 0):
@@ -137,8 +148,39 @@ def test_opening_closing_node():
     return ret, mess
 
 
+def test_open_close_with_node_open():
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
+    if(status != 0):
+        return 1, "ERROR: Configuration files could not be created."
+
+    node1, ret1, mess1 = exec_node("node1")
+    if ret1 == 1:
+        return 1, mess1
+
+    node2, ret2, mess2 = exec_node("node2")
+
+    if node1 is not None:
+        node1.stderr.close()
+        node1.terminate()
+
+    node3, ret3, mess3 = exec_node("node1")
+    if ret3 == 1:
+        return 1, mess3
+
+    if node3 is not None:
+        node3.stderr.close()
+        node3.terminate()
+
+    if node2 is not None:
+        node2.stderr.close()
+        node2.terminate()
+
+    return ret2, mess2
+
+
+# MASTER TESTS
 def test_pkcs11_basic():
-    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2131:2132")
     if(status != 0):
         return 1, "ERROR: Configuration files could not be created."
 
@@ -204,8 +246,8 @@ def main(argv=None):
     #tests = [("TEST ONE NODE", test_one_node),
      #        ("TEST TWO NODE", test_two_nodes),
       #       ("TEST OPEN CLOSED NODE", test_opening_closing_node),
-       #      ("TEST FAIL", test_fail),
-        #     ("TEST PKCS11 BASIC", test_pkcs11_basic)]
+       #      ("TEST OPEN CLOSE w/ NODE OPEN", test_open_close_with_node_open),
+        #     ("TEST FAIL", test_fail)]
 
     tests = [("TEST PKCS11 BASIC", test_pkcs11_basic)]
 
@@ -237,7 +279,7 @@ def main(argv=None):
 
     passing_string = "|"*tests_passed + " "*(tests_runned-tests_passed)
     print("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_runned) + ": [" + passing_string + "] ---")
-    print("\n --- Total time elapsed: " + str(total_time) + " seconds ---")
+    print(" --- Total run time: " + str(total_time)[:6] + " seconds ---")
 
     return 0
 
