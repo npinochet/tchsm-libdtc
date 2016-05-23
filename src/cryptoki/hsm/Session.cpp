@@ -19,9 +19,6 @@
 
 #include <algorithm>
 
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-#include <boost/uuid/uuid_io.hpp>
 #include <botan/emsa.h>
 #include <botan/md5.h>
 #include <botan/sha160.h>
@@ -36,6 +33,7 @@
 #include <dtc.h>
 #include <iostream>
 #include <botan/lookup.h>
+#include <uuid/uuid.h>
 
 #include "Session.h"
 #include "Slot.h"
@@ -84,6 +82,13 @@ namespace {
 
     CK_SESSION_HANDLE actualHandle = 0;
 
+    std::string get_uuid() {
+        uuid_t uuid;
+        char tmp_uuid[37];
+        uuid_generate(uuid);
+        uuid_unparse(uuid, tmp_uuid);
+        return string(tmp_uuid);
+    }
 }
 
 Session::Session(CK_FLAGS flags, CK_VOID_PTR pApplication,
@@ -686,8 +691,7 @@ KeyPair Session::generateKeyPair(CK_MECHANISM_PTR pMechanism, CK_ATTRIBUTE_PTR p
     switch (pMechanism->mechanism) {
         case CKM_RSA_PKCS_KEY_PAIR_GEN: {
             // RSA is the only accepted method...
-            boost::uuids::random_generator uuidGen;
-            string keyHandler = to_string(uuidGen());
+            string keyHandler = get_uuid();
             // TODO: check if generated uuid is already taken.
 
             Application &app = getCurrentSlot().getApplication();
