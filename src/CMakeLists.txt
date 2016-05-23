@@ -57,22 +57,16 @@ set(DTC_FILES
 
 
 add_library(dtc SHARED ${DTC_FILES} ${NODE_FILES})
-add_executable(master main.c)
 add_executable(node node.c)
-
-set_property(TARGET master PROPERTY C_STANDARD 11)
-set_property(TARGET master PROPERTY C_STANDARD_REQUIRED_ON 11)
 
 
 if(THREADS_HAVE_PTHREAD_ARG)
     target_compile_options(PUBLIC node "-pthread")
     target_compile_options(PUBLIC dtc "-pthread")
-    target_compile_options(PUBLIC master "-pthread")
 endif()
 if(CMAKE_THREAD_LIBS_INIT)
     target_link_libraries(node "${CMAKE_THREAD_LIBS_INIT}")
     target_link_libraries(dtc "${CMAKE_THREAD_LIBS_INIT}")
-    target_link_libraries(master "${CMAKE_THREAD_LIBS_INIT}")
 endif()
 
 target_link_libraries(node ${LIBCONFIG_LIBRARIES}
@@ -91,7 +85,6 @@ target_link_libraries(dtc ${LIBCONFIG_LIBRARIES}
                            ${SQLITE3_LIBRARIES}
                            ${LIBUUID_LIBRARIES})
 
-target_link_libraries(master dtc)
 target_link_libraries(node dtc)
 
 install(TARGETS node DESTINATION bin)
