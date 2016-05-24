@@ -30,7 +30,9 @@ TEST_EXEC_FOLDER = abspath("../../build/tests/system_test")
 CONFIG_CREATOR_PATH = abspath("../../scripts/create_config.py")
 
 NODE_RDY = "Both socket binded, node ready to talk with the Master."
-TEST_TIMEOUT = 15
+
+NODE_TIMEOUT = 5
+MASTER_TIMEOUT = 15
 
 
 def erase_dump():
@@ -49,7 +51,7 @@ def exec_node(config):
     except OSError as e:
         return node, 1, "ERROR: Exec could not be accesed >> " + NODE_EXEC + "/node"
 
-    timer = Timer(TEST_TIMEOUT, node.terminate)
+    timer = Timer(NODE_TIMEOUT, node.terminate)
     timer.start()
 
     stdout_lines = iter(node.stderr.readline, "")
@@ -76,7 +78,7 @@ def exec_master(master_args, master_name):
     except OSError:
         return None, 1, "ERROR: Exec could not be accesed >> " + master_name
 
-    timer = Timer(TEST_TIMEOUT, master.terminate)
+    timer = Timer(MASTER_TIMEOUT, master.terminate)
     if master is not None:
         timer.start()
 
@@ -181,6 +183,47 @@ def test_open_close_with_node_open():
     return ret2, mess2
 
 
+def test_stress_open_close():
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
+    if(status != 0):
+        return 1, "ERROR: Configuration files could not be created."
+
+    for i in range(0, 100):
+        proc, ret, mess = exec_node("node1")
+
+        if proc is not None:
+            proc.stderr.close()
+            proc.terminate()
+
+        if ret != 0:
+            return ret, mess
+
+    return 0, ""
+
+
+def test_stress_simultaneous():
+    proc_array = []
+
+    for port in range(2121, 2121 + 20, 2):
+        status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:" + str(port) + ":" + str(port +1))
+        if (status != 0):
+            return 1, "ERROR: Configuration files could not be created."
+
+        proc, ret, mess = exec_node("node1")
+
+        if ret != 0:
+            return ret, mess
+
+        proc_array.append(proc)
+
+    for proc in proc_array:
+        if proc is not None:
+            proc.stderr.close()
+            proc.terminate()
+
+    return 0, ""
+
+
 # MASTER TESTS
 def test_master_one_node(master_args, master_name):
     status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2131:2132")
@@ -234,6 +277,42 @@ def test_master_two_nodes(master_args, master_name):
     return master_ret, master_mess
 
 
+def test_master_twice(master_args, master_name):
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
+    if status != 0:
+        return 1, "ERROR: Configuration files could not be created."
+
+    node_proc1, node_ret1, node_mess1 = exec_node("node1")
+    if node_ret1 == 1:
+        return 1, node_mess1
+
+    node_proc2, node_ret2, node_mess2 = exec_node("node2")
+    if node_ret2 == 1:
+        return 1, node_mess2
+
+    master, master_ret, master_mess = exec_master(master_args, master_name)
+
+    if master is not None:
+        master.stdout.close()
+        master.stderr.close()
+
+    master, master_ret, master_mess = exec_master(master_args, master_name)
+
+    if node_proc1 is not None:
+        node_proc1.stderr.close()
+        node_proc1.terminate()
+
+    if node_proc2 is not None:
+        node_proc2.stderr.close()
+        node_proc2.terminate()
+
+    if master is not None:
+        master.stdout.close()
+        master.stderr.close()
+
+    return master_ret, master_mess
+
+
 def test_pkcs11_one_node():
     dummy_file = create_dummy_file()
     master_args = [TEST_EXEC_FOLDER + "/pkcs_11_test", "-cf", dummy_file.name, "-p", "1234"]
@@ -252,6 +331,15 @@ def test_pkcs11_two_nodes():
     return ret, mess
 
 
+def test_pkcs11_master_twice_two_nodes():
+    dummy_file = create_dummy_file()
+    master_args = [TEST_EXEC_FOLDER + "/pkcs_11_test", "-cf", dummy_file.name, "-p", "1234"]
+    ret, mess = test_master_twice(master_args, "pkcs_11_test")
+
+    dummy_file.close()
+    return ret, mess
+
+
 def test_dtc_master_one_node():
     master_args = [TEST_EXEC_FOLDER + "/dtc_master_test", abspath("./master.conf")]
     return test_master_one_node(master_args, "dtc_master_test")
@@ -262,20 +350,28 @@ def test_dtc_master_two_nodes():
     return test_master_two_nodes(master_args, "dtc_master_test")
 
 
+def test_dtc_master_twice_two_nodes():
+    master_args = [TEST_EXEC_FOLDER + "/dtc_master_test", abspath("./master.conf")]
+    return test_master_twice(master_args, "dtc_master_test")
+
+
 def pretty_print(index, name, result, mess, runtime, verbosity):
     if result == 0:
         if verbosity:
-            print str(index) + " .- " + name + " passed! Running time: " + str(runtime)[:6] + " seconds."
+            print str(index) + ".- " + name + " passed! Running time: " + str(runtime)[:6] + " seconds."
     else:
         print str(index) + " .- " + name + " failed!"
         print "      " + str(mess)
 
 
 def main(argv=None):
+    global NODE_TIMEOUT
+    global MASTER_TIMEOUT
+
     parser = argparse.ArgumentParser(
         description="System Testing")
-    parser.add_argument("node_exec",
-                        help="path of the folder where node executable is",
+    parser.add_argument("build_path",
+                        help="path of the folder where the project is build",
                         type=str)
     parser.add_argument("-v",
                         "--verbosity",
@@ -287,10 +383,28 @@ def main(argv=None):
                         help="specify this if you want to save dump folders",
                         default=False,
                         action="store_true")
+    parser.add_argument("-nt",
+                        "--node_timeout",
+                        help="maximum time for nodes to respond (default: 5 seg)",
+                        default=NODE_TIMEOUT,
+                        type=int)
+    parser.add_argument("-mt",
+                        "--master_timeout",
+                        help="maximum time for masters to respond (default: 15 seg)",
+                        default=MASTER_TIMEOUT,
+                        type=int)
+    parser.add_argument("-ws",
+                        "--with_stress_tests",
+                        help="specify this if you want to add stress tests to the test case",
+                        default=False,
+                        action="store_true")
     args = parser.parse_args()
 
+    NODE_TIMEOUT = args.node_timeout
+    MASTER_TIMEOUT = args.master_timeout
+
     global NODE_EXEC
-    NODE_EXEC = abspath(args.node_exec)
+    NODE_EXEC = abspath(args.build_path)
 
     print(" --- Testing starting --- \n")
 
@@ -300,8 +414,16 @@ def main(argv=None):
              ("TEST OPEN CLOSE w/ NODE OPEN", test_open_close_with_node_open),
              ("TEST PKCS11 ONE NODE", test_pkcs11_one_node),
              ("TEST PKCS11 TWO NODES", test_pkcs11_two_nodes),
-             ("TEST DTC MASTER BASIC", test_dtc_master_one_node),
-             ("TEST DTC MASTER TWO NODES", test_dtc_master_two_nodes)]
+             ("TEST DTC ONE NODE", test_dtc_master_one_node),
+             ("TEST DTC TWO NODES", test_dtc_master_two_nodes),
+             ("TEST PKCS11 RUN TWICE", test_pkcs11_master_twice_two_nodes),
+             ("TEST DTC RUN TWICE", test_dtc_master_twice_two_nodes)]
+
+    stress_tests = [("NODE STRESS OPEN CLOSE", test_stress_open_close),
+                    ("NODE STRESS SIMULTANEOUS", test_stress_simultaneous)]
+
+    if args.with_stress_tests:
+        tests.extend(stress_tests)
 
     tests_passed = 0
     tests_runned = len(tests)
