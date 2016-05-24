@@ -24,13 +24,13 @@ __credits__ = ["Francisco Montoto", "Francisco Cifuentes"]
 __status__ = "Development"
 
 DUMP = ""
-NODE_EXEC = ""
+NODE_EXEC = "../../build/src"
 TEST_EXEC_FOLDER = abspath("../../build/tests/system_test")
 
 CONFIG_CREATOR_PATH = abspath("../../scripts/create_config.py")
 
 NODE_RDY = "Both socket binded, node ready to talk with the Master."
-TEST_TIMEOUT = 10
+TEST_TIMEOUT = 15
 
 
 def erase_dump():
@@ -45,7 +45,7 @@ def exec_node(config):
 
     node = None
     try:
-        node = subprocess.Popen([NODE_EXEC + "/node", "-c", config + ".conf"], stderr=subprocess.PIPE)
+        node = subprocess.Popen([NODE_EXEC + "/node", "-c", config + ".conf"], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
     except OSError as e:
         return node, 1, "ERROR: Exec could not be accesed >> " + NODE_EXEC + "/node"
 
@@ -64,33 +64,29 @@ def exec_node(config):
         return node, 1, "FAILURE: Timeout"
 
 
-def exec_master(signing_file, with_key=False):
+def exec_master(master_args, master_name):
     if isfile("cryptoki.conf"):
         environ["TCHSM_CONFIG"] = abspath("cryptoki.conf")
     else:
-        return 1, "ERROR: TCHSM_CONFIG env. var. could not be set."
-
-    master_args = [TEST_EXEC_FOLDER + "/pkcs_11_test", "-f", signing_file, "-p", "1234"]
-
-    if with_key:
-        master_args = [TEST_EXEC_FOLDER + "/pkcs_11_test", "-c", "-f", signing_file, "-p", "1234"]
+        return None, 1, "ERROR: TCHSM_CONFIG env. var. could not be set."
 
     master = None
     try:
-        master = subprocess.Popen(master_args)
-    except OSError as e:
-        return master, 1, "ERROR: Exec could not be accesed >> pkcs_11_test"
+        master = subprocess.Popen(master_args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+    except OSError:
+        return None, 1, "ERROR: Exec could not be accesed >> " + master_name
 
     timer = Timer(TEST_TIMEOUT, master.terminate)
-    timer.start()
+    if master is not None:
+        timer.start()
 
-    while master.returncode is not None:
-        if master.returncode != 0:
-            return master, 1, "FAILURE: Master return code: " + master.returncode
+    master.wait()
 
     if timer.is_alive():
         timer.cancel()
-        return master, 0, ""
+        if master.returncode != 0:
+            return master, master.returncode, "FAILURE: Master return code: " + str(master.returncode)
+        return None, master.returncode, ""
     else:
         return master, 1, "FAILURE: Timeout"
 
@@ -186,62 +182,84 @@ def test_open_close_with_node_open():
 
 
 # MASTER TESTS
-def test_pkcs11_basic(with_key=False):
+def test_master_one_node(master_args, master_name):
     status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2131:2132")
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
     node_proc, node_ret, node_mess = exec_node("node1")
-
     if node_ret == 1:
         return 1, node_mess
-    dummy_file = create_dummy_file()
 
-    master_proc, master_ret, master_mess = exec_master(dummy_file.name, with_key)
-    dummy_file.close()
-
-    if master_ret == 1:
-        return 1, master_mess
+    master, master_ret, master_mess = exec_master(master_args, master_name)
 
     if node_proc is not None:
         node_proc.stderr.close()
         node_proc.terminate()
 
-    if master_proc is not None:
-        master_proc.terminate()
+    if master is not None:
+        master.stdout.close()
+        master.stderr.close()
 
     return master_ret, master_mess
 
 
-def test_pkcs11_creating_key():
-    return test_pkcs11_basic(True)
-
-
-def test_pkcs11_two_nodes(with_key=False):
-    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2131:2132")
+def test_master_two_nodes(master_args, master_name):
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
-    node_proc, node_ret, node_mess = exec_node("node1")
+    node_proc1, node_ret1, node_mess1 = exec_node("node1")
+    if node_ret1 == 1:
+        return 1, node_mess1
 
-    if node_ret == 1:
-        return 1, node_mess
-    dummy_file = create_dummy_file()
+    node_proc2, node_ret2, node_mess2 = exec_node("node2")
+    if node_ret2 == 1:
+        return 1, node_mess2
 
-    master_proc, master_ret, master_mess = exec_master(dummy_file.name, with_key)
-    dummy_file.close()
+    master, master_ret, master_mess = exec_master(master_args, master_name)
 
-    if master_ret == 1:
-        return 1, master_mess
+    if node_proc1 is not None:
+        node_proc1.stderr.close()
+        node_proc1.terminate()
 
-    if node_proc is not None:
-        node_proc.stderr.close()
-        node_proc.terminate()
+    if node_proc2 is not None:
+        node_proc2.stderr.close()
+        node_proc2.terminate()
 
-    if master_proc is not None:
-        master_proc.terminate()
+    if master is not None:
+        master.stdout.close()
+        master.stderr.close()
 
     return master_ret, master_mess
+
+
+def test_pkcs11_one_node():
+    dummy_file = create_dummy_file()
+    master_args = [TEST_EXEC_FOLDER + "/pkcs_11_test", "-cf", dummy_file.name, "-p", "1234"]
+    ret, mess = test_master_one_node(master_args, "pkcs_11_test")
+
+    dummy_file.close()
+    return ret, mess
+
+
+def test_pkcs11_two_nodes():
+    dummy_file = create_dummy_file()
+    master_args = [TEST_EXEC_FOLDER + "/pkcs_11_test", "-cf", dummy_file.name, "-p", "1234"]
+    ret, mess = test_master_two_nodes(master_args, "pkcs_11_test")
+
+    dummy_file.close()
+    return ret, mess
+
+
+def test_dtc_master_one_node():
+    master_args = [TEST_EXEC_FOLDER + "/dtc_master_test", abspath("./master.conf")]
+    return test_master_one_node(master_args, "dtc_master_test")
+
+
+def test_dtc_master_two_nodes():
+    master_args = [TEST_EXEC_FOLDER + "/dtc_master_test", abspath("./master.conf")]
+    return test_master_two_nodes(master_args, "dtc_master_test")
 
 
 def pretty_print(index, name, result, mess, runtime, verbosity):
@@ -280,9 +298,10 @@ def main(argv=None):
              ("TEST TWO NODE", test_two_nodes),
              ("TEST OPEN CLOSED NODE", test_opening_closing_node),
              ("TEST OPEN CLOSE w/ NODE OPEN", test_open_close_with_node_open),
-             ("TEST PKCS11 BASIC", test_pkcs11_basic),
-             ("TEST PKCS11 CREATE KEY", test_pkcs11_creating_key),
-             ("TEST PKCS11 TWO NODES", test_pkcs11_two_nodes)]
+             ("TEST PKCS11 ONE NODE", test_pkcs11_one_node),
+             ("TEST PKCS11 TWO NODES", test_pkcs11_two_nodes),
+             ("TEST DTC MASTER BASIC", test_dtc_master_one_node),
+             ("TEST DTC MASTER TWO NODES", test_dtc_master_two_nodes)]
 
     tests_passed = 0
     tests_runned = len(tests)

@@ -17,7 +17,7 @@ int main(int argc, char **argv)
     OPEN_LOG();
     LOG(LOG_LVL_NOTI, "Logger started for %s", argv[0]);
 
-    dtc_ctx_t *ctx = dtc_init(NULL, &ret_val);
+    dtc_ctx_t *ctx = dtc_init(argv[1], &ret_val);
 
     printf("Init ret: %d:%s\n", ret_val, dtc_get_error_msg(ret_val));
     if(ret_val != DTC_ERR_NONE)
