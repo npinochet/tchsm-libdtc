@@ -32,7 +32,7 @@ CONFIG_CREATOR_PATH = abspath("../../scripts/create_config.py")
 NODE_RDY = "Both socket binded, node ready to talk with the Master."
 
 NODE_TIMEOUT = 5
-MASTER_TIMEOUT = 15
+MASTER_TIMEOUT = 20
 
 
 def erase_dump():
@@ -93,6 +93,12 @@ def exec_master(master_args, master_name):
         return master, 1, "FAILURE: Timeout"
 
 
+def close_node(node_proc):
+    if node_proc is not None:
+        node_proc.stderr.close()
+        node_proc.terminate()
+
+
 def create_dummy_file():
     fd = open("to_sign.txt", "w")
     fd.write(":)\n")
@@ -107,10 +113,7 @@ def test_one_node():
 
     proc, ret, mess = exec_node("node1")
 
-    if proc is not None:
-        proc.stderr.close()
-        proc.terminate()
-
+    close_node(proc)
     return ret, mess
 
 
@@ -125,14 +128,8 @@ def test_two_nodes():
 
     node2, ret2, mess2 = exec_node("node2")
 
-    if node1 is not None:
-        node1.stderr.close()
-        node1.terminate()
-
-    if node2 is not None:
-        node2.stderr.close()
-        node2.terminate()
-
+    close_node(node1)
+    close_node(node2)
     return ret2, mess2
 
 
@@ -145,11 +142,10 @@ def test_opening_closing_node():
     if ret == 1:
         return 1, mess
 
-    if node is not None:
-        node.stderr.close()
-        node.terminate()
+    close_node(node)
 
     node, ret, mess = exec_node("node1")
+    close_node(node)
     return ret, mess
 
 
@@ -164,22 +160,14 @@ def test_open_close_with_node_open():
 
     node2, ret2, mess2 = exec_node("node2")
 
-    if node1 is not None:
-        node1.stderr.close()
-        node1.terminate()
+    close_node(node1)
 
     node3, ret3, mess3 = exec_node("node1")
     if ret3 == 1:
         return 1, mess3
 
-    if node3 is not None:
-        node3.stderr.close()
-        node3.terminate()
-
-    if node2 is not None:
-        node2.stderr.close()
-        node2.terminate()
-
+    close_node(node3)
+    close_node(node2)
     return ret2, mess2
 
 
@@ -190,10 +178,7 @@ def test_stress_open_close():
 
     for i in range(0, 100):
         proc, ret, mess = exec_node("node1")
-
-        if proc is not None:
-            proc.stderr.close()
-            proc.terminate()
+        close_node(proc)
 
         if ret != 0:
             return ret, mess
@@ -204,22 +189,22 @@ def test_stress_open_close():
 def test_stress_simultaneous():
     proc_array = []
 
-    for port in range(2121, 2121 + 20, 2):
+    for port in range(2121, 2121 + 60, 2):
         status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:" + str(port) + ":" + str(port +1))
         if (status != 0):
             return 1, "ERROR: Configuration files could not be created."
 
         proc, ret, mess = exec_node("node1")
-
-        if ret != 0:
-            return ret, mess
-
         proc_array.append(proc)
 
+        if ret != 0:
+            for proc in proc_array:
+                close_node(proc)
+
+            return ret, mess
+
     for proc in proc_array:
-        if proc is not None:
-            proc.stderr.close()
-            proc.terminate()
+        close_node(proc)
 
     return 0, ""
 
@@ -236,9 +221,7 @@ def test_master_one_node(master_args, master_name):
 
     master, master_ret, master_mess = exec_master(master_args, master_name)
 
-    if node_proc is not None:
-        node_proc.stderr.close()
-        node_proc.terminate()
+    close_node(node_proc)
 
     if master is not None:
         master.stdout.close()
@@ -262,13 +245,8 @@ def test_master_two_nodes(master_args, master_name):
 
     master, master_ret, master_mess = exec_master(master_args, master_name)
 
-    if node_proc1 is not None:
-        node_proc1.stderr.close()
-        node_proc1.terminate()
-
-    if node_proc2 is not None:
-        node_proc2.stderr.close()
-        node_proc2.terminate()
+    close_node(node_proc1)
+    close_node(node_proc2)
 
     if master is not None:
         master.stdout.close()
@@ -296,15 +274,13 @@ def test_master_twice(master_args, master_name):
         master.stdout.close()
         master.stderr.close()
 
+    if master_ret != 0:
+        return master_ret, master_mess
+
     master, master_ret, master_mess = exec_master(master_args, master_name)
 
-    if node_proc1 is not None:
-        node_proc1.stderr.close()
-        node_proc1.terminate()
-
-    if node_proc2 is not None:
-        node_proc2.stderr.close()
-        node_proc2.terminate()
+    close_node(node_proc1)
+    close_node(node_proc2)
 
     if master is not None:
         master.stdout.close()
@@ -313,6 +289,61 @@ def test_master_twice(master_args, master_name):
     return master_ret, master_mess
 
 
+def test_three_nodes_one_down(master_args, master_name):
+    node_info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126"
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + node_info)
+    if status != 0:
+        return 1, "ERROR: Configuration files could not be created."
+
+    node_proc1, node_ret1, node_mess1 = exec_node("node1")
+    if node_ret1 == 1:
+        return 1, node_mess1
+
+    node_proc2, node_ret2, node_mess2 = exec_node("node2")
+    if node_ret2 == 1:
+        return 1, node_mess2
+
+    node_proc3, node_ret3, node_mess3 = exec_node("node3")
+    if node_ret2 == 1:
+        return 1, node_mess3
+
+    master, master_ret, master_mess = exec_master(master_args, master_name)
+
+    if master is not None:
+        master.stdout.close()
+        master.stderr.close()
+
+    if master_ret != 0:
+        return master_ret, master_mess
+
+    close_node(node_proc3)
+
+    master, master_ret, master_mess = exec_master(master_args, master_name)
+    close_node(node_proc1)
+    close_node(node_proc2)
+    return master_ret, master_mess
+
+
+def test_three_nodes_two_open(master_args, master_name):
+    node_info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126"
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + node_info)
+    if status != 0:
+        return 1, "ERROR: Configuration files could not be created."
+
+    node_proc1, node_ret1, node_mess1 = exec_node("node1")
+    if node_ret1 == 1:
+        return 1, node_mess1
+
+    node_proc2, node_ret2, node_mess2 = exec_node("node2")
+    if node_ret2 == 1:
+        return 1, node_mess2
+
+    master, master_ret, master_mess = exec_master(master_args, master_name)
+    close_node(node_proc1)
+    close_node(node_proc2)
+    return master_ret, master_mess
+
+# INTERFACES FOR DIFFERENT TESTS
 def test_pkcs11_one_node():
     dummy_file = create_dummy_file()
     master_args = [TEST_EXEC_FOLDER + "/pkcs_11_test", "-cf", dummy_file.name, "-p", "1234"]
@@ -340,6 +371,24 @@ def test_pkcs11_master_twice_two_nodes():
     return ret, mess
 
 
+def test_pkcs11_three_nodes_one_down():
+    dummy_file = create_dummy_file()
+    master_args = [TEST_EXEC_FOLDER + "/pkcs_11_test", "-cf", dummy_file.name, "-p", "1234"]
+    ret, mess = test_three_nodes_one_down(master_args, "pkcs_11_test")
+
+    dummy_file.close()
+    return ret, mess
+
+
+def test_pkcs11_three_nodes_two_open():
+    dummy_file = create_dummy_file()
+    master_args = [TEST_EXEC_FOLDER + "/pkcs_11_test", "-cf", dummy_file.name, "-p", "1234"]
+    ret, mess = test_three_nodes_two_open(master_args, "pkcs_11_test")
+
+    dummy_file.close()
+    return ret, mess
+
+
 def test_dtc_master_one_node():
     master_args = [TEST_EXEC_FOLDER + "/dtc_master_test", abspath("./master.conf")]
     return test_master_one_node(master_args, "dtc_master_test")
@@ -355,12 +404,22 @@ def test_dtc_master_twice_two_nodes():
     return test_master_twice(master_args, "dtc_master_test")
 
 
+def test_dtc_three_nodes_one_down():
+    master_args = [TEST_EXEC_FOLDER + "/dtc_master_test", abspath("./master.conf")]
+    return test_three_nodes_one_down(master_args, "dtc_master_test")
+
+
+def test_dtc_three_nodes_two_open():
+    master_args = [TEST_EXEC_FOLDER + "/dtc_master_test", abspath("./master.conf")]
+    return test_three_nodes_two_open(master_args, "dtc_master_test")
+
+
 def pretty_print(index, name, result, mess, runtime, verbosity):
     if result == 0:
         if verbosity:
-            print str(index) + ".- " + name + " passed! Running time: " + str(runtime)[:6] + " seconds."
+            print str(index) + ".- " + name + " passed! Run time: " + str(runtime)[:6] + " seconds."
     else:
-        print str(index) + " .- " + name + " failed!"
+        print str(index) + ".- " + name + " failed!"
         print "      " + str(mess)
 
 
@@ -368,8 +427,7 @@ def main(argv=None):
     global NODE_TIMEOUT
     global MASTER_TIMEOUT
 
-    parser = argparse.ArgumentParser(
-        description="System Testing")
+    parser = argparse.ArgumentParser(description="System Testing")
     parser.add_argument("build_path",
                         help="path of the folder where the project is build",
                         type=str)
@@ -417,7 +475,9 @@ def main(argv=None):
              ("TEST DTC ONE NODE", test_dtc_master_one_node),
              ("TEST DTC TWO NODES", test_dtc_master_two_nodes),
              ("TEST PKCS11 RUN TWICE", test_pkcs11_master_twice_two_nodes),
-             ("TEST DTC RUN TWICE", test_dtc_master_twice_two_nodes)]
+             ("TEST DTC RUN TWICE", test_dtc_master_twice_two_nodes),
+             ("TEST PKCS11 THREE NODES, ONE FALLS", test_pkcs11_three_nodes_one_down),
+             ("TEST DTC THREE NODES, ONE FALLS", test_dtc_three_nodes_one_down)]
 
     stress_tests = [("NODE STRESS OPEN CLOSE", test_stress_open_close),
                     ("NODE STRESS SIMULTANEOUS", test_stress_simultaneous)]
