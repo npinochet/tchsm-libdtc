@@ -3,7 +3,7 @@
 
 import sys
 from os import chdir, environ
-from os.path import exists, abspath, isdir, isfile
+from os.path import join, exists, abspath, isdir, isfile
 from tempfile import mkdtemp
 import shutil
 from commands import getstatusoutput
@@ -24,9 +24,7 @@ __credits__ = ["Francisco Montoto", "Francisco Cifuentes"]
 __status__ = "Development"
 
 DUMP = ""
-NODE_EXEC = "../../build/src"
-TEST_EXEC_FOLDER = abspath("../../build/tests/system_test")
-
+EXEC_PATH = ""
 CONFIG_CREATOR_PATH = abspath("../../scripts/create_config.py")
 
 NODE_RDY = "Both socket binded, node ready to talk with the Master."
@@ -42,14 +40,17 @@ def erase_dump():
 
 
 def exec_node(config):
-    if not isdir(NODE_EXEC):
-        return None, 1, "ERROR: Path doesn't exists >> " + NODE_EXEC
+    if not isdir(EXEC_PATH):
+        return None, 1, "ERROR: Path doesn't exists >> " + EXEC_PATH
+
+    if not isdir(join(EXEC_PATH, "src")):
+        return None, 1, "ERROR: Path doesn't exists >> " + EXEC_PATH + "/src"
 
     node = None
     try:
-        node = subprocess.Popen([NODE_EXEC + "/node", "-c", config + ".conf"], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        node = subprocess.Popen([EXEC_PATH + "/src/node", "-c", config + ".conf"], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
     except OSError as e:
-        return node, 1, "ERROR: Exec could not be accesed >> " + NODE_EXEC + "/node"
+        return node, 1, "ERROR: Exec could not be accesed >> " + EXEC_PATH + "/src/node"
 
     timer = Timer(NODE_TIMEOUT, node.terminate)
     timer.start()
@@ -366,7 +367,7 @@ def test_master_stress_open_close(master_args, master_name):
 # INTERFACES FOR DIFFERENT TESTS
 def perform_test_on_pkcs11(test):
     dummy_file = create_dummy_file()
-    master_args = [TEST_EXEC_FOLDER + "/pkcs_11_test", "-cf", dummy_file.name, "-p", "1234"]
+    master_args = [join(EXEC_PATH, "tests/system_test/pkcs_11_test"), "-cf", dummy_file.name, "-p", "1234"]
     ret, mess = test(master_args, "pkcs_11_test")
 
     dummy_file.close()
@@ -374,7 +375,7 @@ def perform_test_on_pkcs11(test):
 
 
 def perform_test_on_dtc(test):
-    master_args = [TEST_EXEC_FOLDER + "/dtc_master_test", abspath("./master.conf")]
+    master_args = [join(EXEC_PATH, "tests/system_test/dtc_master_test"), abspath("./master.conf")]
     return test(master_args, "dtc_master_test")
 
 
@@ -425,8 +426,8 @@ def main(argv=None):
     NODE_TIMEOUT = args.node_timeout
     MASTER_TIMEOUT = args.master_timeout
 
-    global NODE_EXEC
-    NODE_EXEC = abspath(args.build_path)
+    global EXEC_PATH
+    EXEC_PATH = abspath(args.build_path)
 
     print(" --- Testing starting --- \n")
 
