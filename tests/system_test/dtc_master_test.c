@@ -17,11 +17,15 @@ int main(int argc, char **argv)
     OPEN_LOG();
     LOG(LOG_LVL_NOTI, "Logger started for %s", argv[0]);
 
+<<<<<<< fde8daab1d3e31c4390b7f1c12d19af634e80a72
 <<<<<<< 3915a949ba69999be9612735e4036f328eab34c9
     dtc_ctx_t *ctx = dtc_init(argv[1], &ret_val);
 =======
     dtc_ctx_t *ctx = dtc_init(NULL, &ret_val);
 >>>>>>> Added tests related to the master, more to be added soon
+=======
+    dtc_ctx_t *ctx = dtc_init(argv[1], &ret_val);
+>>>>>>> Tests are up and running :).
 
     printf("Init ret: %d:%s\n", ret_val, dtc_get_error_msg(ret_val));
     if(ret_val != DTC_ERR_NONE)
