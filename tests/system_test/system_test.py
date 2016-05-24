@@ -99,6 +99,12 @@ def close_node(node_proc):
         node_proc.terminate()
 
 
+def close_master(master):
+    if master is not None:
+        master.stdout.close()
+        master.stderr.close()
+
+
 def create_dummy_file():
     fd = open("to_sign.txt", "w")
     fd.write(":)\n")
@@ -222,11 +228,7 @@ def test_master_one_node(master_args, master_name):
     master, master_ret, master_mess = exec_master(master_args, master_name)
 
     close_node(node_proc)
-
-    if master is not None:
-        master.stdout.close()
-        master.stderr.close()
-
+    close_master(master)
     return master_ret, master_mess
 
 
@@ -247,11 +249,7 @@ def test_master_two_nodes(master_args, master_name):
 
     close_node(node_proc1)
     close_node(node_proc2)
-
-    if master is not None:
-        master.stdout.close()
-        master.stderr.close()
-
+    close_master(master)
     return master_ret, master_mess
 
 
@@ -269,10 +267,7 @@ def test_master_twice(master_args, master_name):
         return 1, node_mess2
 
     master, master_ret, master_mess = exec_master(master_args, master_name)
-
-    if master is not None:
-        master.stdout.close()
-        master.stderr.close()
+    close_master(master)
 
     if master_ret != 0:
         return master_ret, master_mess
@@ -281,11 +276,7 @@ def test_master_twice(master_args, master_name):
 
     close_node(node_proc1)
     close_node(node_proc2)
-
-    if master is not None:
-        master.stdout.close()
-        master.stderr.close()
-
+    close_master(master)
     return master_ret, master_mess
 
 
@@ -308,10 +299,7 @@ def test_three_nodes_one_down(master_args, master_name):
         return 1, node_mess3
 
     master, master_ret, master_mess = exec_master(master_args, master_name)
-
-    if master is not None:
-        master.stdout.close()
-        master.stderr.close()
+    close_master(master)
 
     if master_ret != 0:
         return master_ret, master_mess
@@ -321,6 +309,7 @@ def test_three_nodes_one_down(master_args, master_name):
     master, master_ret, master_mess = exec_master(master_args, master_name)
     close_node(node_proc1)
     close_node(node_proc2)
+    close_master(master)
     return master_ret, master_mess
 
 
@@ -341,77 +330,52 @@ def test_three_nodes_two_open(master_args, master_name):
     master, master_ret, master_mess = exec_master(master_args, master_name)
     close_node(node_proc1)
     close_node(node_proc2)
+    close_master(master)
     return master_ret, master_mess
 
+
+def test_master_stress_open_close(master_args, master_name):
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
+    if status != 0:
+        return 1, "ERROR: Configuration files could not be created."
+
+    node_proc, node_ret, node_mess = exec_node("node1")
+    if node_ret == 1:
+        return 1, node_mess
+
+    node_proc2, node_ret2, node_mess2 = exec_node("node2")
+    if node_ret2 == 1:
+        return 1, node_mess2
+
+    master = None
+    for i in range(0, 10):
+        master, master_ret, master_mess = exec_master(master_args, master_name)
+
+        if master_ret != 0:
+            close_node(node_proc)
+            close_node(node_proc2)
+            close_master(master)
+            return master_ret, master_mess
+
+    close_node(node_proc)
+    close_node(node_proc2)
+    close_master(master)
+    return 0, ""
+
+
 # INTERFACES FOR DIFFERENT TESTS
-def test_pkcs11_one_node():
+def perform_test_on_pkcs11(test):
     dummy_file = create_dummy_file()
     master_args = [TEST_EXEC_FOLDER + "/pkcs_11_test", "-cf", dummy_file.name, "-p", "1234"]
-    ret, mess = test_master_one_node(master_args, "pkcs_11_test")
+    ret, mess = test(master_args, "pkcs_11_test")
 
     dummy_file.close()
     return ret, mess
 
 
-def test_pkcs11_two_nodes():
-    dummy_file = create_dummy_file()
-    master_args = [TEST_EXEC_FOLDER + "/pkcs_11_test", "-cf", dummy_file.name, "-p", "1234"]
-    ret, mess = test_master_two_nodes(master_args, "pkcs_11_test")
-
-    dummy_file.close()
-    return ret, mess
-
-
-def test_pkcs11_master_twice_two_nodes():
-    dummy_file = create_dummy_file()
-    master_args = [TEST_EXEC_FOLDER + "/pkcs_11_test", "-cf", dummy_file.name, "-p", "1234"]
-    ret, mess = test_master_twice(master_args, "pkcs_11_test")
-
-    dummy_file.close()
-    return ret, mess
-
-
-def test_pkcs11_three_nodes_one_down():
-    dummy_file = create_dummy_file()
-    master_args = [TEST_EXEC_FOLDER + "/pkcs_11_test", "-cf", dummy_file.name, "-p", "1234"]
-    ret, mess = test_three_nodes_one_down(master_args, "pkcs_11_test")
-
-    dummy_file.close()
-    return ret, mess
-
-
-def test_pkcs11_three_nodes_two_open():
-    dummy_file = create_dummy_file()
-    master_args = [TEST_EXEC_FOLDER + "/pkcs_11_test", "-cf", dummy_file.name, "-p", "1234"]
-    ret, mess = test_three_nodes_two_open(master_args, "pkcs_11_test")
-
-    dummy_file.close()
-    return ret, mess
-
-
-def test_dtc_master_one_node():
+def perform_test_on_dtc(test):
     master_args = [TEST_EXEC_FOLDER + "/dtc_master_test", abspath("./master.conf")]
-    return test_master_one_node(master_args, "dtc_master_test")
-
-
-def test_dtc_master_two_nodes():
-    master_args = [TEST_EXEC_FOLDER + "/dtc_master_test", abspath("./master.conf")]
-    return test_master_two_nodes(master_args, "dtc_master_test")
-
-
-def test_dtc_master_twice_two_nodes():
-    master_args = [TEST_EXEC_FOLDER + "/dtc_master_test", abspath("./master.conf")]
-    return test_master_twice(master_args, "dtc_master_test")
-
-
-def test_dtc_three_nodes_one_down():
-    master_args = [TEST_EXEC_FOLDER + "/dtc_master_test", abspath("./master.conf")]
-    return test_three_nodes_one_down(master_args, "dtc_master_test")
-
-
-def test_dtc_three_nodes_two_open():
-    master_args = [TEST_EXEC_FOLDER + "/dtc_master_test", abspath("./master.conf")]
-    return test_three_nodes_two_open(master_args, "dtc_master_test")
+    return test(master_args, "dtc_master_test")
 
 
 def pretty_print(index, name, result, mess, runtime, verbosity):
@@ -466,21 +430,25 @@ def main(argv=None):
 
     print(" --- Testing starting --- \n")
 
-    tests = [("TEST ONE NODE", test_one_node),
-             ("TEST TWO NODE", test_two_nodes),
-             ("TEST OPEN CLOSED NODE", test_opening_closing_node),
-             ("TEST OPEN CLOSE w/ NODE OPEN", test_open_close_with_node_open),
-             ("TEST PKCS11 ONE NODE", test_pkcs11_one_node),
-             ("TEST PKCS11 TWO NODES", test_pkcs11_two_nodes),
-             ("TEST DTC ONE NODE", test_dtc_master_one_node),
-             ("TEST DTC TWO NODES", test_dtc_master_two_nodes),
-             ("TEST PKCS11 RUN TWICE", test_pkcs11_master_twice_two_nodes),
-             ("TEST DTC RUN TWICE", test_dtc_master_twice_two_nodes),
-             ("TEST PKCS11 THREE NODES, ONE FALLS", test_pkcs11_three_nodes_one_down),
-             ("TEST DTC THREE NODES, ONE FALLS", test_dtc_three_nodes_one_down)]
+    tests = [("TEST ONE NODE", test_one_node, None),
+             ("TEST TWO NODE", test_two_nodes, None),
+             ("TEST OPEN CLOSED NODE", test_opening_closing_node, None),
+             ("TEST OPEN CLOSE w/ NODE OPEN", test_open_close_with_node_open, None),
+             ("TEST PKCS11 ONE NODE", perform_test_on_pkcs11, test_master_one_node),
+             ("TEST PKCS11 TWO NODES", perform_test_on_pkcs11, test_master_two_nodes),
+             ("TEST DTC ONE NODE", perform_test_on_dtc, test_master_one_node),
+             ("TEST DTC TWO NODES", perform_test_on_dtc, test_master_two_nodes),
+             ("TEST PKCS11 RUN TWICE", perform_test_on_pkcs11, test_master_twice),
+             ("TEST DTC RUN TWICE", perform_test_on_dtc, test_master_twice),
+             ("TEST PKCS11 THREE NODES, ONE FALLS", perform_test_on_pkcs11, test_three_nodes_one_down),
+             ("TEST DTC THREE NODES, ONE FALLS", perform_test_on_dtc, test_three_nodes_one_down),
+             ("TEST PKCS11 THREE NODES, TWO OPEN", perform_test_on_pkcs11, test_three_nodes_two_open),
+             ("TEST DTC THREE NODES, TWO OPEN", perform_test_on_dtc, test_three_nodes_two_open)]
 
-    stress_tests = [("NODE STRESS OPEN CLOSE", test_stress_open_close),
-                    ("NODE STRESS SIMULTANEOUS", test_stress_simultaneous)]
+    stress_tests = [("NODE STRESS OPEN CLOSE", test_stress_open_close, None),
+                    ("NODE STRESS SIMULTANEOUS", test_stress_simultaneous, None),
+                    ("PKCS11 STRESS SAME NODE", perform_test_on_pkcs11, test_master_stress_open_close),
+                    ("DTC STRESS SAME NODE", perform_test_on_dtc, test_master_stress_open_close)]
 
     if args.with_stress_tests:
         tests.extend(stress_tests)
@@ -494,10 +462,15 @@ def main(argv=None):
         DUMP = mkdtemp(prefix="test_" + str(index) + "_", dir="./")
         chdir(DUMP)
 
-        name, func = test
+        name, func, func_args = test
 
         start = time()
-        result, mess = func()
+
+        if func_args is None:
+            result, mess = func()
+        else:
+            result, mess = func(func_args)
+
         end = time()
         total_time += end - start
 
@@ -511,11 +484,12 @@ def main(argv=None):
 
         pretty_print(index, name, result, mess, end - start, args.verbosity)
 
+    test_percentage = str(100 * float(tests_passed)/float(tests_runned))[:5] + "%"
     passing_string = "|"*tests_passed + " "*(tests_runned-tests_passed)
-    print("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_runned) + ": [" + passing_string + "] ---")
+    print("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_runned) + " (" + test_percentage + "): [" + passing_string + "] ---")
     print(" --- Total run time: " + str(total_time)[:6] + " seconds ---")
 
-    return 0
+    return tests_runned - tests_passed
 
 
 if __name__ == "__main__":
