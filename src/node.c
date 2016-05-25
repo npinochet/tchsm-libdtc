@@ -312,30 +312,6 @@ static int read_configuration(int argc, char *argv[],
     return 0;
 }
 
-static int auth_pub(database_t *conn, const char *instance_id,
-                    const char *auth_user)
-{
-    char *output;
-    int ret;
-    if(DTC_ERR_NONE != db_get_pub_token(conn, instance_id, &output))
-        return 0;
-    ret = strcmp(output, auth_user) == 0;
-    free(output);
-    return ret;
-}
-
-static int auth_router(database_t *conn, const char *instance_id,
-                       const char *auth_user)
-{
-    char *output;
-    int ret;
-    if(DTC_ERR_NONE != db_get_router_token(conn, instance_id, &output))
-        return 0;
-    ret = strcmp(output, auth_user) == 0;
-    free(output);
-    return ret;
-}
-
 // Serialize and send an op to router, will write the instance id as first frame
 // of the message, that's used to select the destination in a router socket.
 static int send_op(const char *instance_id, const struct op_req *op, void *socket)
@@ -517,7 +493,6 @@ void handle_sign_pub(database_t *db_conn, void *router_socket,
     size_t msg_len;
     const signature_share_t *signature;
     bytes_t *msg_bytes;
-    int ret;
 
     if(pub_op->version != 1) {
         LOG(LOG_LVL_ERRO, "version %" PRIu16 " not supported.",
@@ -1088,12 +1063,6 @@ static void zap_handler(void *zap_data_)
         char *address = s_recv(sock);
         char *identity = s_recv(sock);
         char *mechanism = s_recv(sock);
-        int size = zmq_recv(sock, client_key, 32, 0);
-
-        //LOG(LOG_LVL_DEBG, "Message of size: %d, sequence number: %s,"
-        //                  "domain: %s, address: %s, identity: %s, "
-        //                  "mechanism: %s. received.",size, sequence, domain,
-        //                  address, identity, mechanism);
 
         char client_key_text [42];
         zmq_z85_encode(client_key_text, client_key, 32);
