@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import argparse
+import shutil
+import subprocess
 import sys
+from commands import getstatusoutput
 from os import chdir, environ
 from os.path import join, exists, abspath, isdir, isfile
 from tempfile import mkdtemp
-import shutil
-from commands import getstatusoutput
-import subprocess
 from threading import Timer
-import argparse
 from time import time
 
 """
@@ -67,9 +67,9 @@ def exec_node(config):
         return node, 1, "FAILURE: Timeout"
 
 
-def exec_master(master_args, master_name):
+def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
     if isfile("cryptoki.conf"):
-        environ["TCHSM_CONFIG"] = abspath("cryptoki.conf")
+        environ["TCHSM_CONFIG"] = abspath(cryptoki_conf)
     else:
         return None, 1, "ERROR: TCHSM_CONFIG env. var. could not be set."
 
@@ -119,7 +119,6 @@ def test_one_node():
         return 1, "ERROR: Configuration files could not be created."
 
     proc, ret, mess = exec_node("node1")
-
     close_node(proc)
     return ret, mess
 
@@ -131,6 +130,7 @@ def test_two_nodes():
 
     node1, ret1, mess1 = exec_node("node1")
     if ret1 == 1:
+        close_node(node1)
         return 1, mess1
 
     node2, ret2, mess2 = exec_node("node2")
@@ -147,6 +147,7 @@ def test_opening_closing_node():
 
     node, ret, mess = exec_node("node1")
     if ret == 1:
+        close_node(node)
         return 1, mess
 
     close_node(node)
@@ -163,6 +164,7 @@ def test_open_close_with_node_open():
 
     node1, ret1, mess1 = exec_node("node1")
     if ret1 == 1:
+        close_node(node1)
         return 1, mess1
 
     node2, ret2, mess2 = exec_node("node2")
@@ -171,6 +173,8 @@ def test_open_close_with_node_open():
 
     node3, ret3, mess3 = exec_node("node1")
     if ret3 == 1:
+        close_node(node3)
+        close_node(node2)
         return 1, mess3
 
     close_node(node3)
@@ -224,6 +228,7 @@ def test_master_one_node(master_args, master_name):
 
     node_proc, node_ret, node_mess = exec_node("node1")
     if node_ret == 1:
+        close_node(node_proc)
         return 1, node_mess
 
     master, master_ret, master_mess = exec_master(master_args, master_name)
@@ -240,10 +245,13 @@ def test_master_two_nodes(master_args, master_name):
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
+        close_node(node_proc1)
         return 1, node_mess1
 
     node_proc2, node_ret2, node_mess2 = exec_node("node2")
     if node_ret2 == 1:
+        close_node(node_proc1)
+        close_node(node_proc2)
         return 1, node_mess2
 
     master, master_ret, master_mess = exec_master(master_args, master_name)
@@ -261,16 +269,21 @@ def test_master_twice(master_args, master_name):
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
+        close_node(node_proc1)
         return 1, node_mess1
 
     node_proc2, node_ret2, node_mess2 = exec_node("node2")
     if node_ret2 == 1:
+        close_node(node_proc1)
+        close_node(node_proc2)
         return 1, node_mess2
 
     master, master_ret, master_mess = exec_master(master_args, master_name)
     close_master(master)
 
     if master_ret != 0:
+        close_node(node_proc1)
+        close_node(node_proc2)
         return master_ret, master_mess
 
     master, master_ret, master_mess = exec_master(master_args, master_name)
@@ -289,20 +302,29 @@ def test_three_nodes_one_down(master_args, master_name):
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
+        close_node(node_proc1)
         return 1, node_mess1
 
     node_proc2, node_ret2, node_mess2 = exec_node("node2")
     if node_ret2 == 1:
+        close_node(node_proc1)
+        close_node(node_proc2)
         return 1, node_mess2
 
     node_proc3, node_ret3, node_mess3 = exec_node("node3")
     if node_ret2 == 1:
+        close_node(node_proc1)
+        close_node(node_proc2)
+        close_node(node_proc3)
         return 1, node_mess3
 
     master, master_ret, master_mess = exec_master(master_args, master_name)
     close_master(master)
 
     if master_ret != 0:
+        close_node(node_proc1)
+        close_node(node_proc2)
+        close_node(node_proc3)
         return master_ret, master_mess
 
     close_node(node_proc3)
@@ -314,6 +336,80 @@ def test_three_nodes_one_down(master_args, master_name):
     return master_ret, master_mess
 
 
+def test_insuff_threshold_bordercase(master_args, master_name):
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 -ct -th 0")
+    if status != 0:
+        return 1, "ERROR: Configuration files could not be created."
+
+    node_proc, node_ret, node_mess = exec_node("node1")
+    if node_ret == 1:
+        close_node(node_proc)
+        return 1, node_mess
+
+    master, master_ret, master_mess = exec_master(master_args, master_name)
+    close_master(master)
+
+    if master_ret != 0:
+        close_node(node_proc)
+        return master_ret, master_mess
+
+    close_node(node_proc)
+
+    master, master_ret, master_mess = exec_master(master_args, master_name)
+    close_master(master)
+
+    if master_ret != 0:
+        return 0, ""
+    else:
+        return 1, "FAILURE: The master should not be able to sign."
+
+
+def test_insuff_threshold(master_args, master_name):
+    node_info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126"
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + node_info + "-ct -th 3")
+    if status != 0:
+        return 1, "ERROR: Configuration files could not be created."
+
+    node_proc1, node_ret1, node_mess1 = exec_node("node1")
+    if node_ret1 == 1:
+        close_node(node_proc1)
+        return 1, node_mess1
+
+    node_proc2, node_ret2, node_mess2 = exec_node("node2")
+    if node_ret2 == 1:
+        close_node(node_proc1)
+        close_node(node_proc2)
+        return 1, node_mess2
+
+    node_proc3, node_ret3, node_mess3 = exec_node("node3")
+    if node_ret2 == 1:
+        close_node(node_proc1)
+        close_node(node_proc2)
+        close_node(node_proc3)
+        return 1, node_mess3
+
+    master, master_ret, master_mess = exec_master(master_args, master_name)
+    close_master(master)
+
+    if master_ret != 0:
+        close_node(node_proc1)
+        close_node(node_proc2)
+        close_node(node_proc3)
+        return master_ret, master_mess
+
+    close_node(node_proc3)
+
+    master, master_ret, master_mess = exec_master(master_args, master_name)
+    close_node(node_proc1)
+    close_node(node_proc2)
+    close_master(master)
+
+    if master_ret != 0:
+        return 0, ""
+    else:
+        return 1, "FAILURE: The master should not be able to sign."
+
+
 def test_three_nodes_two_open(master_args, master_name):
     node_info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126"
     status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + node_info)
@@ -322,10 +418,13 @@ def test_three_nodes_two_open(master_args, master_name):
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
+        close_node(node_proc1)
         return 1, node_mess1
 
     node_proc2, node_ret2, node_mess2 = exec_node("node2")
     if node_ret2 == 1:
+        close_node(node_proc1)
+        close_node(node_proc2)
         return 1, node_mess2
 
     master, master_ret, master_mess = exec_master(master_args, master_name)
@@ -340,12 +439,15 @@ def test_master_stress_open_close(master_args, master_name):
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
-    node_proc, node_ret, node_mess = exec_node("node1")
-    if node_ret == 1:
-        return 1, node_mess
+    node_proc1, node_ret1, node_mess1 = exec_node("node1")
+    if node_ret1 == 1:
+        close_node(node_proc1)
+        return 1, node_mess1
 
     node_proc2, node_ret2, node_mess2 = exec_node("node2")
     if node_ret2 == 1:
+        close_node(node_proc1)
+        close_node(node_proc2)
         return 1, node_mess2
 
     master = None
@@ -353,14 +455,120 @@ def test_master_stress_open_close(master_args, master_name):
         master, master_ret, master_mess = exec_master(master_args, master_name)
 
         if master_ret != 0:
-            close_node(node_proc)
+            close_node(node_proc1)
             close_node(node_proc2)
             close_master(master)
             return master_ret, master_mess
 
-    close_node(node_proc)
+    close_node(node_proc1)
     close_node(node_proc2)
     close_master(master)
+    return 0, ""
+
+
+def test_cryptoki_wout_key():
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
+    if status != 0:
+        return 1, "ERROR: Configuration files could not be created."
+
+    node_proc1, node_ret1, node_mess1 = exec_node("node1")
+    if node_ret1 == 1:
+        close_node(node_proc1)
+        return 1, node_mess1
+
+    node_proc2, node_ret2, node_mess2 = exec_node("node2")
+    if node_ret2 == 1:
+        close_node(node_proc1)
+        close_node(node_proc2)
+        return 1, node_mess2
+
+    dummy_file = create_dummy_file()
+    master_args = [join(EXEC_PATH, "tests/system_test/pkcs_11_test"), "-cf", dummy_file.name, "-p", "1234"]
+    master_name = "pkcs_11_test"
+    master, master_ret, master_mess = exec_master(master_args, master_name)
+    close_master(master)
+
+    if master_ret != 0:
+        close_node(node_proc1)
+        close_node(node_proc2)
+        return master_ret, master_mess
+
+    master_args = [join(EXEC_PATH, "tests/system_test/pkcs_11_test"), "-f", dummy_file.name, "-p", "1234"]
+    master_name = "pkcs_11_test"
+    master, master_ret, master_mess = exec_master(master_args, master_name)
+    dummy_file.close()
+
+    close_node(node_proc1)
+    close_node(node_proc2)
+    close_master(master)
+    return master_ret, master_mess
+
+
+def test_two_masters_two_nodes(master_args, master_name):
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -m 2")
+    if status != 0:
+        return 1, "ERROR: Configuration files could not be created."
+
+    node_proc1, node_ret1, node_mess1 = exec_node("node1")
+    if node_ret1 == 1:
+        close_node(node_proc1)
+        return 1, node_mess1
+
+    node_proc2, node_ret2, node_mess2 = exec_node("node2")
+    if node_ret2 == 1:
+        close_node(node_proc1)
+        close_node(node_proc2)
+        return 1, node_mess2
+
+    master, master_ret, master_mess = exec_master(master_args, master_name, "cryptoki1.conf")
+    close_master(master)
+
+    if master_ret != 0:
+        close_node(node_proc1)
+        close_node(node_proc2)
+        return master_ret, master_mess
+
+    master, master_ret, master_mess = exec_master(master_args, master_name, "cryptoki2.conf")
+
+    close_node(node_proc1)
+    close_node(node_proc2)
+    close_master(master)
+    return master_ret, master_mess
+
+
+def test_two_masters_simultaneous(master_args, master_name):
+    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -m 2")
+    if status != 0:
+        return 1, "ERROR: Configuration files could not be created."
+
+    node_proc1, node_ret1, node_mess1 = exec_node("node1")
+    if node_ret1 == 1:
+        close_node(node_proc1)
+        return 1, node_mess1
+
+    node_proc2, node_ret2, node_mess2 = exec_node("node2")
+    if node_ret2 == 1:
+        close_node(node_proc1)
+        close_node(node_proc2)
+        return 1, node_mess2
+
+    master1, master_ret1, master_mess1 = exec_master(master_args, master_name, "cryptoki1.conf")
+    master2, master_ret2, master_mess2 = exec_master(master_args, master_name, "cryptoki2.conf")
+
+    if master_ret1 != 0:
+        close_node(node_proc1)
+        close_node(node_proc2)
+        return master_ret1, master_mess1
+
+    if master_ret2 != 0:
+        close_node(node_proc1)
+        close_node(node_proc2)
+        return master_ret2, master_mess2
+
+    close_node(node_proc1)
+    close_node(node_proc2)
+    close_master(master1)
+    close_master(master2)
     return 0, ""
 
 
@@ -444,7 +652,16 @@ def main(argv=None):
              ("TEST PKCS11 THREE NODES, ONE FALLS", perform_test_on_pkcs11, test_three_nodes_one_down),
              ("TEST DTC THREE NODES, ONE FALLS", perform_test_on_dtc, test_three_nodes_one_down),
              ("TEST PKCS11 THREE NODES, TWO OPEN", perform_test_on_pkcs11, test_three_nodes_two_open),
-             ("TEST DTC THREE NODES, TWO OPEN", perform_test_on_dtc, test_three_nodes_two_open)]
+             ("TEST DTC THREE NODES, TWO OPEN", perform_test_on_dtc, test_three_nodes_two_open),
+             ("TEST PKCS11 INSUFF THRESHOLD BORDER CASE", perform_test_on_pkcs11, test_insuff_threshold_bordercase),
+             ("TEST DTC INSUFF THRESHOLD BORDER CASE", perform_test_on_dtc, test_insuff_threshold_bordercase),
+             ("TEST PKCS11 INSUFFICIENT THRESHOLD", perform_test_on_pkcs11, test_insuff_threshold),
+             ("TEST DTC INSUFFICIENT THRESHOLD", perform_test_on_dtc, test_insuff_threshold),
+             ("TEST PKCS11 TWO MASTERS", perform_test_on_pkcs11, test_two_masters_two_nodes),
+             ("TEST DTC TWO MASTERS", perform_test_on_dtc, test_two_masters_two_nodes),
+             ("TEST PKCS11 MASTERS SIMULTANEOUS", perform_test_on_pkcs11, test_two_masters_simultaneous),
+             ("TEST DTC MASTERS SIMULTANEOUS", perform_test_on_dtc, test_two_masters_simultaneous),
+             ("TEST PKCS11 SAME DATABASE", test_cryptoki_wout_key, None)]
 
     stress_tests = [("NODE STRESS OPEN CLOSE", test_stress_open_close, None),
                     ("NODE STRESS SIMULTANEOUS", test_stress_simultaneous, None),
