@@ -81,29 +81,6 @@ static void free_nodes(unsigned int nodes_cant, struct node_info *node)
     free(node);
 }
 
-/* Release the memory allocated within the dtc_configuration struct, do not
- * release the struct.
- */
-static void free_conf(struct dtc_configuration *conf)
-{
-    unsigned i;
-    if(!conf)
-        return;
-    for(i = 0; i < conf->nodes_cant; i++)
-        if(conf->nodes[i].public_key)
-            free(conf->nodes[i].public_key);
-    free_nodes(conf->nodes_cant, (struct node_info *)conf->nodes);
-    conf->nodes_cant = 0;
-    if(conf->public_key)
-        free((void *)conf->public_key);
-    if(conf->private_key) {
-        memset((void *)conf->private_key, '\0', strlen(conf->private_key));
-        free((void *)conf->private_key);
-    }
-    if(conf->instance_id)
-        free((void *)conf->instance_id);
-}
-
 void divide_timeout(uint16_t ctx_timeout, unsigned retries,
                     unsigned *timeout_secs, unsigned *timeout_usecs)
 {
