@@ -727,7 +727,6 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
     void *remaining_key;
     unsigned prev, timeout_secs, timeout_usecs, retries = 2;
     uint16_t val;
-    double timeout;
     Buffer_t *keys;
 
     pub_op.version = 1;
@@ -833,7 +832,7 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
     int threshold = tc_key_meta_info_k(key_metainfo);
     int nodes_cant = tc_key_meta_info_l(key_metainfo);
     struct handle_sign_key_data sign_key_data;
-    unsigned timeout, timeout_secs, timeout_usecs, retries = 2;
+    unsigned timeout_secs, timeout_usecs, retries = 2;
     signature_share_t *signature;
     Buffer_t *signatures_buffer;
     signature_share_t *signatures[nodes_cant];
