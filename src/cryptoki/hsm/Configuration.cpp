@@ -69,9 +69,12 @@ void Configuration::load(std::string configurationPath) {
 
     config_init(&cfg);
 
-    if(CONFIG_TRUE == config_read_file(&cfg, configurationPath.c_str())) {
+    if(CONFIG_FALSE == config_read_file(&cfg, configurationPath.c_str())) {
+        std::ostringstream os;
+        os << "Error parsing config file: " << config_error_text(&cfg);
+        os << " at " << config_error_line(&cfg);
         config_destroy(&cfg);
-        throw TcbError(configurationPath, "I/O error at config file",
+        throw TcbError(configurationPath, os.str(),
                        CKR_GENERAL_ERROR);
     }
 
