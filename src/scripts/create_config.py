@@ -250,7 +250,7 @@ def create_cryptoki_config(
      "\",\n")
     config_file.write("\tnodes_number=" + str(amount_of_nodes) + ",\n")
     config_file.write("\tthreshold=" + str(threshold) + ",\n")
-    config_file.write("\tslots = (\n\t\t{label=\"TCBHSM\"},\n\t)\n")
+    config_file.write("\tslots = (\n\t\t{label=\"TCBHSM\"}\n\t)\n")
     config_file.write("}")
 
 
