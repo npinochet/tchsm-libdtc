@@ -68,7 +68,7 @@ def exec_node(config):
 
 
 def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
-    if isfile("cryptoki.conf"):
+    if isfile(cryptoki_conf):
         environ["TCHSM_CONFIG"] = abspath(cryptoki_conf)
     else:
         return None, 1, "ERROR: TCHSM_CONFIG env. var. could not be set."
