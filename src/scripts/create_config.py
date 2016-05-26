@@ -186,6 +186,7 @@ def get_keygen():
 def create_n_cryptoki_config(
     nodes,
      output_path,
+     instance_id,
      masters,
      timeout,
      cryptoki_database,
@@ -194,6 +195,7 @@ def create_n_cryptoki_config(
 
     nodes -- dictionary containing the info of the nodes, where the key is the an id, and the value an array containing the info.
     output_path -- where the config files will land
+    master_id -- prefix id of the masters
     masters -- dictionary of masters information
     timeout -- conection timeout in the masters config
     cryptoki_database -- prefix in the database path in the cryptoki config
@@ -202,7 +204,8 @@ def create_n_cryptoki_config(
     for master_id, master_info in masters.iteritems():
         index = ""
         if len(masters) != 1:
-            index = master_id[-1:]
+            index = master_id[len(instance_id):]
+            print index
 
         file_name = join(output_path, "cryptoki") + index + ".conf"
 
@@ -378,6 +381,7 @@ def main(argv=None):
     create_n_cryptoki_config(
         nodes,
         args.output_dir,
+     args.instance_id,
      masters,
      args.timeout,
      args.cryptoki_database,
