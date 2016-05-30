@@ -14,3 +14,7 @@ install:
 
 script:
     make check
+
+after_sucess:
+    - make system_test
+    - python ../tests/system_test/system_test.py
