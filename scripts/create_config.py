@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import sys
-import os
-from os.path import join
 import argparse
 import commands
+import os
+import sys
 from math import floor
+from os.path import join
 
 """
 This module creates the configuration files of nodes and masters for testing purposes.
