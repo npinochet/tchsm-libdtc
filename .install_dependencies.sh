@@ -3,7 +3,6 @@
 sudo apt-get update -qq
 
 sudo apt-get install -y check
-sudo apt-get install -y libboost-all-dev
 sudo apt-get install -y libjson-c-dev
 sudo apt-get install -y libconfig-dev
 sudo apt-get install -y libsqlite3-dev
@@ -16,10 +15,10 @@ tar -xzC /tmp -f libsodium-1.0.9.tar.gz
 wget http://download.zeromq.org/zeromq-4.1.4.tar.gz
 tar -xzC /tmp -f zeromq-4.1.4.tar.gz
 
-# wget http://botan.randombit.net/releases/Botan-1.11.29.tgz
-# tar -xzC /tmp -f Botan-1.11.29.tgz
+ #wget http://botan.randombit.net/releases/Botan-1.11.29.tgz
+ #tar -xzC /tmp -f Botan-1.11.29.tgz
 
-wget http://users.dcc.uchile.cl/~fcifuent/botan-1.11-ubuntu-14.04.tar.gz
+wget http://200.7.6.140:8080/botan-1.11-ubuntu-14.04.tar.gz
 tar -xzC /tmp -f botan-1.11-ubuntu-14.04.tar.gz
 
 wget https://github.com/niclabs/tchsm-libtc/archive/master.zip
