@@ -728,12 +728,12 @@ def main(argv=None):
                         action="store_true")
     parser.add_argument("-nt",
                         "--node_timeout",
-                        help="maximum time for nodes to respond (default: 5 seg)",
+                        help="maximum time for nodes to respond (default: " + NODE_TIMEOUT + " seg)",
                         default=NODE_TIMEOUT,
                         type=int)
     parser.add_argument("-mt",
                         "--master_timeout",
-                        help="maximum time for masters to respond (default: 15 seg)",
+                        help="maximum time for masters to respond (default: " + MASTER_TIMEOUT + " seg)",
                         default=MASTER_TIMEOUT,
                         type=int)
     parser.add_argument("-ws",

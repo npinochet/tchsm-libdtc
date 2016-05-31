@@ -20,9 +20,6 @@ include(FindLibUUID)
 include(FindSqlite3)
 include(FindBotan)
 
-set(Boost_USE_STATIC_LIBS OFF)
-set(Boost_USE_MULTITHREADED ON)
-set(Boost_USE_STATIC_RUNTIME OFF)
 
 find_package(LibUUID REQUIRED)
 find_package(Sqlite3 REQUIRED)
@@ -92,6 +89,10 @@ set(HSM_SRC
 add_library(pkcs11 SHARED pkcs11.cpp ${HSM_SRC})
 target_link_libraries(pkcs11 dtc ${SQLITE3_LIBRARIES} ${BOTAN_LIBRARIES} ${LIBCONFIG_LIBRARIES} ${LIBUUID_LIBRARIES})
 
+
+
+add_executable(pkcs11_test test.c)
+target_link_libraries(pkcs11_test pkcs11 ${SQLITE3_LIBRARIES} ${BOTAN_LIBRARIES})
 
 install(TARGETS pkcs11 DESTINATION lib)
 install(FILES ./cryptoki.conf DESTINATION etc)
