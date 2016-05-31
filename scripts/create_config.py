@@ -187,6 +187,7 @@ def create_n_cryptoki_config(
     nodes,
      output_path,
      masters,
+     instance_id,
      timeout,
      cryptoki_database,
      threshold):
@@ -195,6 +196,7 @@ def create_n_cryptoki_config(
     nodes -- dictionary containing the info of the nodes, where the key is the an id, and the value an array containing the info.
     output_path -- where the config files will land
     masters -- dictionary of masters information
+    instance_id -- prefix of the masters name
     timeout -- conection timeout in the masters config
     cryptoki_database -- prefix in the database path in the cryptoki config
     threshold -- min amount of nodes to the sign to occurr
@@ -202,7 +204,7 @@ def create_n_cryptoki_config(
     for master_id, master_info in masters.iteritems():
         index = ""
         if len(masters) != 1:
-            index = master_id[-1:]
+            index = master_id[len(instance_id):]
 
         file_name = join(output_path, "cryptoki") + index + ".conf"
 
@@ -250,7 +252,7 @@ def create_cryptoki_config(
      "\",\n")
     config_file.write("\tnodes_number=" + str(amount_of_nodes) + ",\n")
     config_file.write("\tthreshold=" + str(threshold) + ",\n")
-    config_file.write("\tslots = (\n\t\t{label=\"TCBHSM\"},\n\t)\n")
+    config_file.write("\tslots = (\n\t\t{label=\"TCBHSM\"}\n\t)\n")
     config_file.write("}")
 
 
@@ -379,6 +381,7 @@ def main(argv=None):
         nodes,
         args.output_dir,
      masters,
+     args.instance_id,
      args.timeout,
      args.cryptoki_database,
      threshold)
