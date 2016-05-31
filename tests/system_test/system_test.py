@@ -759,7 +759,7 @@ def main(argv=None):
     EXEC_PATH = abspath(args.build_path)
 
     print(" --- Testing starting --- \n")
-    """
+
     tests = [("TEST ONE NODE", test_one_node, None),
              ("TEST TWO NODE", test_two_nodes, None),
              ("TEST OPEN CLOSED NODE", test_opening_closing_node, None),
@@ -808,9 +808,7 @@ def main(argv=None):
              ("TEST DTC  MASTERS:2 THRES:2 NODES:3",
               perform_test_on_dtc, test_two_masters_thres2_nodes3),
              ("TEST PKCS11 SAME DATABASE", test_cryptoki_wout_key, None)]
-"""
-    tests = [("TEST PKCS11 TWO NODES",
-              perform_test_on_pkcs11, test_master_two_nodes)]
+    
     stress_tests = [("NODE STRESS OPEN CLOSE", test_stress_open_close, None),
                     ("NODE STRESS SIMULTANEOUS",
                      test_stress_simultaneous, None),
