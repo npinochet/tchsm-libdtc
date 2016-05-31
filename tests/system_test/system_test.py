@@ -130,7 +130,7 @@ def create_dummy_file():
 def test_one_node():
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
-    if(status != 0):
+    if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
     proc, ret, mess = exec_node("node1")
@@ -141,7 +141,7 @@ def test_one_node():
 def test_two_nodes():
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
-    if(status != 0):
+    if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
     node1, ret1, mess1 = exec_node("node1")
@@ -158,7 +158,7 @@ def test_two_nodes():
 def test_opening_closing_node():
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
-    if(status != 0):
+    if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
     node, ret, mess = exec_node("node1")
@@ -176,7 +176,7 @@ def test_opening_closing_node():
 def test_open_close_with_node_open():
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
-    if(status != 0):
+    if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
     node1, ret1, mess1 = exec_node("node1")
@@ -200,7 +200,7 @@ def test_open_close_with_node_open():
 def test_stress_open_close():
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
-    if(status != 0):
+    if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
     for i in range(0, 100):
@@ -219,7 +219,7 @@ def test_stress_simultaneous():
     for port in range(2121, 2121 + 60, 2):
         status, output = getstatusoutput(
             "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:" + str(port) + ":" + str(port + 1))
-        if (status != 0):
+        if status != 0:
             return 1, "ERROR: Configuration files could not be created."
 
         proc, ret, mess = exec_node("node1")
@@ -691,7 +691,6 @@ def perform_test_on_pkcs11(test):
 
 def perform_test_on_dtc(test):
     config_path = __file__
-    print config_path
     master_args = [join(
                    EXEC_PATH,
                    "tests/system_test/dtc_master_test"),
@@ -760,7 +759,7 @@ def main(argv=None):
     EXEC_PATH = abspath(args.build_path)
 
     print(" --- Testing starting --- \n")
-
+    """
     tests = [("TEST ONE NODE", test_one_node, None),
              ("TEST TWO NODE", test_two_nodes, None),
              ("TEST OPEN CLOSED NODE", test_opening_closing_node, None),
@@ -809,7 +808,9 @@ def main(argv=None):
              ("TEST DTC  MASTERS:2 THRES:2 NODES:3",
               perform_test_on_dtc, test_two_masters_thres2_nodes3),
              ("TEST PKCS11 SAME DATABASE", test_cryptoki_wout_key, None)]
-
+"""
+    tests = [("TEST PKCS11 TWO NODES",
+              perform_test_on_pkcs11, test_master_two_nodes)]
     stress_tests = [("NODE STRESS OPEN CLOSE", test_stress_open_close, None),
                     ("NODE STRESS SIMULTANEOUS",
                      test_stress_simultaneous, None),
