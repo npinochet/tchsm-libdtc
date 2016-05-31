@@ -828,9 +828,13 @@ def main(argv=None):
     tests_runned = len(tests)
     total_time = 0
 
+    dump_path = abspath(args.dump_path)
+    if not exists(dump_path):
+        print "ERROR: Dump path doesn't exists >> " + dump_path
+
     for index, test in zip(range(1, len(tests) + 1), tests):
         global DUMP
-        DUMP = mkdtemp(prefix="test_" + str(index) + "_", dir="./")
+        DUMP = mkdtemp(prefix="test_" + str(index) + "_", dir=dump_path)
         chdir(DUMP)
 
         name, func, func_args = test
