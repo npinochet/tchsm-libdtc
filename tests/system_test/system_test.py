@@ -7,7 +7,7 @@ import subprocess
 import sys
 from commands import getstatusoutput
 from os import chdir, environ
-from os.path import join, exists, abspath, isdir, isfile
+from os.path import join, exists, split, abspath, isdir, isfile
 from tempfile import mkdtemp
 from threading import Timer
 from time import time
@@ -25,7 +25,7 @@ __status__ = "Development"
 
 DUMP = ""
 EXEC_PATH = ""
-CONFIG_CREATOR_PATH = abspath("../../scripts/create_config.py")
+CONFIG_CREATOR_PATH = ""
 
 NODE_RDY = "Both socket binded, node ready to talk with the Master."
 
@@ -689,10 +689,13 @@ def perform_test_on_pkcs11(test):
 
 
 def perform_test_on_dtc(test):
+    config_path = __file__
+    print config_path
     master_args = [join(
                    EXEC_PATH,
                    "tests/system_test/dtc_master_test"),
-                   abspath("./master.conf")]
+                   config_path]
+
     return test(master_args, "dtc_master_test")
 
 
@@ -739,6 +742,9 @@ def main(argv=None):
                         default=False,
                         action="store_true")
     args = parser.parse_args()
+
+    global CONFIG_CREATOR_PATH
+    CONFIG_CREATOR_PATH = join(split(abspath(__file__))[0], "..", "..", "scripts", "create_config.py")
 
     NODE_TIMEOUT = args.node_timeout
     MASTER_TIMEOUT = args.master_timeout

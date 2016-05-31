@@ -17,4 +17,4 @@ script:
 
 after_sucess:
     - make system_test
-    - python ../tests/system_test/system_test.py
+    - python ../tests/system_test/system_test.py ../ -ws -v
