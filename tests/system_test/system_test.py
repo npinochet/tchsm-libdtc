@@ -23,6 +23,7 @@ __email__ = "daniel_avivnotario@hotmail.com"
 __credits__ = ["Francisco Montoto", "Francisco Cifuentes"]
 __status__ = "Development"
 
+DEFAULT_DUMP_PATH = "/tmp/"
 DUMP = ""
 EXEC_PATH = ""
 CONFIG_CREATOR_PATH = ""
@@ -728,12 +729,12 @@ def main(argv=None):
                         action="store_true")
     parser.add_argument("-nt",
                         "--node_timeout",
-                        help="maximum time for nodes to respond (default: " + NODE_TIMEOUT + " seg)",
+                        help="maximum time for nodes to respond (default: " + str(NODE_TIMEOUT) + " seg)",
                         default=NODE_TIMEOUT,
                         type=int)
     parser.add_argument("-mt",
                         "--master_timeout",
-                        help="maximum time for masters to respond (default: " + MASTER_TIMEOUT + " seg)",
+                        help="maximum time for masters to respond (default: " + str(MASTER_TIMEOUT) + " seg)",
                         default=MASTER_TIMEOUT,
                         type=int)
     parser.add_argument("-ws",
@@ -741,10 +742,16 @@ def main(argv=None):
                         help="specify this if you want to add stress tests to the test case",
                         default=False,
                         action="store_true")
+    parser.add_argument("-dp",
+                        "--dump_path",
+                        help="specify whether you would like to change to path of the dump files",
+                        default=DEFAULT_DUMP_PATH,
+                        type=str)
     args = parser.parse_args()
 
     global CONFIG_CREATOR_PATH
-    CONFIG_CREATOR_PATH = join(split(abspath(__file__))[0], "..", "..", "scripts", "create_config.py")
+    script_path = split(abspath(__file__))[0]
+    CONFIG_CREATOR_PATH = join(script_path, "..", "..", "scripts", "create_config.py")
 
     NODE_TIMEOUT = args.node_timeout
     MASTER_TIMEOUT = args.master_timeout
