@@ -226,58 +226,48 @@ def test_stress_simultaneous():
         proc_array.append(proc)
 
         if ret != 0:
-            for proc in proc_array:
-                close_node(proc)
-
+            close_nodes(proc_array)
             return ret, mess
 
-    for proc in proc_array:
-        close_node(proc)
-
+    close_nodes(proc_array)
     return 0, ""
 
 
 # MASTER TESTS
-def test_master_one_node(master_args, master_name):
-    status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2131:2132")
+def test_master_n_nodes(master_args, master_name, nb_of_nodes):
+    config_creation_string = "python " + CONFIG_CREATOR_PATH
+    port = 2121
+    for i in range(0, nb_of_nodes):
+        config_creation_string += " 127.0.0.1:" + \
+            str(port) + ":" + str(port + 1)
+        port += 2
+
+    status, output = getstatusoutput(config_creation_string)
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
-    node_proc, node_ret, node_mess = exec_node("node1")
-    if node_ret == 1:
-        close_node(node_proc)
-        return 1, node_mess
+    open_nodes = []
+    for i in range(0, nb_of_nodes):
+        node_proc, node_ret, node_mess = exec_node("node" + str(i + 1))
+        if node_ret == 1:
+            close_nodes(open_nodes)
+            return 1, node_mess
+
+        open_nodes.append(node_proc)
 
     master, master_ret, master_mess = exec_master(master_args, master_name)
 
-    close_node(node_proc)
+    close_nodes(open_nodes)
     close_master(master)
     return master_ret, master_mess
+
+
+def test_master_one_node(master_args, master_name):
+    return test_master_n_nodes(master_args, master_name, 1)
 
 
 def test_master_two_nodes(master_args, master_name):
-    status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
-    if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
-
-    node_proc1, node_ret1, node_mess1 = exec_node("node1")
-    if node_ret1 == 1:
-        close_node(node_proc1)
-        return 1, node_mess1
-
-    node_proc2, node_ret2, node_mess2 = exec_node("node2")
-    if node_ret2 == 1:
-        close_node(node_proc1)
-        close_node(node_proc2)
-        return 1, node_mess2
-
-    master, master_ret, master_mess = exec_master(master_args, master_name)
-
-    close_nodes([node_proc1, node_proc2])
-    close_master(master)
-    return master_ret, master_mess
+    return test_master_n_nodes(master_args, master_name, 2)
 
 
 def test_master_twice(master_args, master_name):
@@ -755,9 +745,9 @@ def main(argv=None):
     CONFIG_CREATOR_PATH = join(
         script_path,
         "..",
-     "..",
-     "scripts",
-     "create_config.py")
+        "..",
+        "scripts",
+        "create_config.py")
 
     NODE_TIMEOUT = args.node_timeout
     MASTER_TIMEOUT = args.master_timeout
