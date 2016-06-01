@@ -75,7 +75,7 @@ def exec_node(config):
 
 def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
     if isfile(cryptoki_conf):
-        environ["TCHSM_CONFIG"] = abspath(cryptoki_conf)
+        print "ENVIRON:     " + abspath(cryptoki_conf)
     else:
         return None, 1, "ERROR: TCHSM_CONFIG env. var. could not be set."
 
@@ -690,7 +690,7 @@ def perform_test_on_pkcs11(test):
 
 
 def perform_test_on_dtc(test):
-    config_path = __file__
+    config_path = join(DUMP, "master.config")
     master_args = [join(
                    EXEC_PATH,
                    "tests/system_test/dtc_master_test"),
@@ -840,7 +840,8 @@ def main(argv=None):
 
     for index, test in zip(range(1, len(tests) + 1), tests):
         global DUMP
-        DUMP = mkdtemp(prefix="test_" + str(index) + "_", dir=dump_path)
+        dump_prefix = "libdtc_test_" + str(index) + "_"
+        DUMP = mkdtemp(prefix=dump_prefix, dir=dump_path)
         chdir(DUMP)
 
         name, func, func_args = test
