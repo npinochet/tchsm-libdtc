@@ -728,12 +728,14 @@ def main(argv=None):
                         action="store_true")
     parser.add_argument("-nt",
                         "--node_timeout",
-                        help="maximum time for nodes to respond (default: " + str(NODE_TIMEOUT) + " seg)",
+                        help="maximum time for nodes to respond (default: " + str(
+                            NODE_TIMEOUT) + " seg)",
                         default=NODE_TIMEOUT,
                         type=int)
     parser.add_argument("-mt",
                         "--master_timeout",
-                        help="maximum time for masters to respond (default: " + str(MASTER_TIMEOUT) + " seg)",
+                        help="maximum time for masters to respond (default: " + str(
+                            MASTER_TIMEOUT) + " seg)",
                         default=MASTER_TIMEOUT,
                         type=int)
     parser.add_argument("-ws",
@@ -750,7 +752,12 @@ def main(argv=None):
 
     global CONFIG_CREATOR_PATH
     script_path = split(abspath(__file__))[0]
-    CONFIG_CREATOR_PATH = join(script_path, "..", "..", "scripts", "create_config.py")
+    CONFIG_CREATOR_PATH = join(
+        script_path,
+        "..",
+     "..",
+     "scripts",
+     "create_config.py")
 
     NODE_TIMEOUT = args.node_timeout
     MASTER_TIMEOUT = args.master_timeout
@@ -808,7 +815,7 @@ def main(argv=None):
              ("TEST DTC  MASTERS:2 THRES:2 NODES:3",
               perform_test_on_dtc, test_two_masters_thres2_nodes3),
              ("TEST PKCS11 SAME DATABASE", test_cryptoki_wout_key, None)]
-    
+
     stress_tests = [("NODE STRESS OPEN CLOSE", test_stress_open_close, None),
                     ("NODE STRESS SIMULTANEOUS",
                      test_stress_simultaneous, None),
@@ -869,4 +876,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+    sys.exit(main(sys.argv))
