@@ -105,9 +105,9 @@ def create_master_config(
 
     for node_id, info in nodes.iteritems():
         config_file.write("\t\t{\n")
-        config_file.write("\t\tip=\"" + info[4] + "\"\n")
-        config_file.write("\t\tdealer_port=" + info[0] + "\n")
-        config_file.write("\t\tsub_port=" + info[1] + "\n")
+        config_file.write("\t\tip=\"" + info[4] + "\",\n")
+        config_file.write("\t\tdealer_port=" + info[0] + ",\n")
+        config_file.write("\t\tsub_port=" + info[1] + ",\n")
         config_file.write("\t\tpublic_key=\"" + info[2] + "\"\n")
         config_file.write("\t\t},\n")
 
@@ -149,7 +149,7 @@ def create_node_config(
 
     for master_id, master_key in masters.iteritems():
         config_file.write("\t\t{\n")
-        config_file.write("\t\tpublic_key=\"" + master_key[0] + "\"\n")
+        config_file.write("\t\tpublic_key=\"" + master_key[0] + "\",\n")
         config_file.write("\t\tid=\"" + master_id + "\"\n")
         config_file.write("\t\t},\n")
 
