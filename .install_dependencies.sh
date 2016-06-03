@@ -12,7 +12,7 @@ sudo apt-get install -y uuid-dev
 wget https://download.libsodium.org/libsodium/releases/libsodium-1.0.9.tar.gz
 tar -xzC /tmp -f libsodium-1.0.9.tar.gz
 
-wget http://download.zeromq.org/zeromq-4.1.4.tar.gz
+wget https://github.com/zeromq/zeromq4-1/releases/download/v4.1.4/zeromq-4.1.4.tar.gz
 tar -xzC /tmp -f zeromq-4.1.4.tar.gz
 
  #wget http://botan.randombit.net/releases/Botan-1.11.29.tgz
