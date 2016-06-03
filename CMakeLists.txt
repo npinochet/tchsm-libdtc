@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 2.8)
 project(libdtc)
 
-set(CMAKE_C_FLAGS_DEBUG "-Wall")
-set(CMAKE_CXX_FLAGS_DEBUG "-Wall")
+set(CMAKE_C_FLAGS_DEBUG " ${CMAKE_C_FLAGS_DEBUG} -Wall")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
