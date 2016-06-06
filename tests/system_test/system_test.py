@@ -712,11 +712,26 @@ def main(argv=None):
                         help="specify this if you want to see every running test",
                         default=False,
                         action="store_true")
+    parser.add_argument("-ws",
+                        "--with_stress_tests",
+                        help="specify this if you want to add stress tests to the test case",
+                        default=False,
+                        action="store_true")
+    parser.add_argument("-ro",
+                        "--run_only",
+                        help="only runs the tests that contain this text",
+                        default="",
+                        type=str)
     parser.add_argument("-s",
                         "--store_failed_dumps",
                         help="specify this if you want to save dump folders",
                         default=False,
                         action="store_true")
+    parser.add_argument("-dp",
+                        "--dump_path",
+                        help="specify whether you would like to change to path of the dump files",
+                        default=DEFAULT_DUMP_PATH,
+                        type=str)
     parser.add_argument("-nt",
                         "--node_timeout",
                         help="maximum time for nodes to respond (default: " + str(
@@ -729,16 +744,11 @@ def main(argv=None):
                             MASTER_TIMEOUT) + " seg)",
                         default=MASTER_TIMEOUT,
                         type=int)
-    parser.add_argument("-ws",
-                        "--with_stress_tests",
-                        help="specify this if you want to add stress tests to the test case",
+    parser.add_argument("-ff",
+                        "--fail_fast",
+                        help="specify this if you want to stop the test case as soon as it fails one test",
                         default=False,
                         action="store_true")
-    parser.add_argument("-dp",
-                        "--dump_path",
-                        help="specify whether you would like to change to path of the dump files",
-                        default=DEFAULT_DUMP_PATH,
-                        type=str)
     args = parser.parse_args()
 
     global CONFIG_CREATOR_PATH
@@ -775,7 +785,7 @@ def main(argv=None):
     tests["TEST DTC THREE NODES, TWO OPEN"] = (
         perform_test_on_dtc,
         test_three_nodes_two_open)
-    tests["TEST DTC INSUFF THRESHOLD BORDER CASE"] = (
+    tests["TEST DTC INSUFFICIENT THRESHOLD BORDER CASE"] = (
         perform_test_on_dtc,
         test_insuff_threshold_bordercase)
     tests["TEST DTC INSUFFICIENT THRESHOLD"] = (
@@ -808,7 +818,7 @@ def main(argv=None):
     tests["TEST PKCS11 THREE NODES, TWO OPEN"] = (
         perform_test_on_pkcs11,
         test_three_nodes_two_open)
-    tests["TEST PKCS11 INSUFF THRESHOLD BORDER CASE"] = (
+    tests["TEST PKCS11 INSUFFICIENT THRESHOLD BORDER CASE"] = (
         perform_test_on_pkcs11,
         test_insuff_threshold_bordercase)
     tests["TEST PKCS11 INSUFFICIENT THRESHOLD"] = (
@@ -850,7 +860,7 @@ def main(argv=None):
             tests[k] = v
 
     tests_passed = 0
-    tests_runned = len(tests)
+    tests_runned = 0
     total_time = 0
 
     dump_path = abspath(args.dump_path)
@@ -858,33 +868,44 @@ def main(argv=None):
         print "ERROR: Dump path doesn't exists >> " + dump_path
 
     for index, test_info in zip(range(1, len(tests) + 1), tests.iteritems()):
-        global DUMP
-        dump_prefix = "libdtc_test_" + str(index) + "_"
-        DUMP = mkdtemp(prefix=dump_prefix, dir=dump_path)
-        chdir(DUMP)
-
         name, test = test_info
         func, func_args = test
 
-        start = time()
+        if args.run_only in name:
+            global DUMP
+            dump_prefix = "libdtc_test_" + str(index) + "_"
+            DUMP = mkdtemp(prefix=dump_prefix, dir=dump_path)
+            chdir(DUMP)
 
-        if func_args is None:
-            result, mess = func()
-        else:
-            result, mess = func(func_args)
+            start = time()
 
-        end = time()
-        total_time += end - start
+            if func_args is None:
+                result, mess = func()
+            else:
+                result, mess = func(func_args)
 
-        chdir("..")
-        if result == 0:
-            tests_passed += 1
-            erase_dump()
+            end = time()
+            total_time += end - start
 
-        if not args.store_failed_dumps:
-            erase_dump()
+            chdir("..")
+            if result == 0:
+                tests_passed += 1
+                erase_dump()
 
-        pretty_print(index, name, result, mess, end - start, args.verbosity)
+            if not args.store_failed_dumps:
+                erase_dump()
+
+            pretty_print(
+                index,
+                name,
+                result,
+                mess,
+                end - start,
+                args.verbosity)
+            tests_runned += 1
+
+            if args.fail_fast and result != 0:
+                break
 
     test_percentage = str(
         100 * float(tests_passed) / float(tests_runned))[:5] + "%"
