@@ -5,6 +5,7 @@ import argparse
 import shutil
 import subprocess
 import sys
+from collections import OrderedDict
 from commands import getstatusoutput
 from os import chdir, environ
 from os.path import join, exists, split, abspath, isdir, isfile
@@ -757,68 +758,96 @@ def main(argv=None):
 
     print(" --- Testing starting --- \n")
 
-    tests = [("TEST ONE NODE", test_one_node, None),
-             ("TEST TWO NODE", test_two_nodes, None),
-             ("TEST OPEN CLOSED NODE", test_opening_closing_node, None),
-             ("TEST OPEN CLOSE w/ NODE OPEN",
-              test_open_close_with_node_open, None),
-             ("TEST PKCS11 ONE NODE",
-              perform_test_on_pkcs11, test_master_one_node),
-             ("TEST PKCS11 TWO NODES",
-              perform_test_on_pkcs11, test_master_two_nodes),
-             ("TEST DTC ONE NODE", perform_test_on_dtc, test_master_one_node),
-             ("TEST DTC TWO NODES", perform_test_on_dtc,
-              test_master_two_nodes),
-             ("TEST PKCS11 RUN TWICE",
-              perform_test_on_pkcs11, test_master_twice),
-             ("TEST DTC RUN TWICE", perform_test_on_dtc, test_master_twice),
-             ("TEST PKCS11 THREE NODES, ONE FALLS",
-              perform_test_on_pkcs11, test_three_nodes_one_down),
-             ("TEST DTC THREE NODES, ONE FALLS",
-              perform_test_on_dtc, test_three_nodes_one_down),
-             ("TEST PKCS11 THREE NODES, TWO OPEN",
-              perform_test_on_pkcs11, test_three_nodes_two_open),
-             ("TEST DTC THREE NODES, TWO OPEN",
-              perform_test_on_dtc, test_three_nodes_two_open),
-             ("TEST PKCS11 INSUFF THRESHOLD BORDER CASE",
-              perform_test_on_pkcs11, test_insuff_threshold_bordercase),
-             ("TEST DTC INSUFF THRESHOLD BORDER CASE",
-              perform_test_on_dtc, test_insuff_threshold_bordercase),
-             ("TEST PKCS11 INSUFFICIENT THRESHOLD",
-              perform_test_on_pkcs11, test_insuff_threshold),
-             ("TEST DTC INSUFFICIENT THRESHOLD",
-              perform_test_on_dtc, test_insuff_threshold),
-             ("TEST PKCS11 TWO MASTERS ONE NODE",
-              perform_test_on_pkcs11, test_two_masters_one_nodes),
-             ("TEST DTC TWO MASTERS ONE NODE",
-              perform_test_on_dtc, test_two_masters_one_nodes),
-             ("TEST PKCS11 TWO MASTERS TWO NODE",
-              perform_test_on_pkcs11, test_two_masters_two_nodes),
-             ("TEST DTC TWO MASTERS TWO NODE",
-              perform_test_on_dtc, test_two_masters_two_nodes),
-             ("TEST PKCS11 MASTERS SIMULTANEOUS",
-              perform_test_on_pkcs11, test_two_masters_simultaneous),
-             ("TEST DTC MASTERS SIMULTANEOUS",
-              perform_test_on_dtc, test_two_masters_simultaneous),
-             ("TEST PKCS11 MASTERS:2 THRES:2 NODES:3",
-              perform_test_on_pkcs11, test_two_masters_thres2_nodes3),
-             ("TEST DTC  MASTERS:2 THRES:2 NODES:3",
-              perform_test_on_dtc, test_two_masters_thres2_nodes3),
-             ("TEST PKCS11 SAME DATABASE", test_cryptoki_wout_key, None)]
+    tests = OrderedDict()
 
-    stress_tests = [("NODE STRESS OPEN CLOSE", test_stress_open_close, None),
-                    ("NODE STRESS SIMULTANEOUS",
-                     test_stress_simultaneous, None),
-                    ("PKCS11 STRESS SAME NODE", perform_test_on_pkcs11,
-                     test_master_stress_open_close),
-                    ("DTC STRESS SAME NODE", perform_test_on_dtc,
-                     test_master_stress_open_close),
-                    ("PKCS11 STRESS MULTIPLE MASTERS",
-                     perform_test_on_pkcs11, test_stress_multiple_masters),
-                    ("DTC STRESS MULTIPLE MASTERS", perform_test_on_dtc, test_stress_multiple_masters)]
+    tests["TEST ONE NODE"] = (test_one_node, None)
+    tests["TEST TWO NODE"] = (test_two_nodes, None)
+    tests["TEST OPEN CLOSED NODE"] = (test_opening_closing_node, None)
+    tests["TEST OPEN CLOSE w/ NODE OPEN"] = (
+        test_open_close_with_node_open, None)
+
+    tests["TEST DTC ONE NODE"] = (perform_test_on_dtc, test_master_one_node)
+    tests["TEST DTC TWO NODES"] = (perform_test_on_dtc, test_master_two_nodes)
+    tests["TEST DTC RUN TWICE"] = (perform_test_on_dtc, test_master_twice)
+    tests["TEST DTC THREE NODES, ONE FALLS"] = (
+        perform_test_on_dtc,
+        test_three_nodes_one_down)
+    tests["TEST DTC THREE NODES, TWO OPEN"] = (
+        perform_test_on_dtc,
+        test_three_nodes_two_open)
+    tests["TEST DTC INSUFF THRESHOLD BORDER CASE"] = (
+        perform_test_on_dtc,
+        test_insuff_threshold_bordercase)
+    tests["TEST DTC INSUFFICIENT THRESHOLD"] = (
+        perform_test_on_dtc, test_insuff_threshold)
+    tests["TEST DTC TWO MASTERS ONE NODE"] = (
+        perform_test_on_dtc,
+        test_two_masters_one_nodes)
+    tests["TEST DTC TWO MASTERS TWO NODE"] = (
+        perform_test_on_dtc,
+        test_two_masters_two_nodes)
+    tests["TEST DTC MASTERS SIMULTANEOUS"] = (
+        perform_test_on_dtc,
+        test_two_masters_simultaneous)
+    tests["TEST DTC MASTERS:2 THRES:2 NODES:3"] = (
+        perform_test_on_dtc,
+        test_two_masters_thres2_nodes3)
+
+    tests["TEST PKCS11 ONE NODE"] = (
+        perform_test_on_pkcs11,
+        test_master_one_node)
+    tests["TEST PKCS11 TWO NODES"] = (
+        perform_test_on_pkcs11,
+        test_master_two_nodes)
+    tests["TEST PKCS11 RUN TWICE"] = (
+        perform_test_on_pkcs11,
+        test_master_twice)
+    tests["TEST PKCS11 THREE NODES, ONE FALLS"] = (
+        perform_test_on_pkcs11,
+        test_three_nodes_one_down)
+    tests["TEST PKCS11 THREE NODES, TWO OPEN"] = (
+        perform_test_on_pkcs11,
+        test_three_nodes_two_open)
+    tests["TEST PKCS11 INSUFF THRESHOLD BORDER CASE"] = (
+        perform_test_on_pkcs11,
+        test_insuff_threshold_bordercase)
+    tests["TEST PKCS11 INSUFFICIENT THRESHOLD"] = (
+        perform_test_on_pkcs11, test_insuff_threshold)
+    tests["TEST PKCS11 TWO MASTERS ONE NODE"] = (
+        perform_test_on_pkcs11,
+        test_two_masters_one_nodes)
+    tests["TEST PKCS11 TWO MASTERS TWO NODE"] = (
+        perform_test_on_pkcs11,
+        test_two_masters_two_nodes)
+    tests["TEST PKCS11 MASTERS SIMULTANEOUS"] = (
+        perform_test_on_pkcs11,
+        test_two_masters_simultaneous)
+    tests["TEST PKCS11 MASTERS:2 THRES:2 NODES:3"] = (
+        perform_test_on_pkcs11,
+        test_two_masters_thres2_nodes3)
+    tests["TEST PKCS11 SAME DATABASE"] = (test_cryptoki_wout_key, None)
+
+    stress_tests = OrderedDict()
+    stress_tests["NODE STRESS OPEN CLOSE"] = (test_stress_open_close, None)
+    stress_tests["NODE STRESS SIMULTANEOUS"] = (test_stress_simultaneous, None)
+
+    stress_tests["DTC STRESS SAME NODE"] = (
+        perform_test_on_dtc,
+        test_master_stress_open_close)
+    stress_tests["DTC STRESS MULTIPLE MASTERS"] = (
+        perform_test_on_dtc,
+        test_stress_multiple_masters)
+
+    stress_tests["PKCS11 STRESS SAME NODE"] = (
+        perform_test_on_pkcs11,
+        test_master_stress_open_close)
+    stress_tests["PKCS11 STRESS MULTIPLE MASTERS"] = (
+        perform_test_on_pkcs11,
+        test_stress_multiple_masters)
 
     if args.with_stress_tests:
-        tests.extend(stress_tests)
+        for k, v in stress_tests.iteritems():
+            tests[k] = v
 
     tests_passed = 0
     tests_runned = len(tests)
@@ -828,13 +857,14 @@ def main(argv=None):
     if not exists(dump_path):
         print "ERROR: Dump path doesn't exists >> " + dump_path
 
-    for index, test in zip(range(1, len(tests) + 1), tests):
+    for index, test_info in zip(range(1, len(tests) + 1), tests.iteritems()):
         global DUMP
         dump_prefix = "libdtc_test_" + str(index) + "_"
         DUMP = mkdtemp(prefix=dump_prefix, dir=dump_path)
         chdir(DUMP)
 
-        name, func, func_args = test
+        name, test = test_info
+        func, func_args = test
 
         start = time()
 
@@ -859,8 +889,8 @@ def main(argv=None):
     test_percentage = str(
         100 * float(tests_passed) / float(tests_runned))[:5] + "%"
     passing_string = "|" * tests_passed + " " * (tests_runned - tests_passed)
-    print("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_runned)
-          + " (" + test_percentage + "): [" + passing_string + "] ---")
+    print("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_runned) +
+          " (" + test_percentage + "): [" + passing_string + "] ---")
     print(" --- Total run time: " + str(total_time)[:6] + " seconds ---")
 
     return tests_runned - tests_passed
