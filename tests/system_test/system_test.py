@@ -109,13 +109,13 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
 
     if timer.is_alive():
         timer.cancel()
-        debug_log(stdout_data, stderr_data)
+        debug_output(stdout_data, stderr_data)
 
         if master.returncode != 0:
             return master, master.returncode, "FAILURE: Master return code: " + str(master.returncode)
         return master, master.returncode, ""
     else:
-        debug_log(stdout_data, stderr_data)
+        debug_output(stdout_data, stderr_data)
         return master, 1, "FAILURE: Timeout"
 
 
@@ -131,7 +131,7 @@ def create_dummy_file():
     return fd
 
 
-def debug_log(stdout, stderr):
+def debug_output(stdout, stderr):
     if DEBUG:
         for line in stdout.split("\n"):
             if line != "":
@@ -139,7 +139,6 @@ def debug_log(stdout, stderr):
         for line in stderr.split("\n"):
             if line != "":
                 print "DEBUG::STDERR --> " + line
-    print("\n")
 
 
 # NODE ONLY TESTS
