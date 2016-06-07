@@ -391,9 +391,9 @@ def test_insuff_threshold(master_args, master_name):
         *fix_dtc_args(master_args, master_name, 3, 3))
     close_master(master)
 
-    if master_ret != 0:
+    if master_ret == 0:
         close_nodes([node_proc1, node_proc2])
-        return master_ret, master_mess
+        return 1, "FAILURE: The master should not be able to sign."
 
     close_node(node_proc3)
 
@@ -478,8 +478,10 @@ def test_stress_multiple_masters(master_args, master_name):
         return 1, node_mess2
 
     for i in range(1, 11):
-        master, master_ret, master_mess = exec_master(*fix_dtc_args(
-            master_args, master_name, "cryptoki" + str(i) + ".conf", 2))
+        fixed_args, master_name = fix_dtc_args(
+            master_args, master_name, 2, index=i)
+        master, master_ret, master_mess = exec_master(
+            fixed_args, master_name, "cryptoki" + str(i) + ".conf")
         close_master(master)
 
         if master_ret != 0:
@@ -551,16 +553,18 @@ def test_two_masters_one_nodes(master_args, master_name):
         close_node(node_proc1)
         return 1, node_mess1
 
-    master, master_ret, master_mess = exec_master(*fix_dtc_args(
-        master_args, master_name, "cryptoki1.conf", 1))
+    fixed_args, master_name = fix_dtc_args(master_args, master_name, 1)
+    master, master_ret, master_mess = exec_master(
+        fixed_args, master_name, "cryptoki1.conf")
     close_master(master)
 
     if master_ret != 0:
         close_node(node_proc1)
         return master_ret, master_mess
 
-    master, master_ret, master_mess = exec_master(*fix_dtc_args(
-        master_args, master_name, "cryptoki2.conf", 1))
+    fixed_args, master_name = fix_dtc_args(master_args, master_name, 1)
+    master, master_ret, master_mess = exec_master(
+        fixed_args, master_name, "cryptoki2.conf")
 
     close_node(node_proc1)
     close_master(master)
@@ -583,16 +587,20 @@ def test_two_masters_two_nodes(master_args, master_name):
         close_nodes([node_proc1, node_proc2])
         return 1, node_mess2
 
-    master, master_ret, master_mess = exec_master(*fix_dtc_args(
-        master_args, master_name, "cryptoki1.conf", 2))
+    fixed_args, master_name = fix_dtc_args(
+        master_args, master_name, 2, index=1)
+    master, master_ret, master_mess = exec_master(
+        fixed_args, master_name, "cryptoki1.conf")
     close_master(master)
 
     if master_ret != 0:
         close_nodes([node_proc1, node_proc2])
         return master_ret, master_mess
 
-    master, master_ret, master_mess = exec_master(*fix_dtc_args(
-        master_args, master_name, "cryptoki2.conf", 2))
+    fixed_args, master_name = fix_dtc_args(
+        master_args, master_name, 2, index=2)
+    master, master_ret, master_mess = exec_master(
+        fixed_args, master_name, "cryptoki2.conf")
 
     close_nodes([node_proc1, node_proc2])
     close_master(master)
@@ -615,10 +623,15 @@ def test_two_masters_simultaneous(master_args, master_name):
         close_nodes([node_proc1, node_proc2])
         return 1, node_mess2
 
-    master1, master_ret1, master_mess1 = exec_master(*fix_dtc_args(
-        master_args, master_name, "cryptoki1.conf", 2))
-    master2, master_ret2, master_mess2 = exec_master(*fix_dtc_args(
-        master_args, master_name, "cryptoki2.conf", 2))
+    fixed_args, master_name = fix_dtc_args(
+        master_args, master_name, 2, index=1)
+    master1, master_ret1, master_mess1 = exec_master(
+        fixed_args, master_name, "cryptoki1.conf")
+
+    fixed_args, master_name = fix_dtc_args(
+        master_args, master_name, 2, index=2)
+    master2, master_ret2, master_mess2 = exec_master(
+        fixed_args, master_name, "cryptoki2.conf")
 
     if master_ret1 != 0:
         close_nodes([node_proc1, node_proc2])
@@ -650,16 +663,20 @@ def test_two_masters_thres2_nodes3(master_args, master_name):
         close_nodes([node_proc1, node_proc2])
         return 1, node_mess2
 
-    master1, master_ret1, master_mess1 = exec_master(*fix_dtc_args(
-        master_args, master_name, "cryptoki1.conf", 3))
+    fixed_args, master_name = fix_dtc_args(
+        master_args, master_name, 3, index=1)
+    master1, master_ret1, master_mess1 = exec_master(
+        fixed_args, master_name, "cryptoki1.conf")
     close_master(master1)
 
     if master_ret1 != 0:
         close_nodes([node_proc1, node_proc2])
         return master_ret1, master_mess1
 
-    master2, master_ret2, master_mess2 = exec_master(*fix_dtc_args(
-        master_args, master_name, "cryptoki2.conf", 3))
+    fixed_args, master_name = fix_dtc_args(
+        master_args, master_name, 3, index=2)
+    master2, master_ret2, master_mess2 = exec_master(
+        fixed_args, master_name, "cryptoki2.conf")
 
     close_nodes([node_proc1, node_proc2])
     close_master(master2)
@@ -701,13 +718,24 @@ def pretty_print(index, name, result, mess, runtime, verbosity):
         print "      " + str(mess)
 
 
-def fix_dtc_args(master_args, master_name, nb_of_nodes, threshold=None):
+def fix_dtc_args(
+        master_args,
+        master_name,
+        nb_of_nodes,
+        threshold=None,
+        index=None):
     fixed_master_args = list(master_args)
 
     if master_name == "dtc_master_test":
         fixed_master_args.append(str(nb_of_nodes))
         if threshold is not None:
             fixed_master_args.append(str(threshold))
+
+        if index is not None:
+            conf_path = master_args[1]
+            fixed_master_args[1] = join(
+                split(conf_path)[0],
+                "master" + str(index) + ".conf")
 
     return fixed_master_args, master_name
 
@@ -920,12 +948,16 @@ def main(argv=None):
             if args.fail_fast and result != 0:
                 break
 
-    test_percentage = str(
-        100 * float(tests_passed) / float(tests_runned))[:5] + "%"
-    passing_string = "|" * tests_passed + " " * (tests_runned - tests_passed)
-    print("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_runned) +
-          " (" + test_percentage + "): [" + passing_string + "] ---")
-    print(" --- Total run time: " + str(total_time)[:6] + " seconds ---")
+    if tests_runned == 0:
+        print(" --- No tests runned ---")
+    else:
+        test_percentage = str(
+            100 * float(tests_passed) / float(tests_runned))[:5] + "%"
+        passing_string = "|" * tests_passed + \
+            " " * (tests_runned - tests_passed)
+        print("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_runned) +
+              " (" + test_percentage + "): [" + passing_string + "] ---")
+        print(" --- Total run time: " + str(total_time)[:6] + " seconds ---")
 
     return tests_runned - tests_passed
 
