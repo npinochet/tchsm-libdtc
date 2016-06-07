@@ -331,7 +331,6 @@ def test_three_nodes_one_down(master_args, master_name):
 
     if master_ret != 0:
         close_nodes([node_proc1, node_proc2, node_proc3])
-
         return master_ret, master_mess
 
     close_node(node_proc3)
@@ -340,7 +339,10 @@ def test_three_nodes_one_down(master_args, master_name):
         *fix_dtc_args(master_args, master_name, 3))
     close_nodes([node_proc1, node_proc2])
     close_master(master)
-    return master_ret, master_mess
+    if master_ret != 0:
+        return 0, ""
+    else:
+        return 1, "FAILURE: The test should fail, as it should not generate keys."
 
 
 def test_insuff_threshold_bordercase(master_args, master_name):
@@ -429,7 +431,10 @@ def test_three_nodes_two_open(master_args, master_name):
         *fix_dtc_args(master_args, master_name, 3))
     close_nodes([node_proc1, node_proc2])
     close_master(master)
-    return master_ret, master_mess
+    if master_ret != 0:
+        return 0, ""
+    else:
+        return 1, "FAILURE: The test should fail, as it should not generate keys."
 
 
 def test_master_stress_open_close(master_args, master_name):
@@ -669,9 +674,9 @@ def test_two_masters_thres2_nodes3(master_args, master_name):
         fixed_args, master_name, "cryptoki1.conf")
     close_master(master1)
 
-    if master_ret1 != 0:
+    if master_ret1 == 0:
         close_nodes([node_proc1, node_proc2])
-        return master_ret1, master_mess1
+        return 1, "FAILURE: The test should fail, as it should not generate keys."
 
     fixed_args, master_name = fix_dtc_args(
         master_args, master_name, 3, index=2)
@@ -680,7 +685,10 @@ def test_two_masters_thres2_nodes3(master_args, master_name):
 
     close_nodes([node_proc1, node_proc2])
     close_master(master2)
-    return master_ret2, master_mess2
+    if master_ret2 != 0:
+        return 0, ""
+    else:
+        return 1, "FAILURE: The test should fail, as it should not generate keys."
 
 
 # INTERFACES FOR DIFFERENT TESTS
@@ -811,72 +819,72 @@ def main(argv=None):
 
     tests = OrderedDict()
 
-    tests["TEST ONE NODE"] = (test_one_node, None)
-    tests["TEST TWO NODE"] = (test_two_nodes, None)
-    tests["TEST OPEN CLOSED NODE"] = (test_opening_closing_node, None)
-    tests["TEST OPEN CLOSE w/ NODE OPEN"] = (
+    tests["ONE NODE"] = (test_one_node, None)
+    tests["TWO NODE"] = (test_two_nodes, None)
+    tests["OPEN CLOSED NODE"] = (test_opening_closing_node, None)
+    tests["OPEN CLOSE w/ NODE OPEN"] = (
         test_open_close_with_node_open, None)
 
-    tests["TEST DTC ONE NODE"] = (perform_test_on_dtc, test_master_one_node)
-    tests["TEST DTC TWO NODES"] = (perform_test_on_dtc, test_master_two_nodes)
-    tests["TEST DTC RUN TWICE"] = (perform_test_on_dtc, test_master_twice)
-    tests["TEST DTC THREE NODES, ONE FALLS"] = (
+    tests["DTC ONE NODE"] = (perform_test_on_dtc, test_master_one_node)
+    tests["DTC TWO NODES"] = (perform_test_on_dtc, test_master_two_nodes)
+    tests["DTC RUN TWICE"] = (perform_test_on_dtc, test_master_twice)
+    tests["DTC THREE NODES, ONE FALLS"] = (
         perform_test_on_dtc,
         test_three_nodes_one_down)
-    tests["TEST DTC THREE NODES, TWO OPEN"] = (
+    tests["DTC THREE NODES, TWO OPEN"] = (
         perform_test_on_dtc,
         test_three_nodes_two_open)
-    tests["TEST DTC INSUFFICIENT THRESHOLD BORDER CASE"] = (
+    tests["DTC INSUFFICIENT THRESHOLD BORDER CASE"] = (
         perform_test_on_dtc,
         test_insuff_threshold_bordercase)
-    tests["TEST DTC INSUFFICIENT THRESHOLD"] = (
+    tests["DTC INSUFFICIENT THRESHOLD"] = (
         perform_test_on_dtc, test_insuff_threshold)
-    tests["TEST DTC TWO MASTERS ONE NODE"] = (
+    tests["DTC TWO MASTERS ONE NODE"] = (
         perform_test_on_dtc,
         test_two_masters_one_nodes)
-    tests["TEST DTC TWO MASTERS TWO NODE"] = (
+    tests["DTC TWO MASTERS TWO NODE"] = (
         perform_test_on_dtc,
         test_two_masters_two_nodes)
-    tests["TEST DTC MASTERS SIMULTANEOUS"] = (
+    tests["DTC MASTERS SIMULTANEOUS"] = (
         perform_test_on_dtc,
         test_two_masters_simultaneous)
-    tests["TEST DTC MASTERS:2 THRES:2 NODES:3"] = (
+    tests["DTC MASTERS:2 THRES:2 NODES:3"] = (
         perform_test_on_dtc,
         test_two_masters_thres2_nodes3)
 
-    tests["TEST PKCS11 ONE NODE"] = (
+    tests["PKCS11 ONE NODE"] = (
         perform_test_on_pkcs11,
         test_master_one_node)
-    tests["TEST PKCS11 TWO NODES"] = (
+    tests["PKCS11 TWO NODES"] = (
         perform_test_on_pkcs11,
         test_master_two_nodes)
-    tests["TEST PKCS11 RUN TWICE"] = (
+    tests["PKCS11 RUN TWICE"] = (
         perform_test_on_pkcs11,
         test_master_twice)
-    tests["TEST PKCS11 THREE NODES, ONE FALLS"] = (
+    tests["PKCS11 THREE NODES, ONE FALLS"] = (
         perform_test_on_pkcs11,
         test_three_nodes_one_down)
-    tests["TEST PKCS11 THREE NODES, TWO OPEN"] = (
+    tests["PKCS11 THREE NODES, TWO OPEN"] = (
         perform_test_on_pkcs11,
         test_three_nodes_two_open)
-    tests["TEST PKCS11 INSUFFICIENT THRESHOLD BORDER CASE"] = (
+    tests["PKCS11 INSUFFICIENT THRESHOLD BORDER CASE"] = (
         perform_test_on_pkcs11,
         test_insuff_threshold_bordercase)
-    tests["TEST PKCS11 INSUFFICIENT THRESHOLD"] = (
+    tests["PKCS11 INSUFFICIENT THRESHOLD"] = (
         perform_test_on_pkcs11, test_insuff_threshold)
-    tests["TEST PKCS11 TWO MASTERS ONE NODE"] = (
+    tests["PKCS11 TWO MASTERS ONE NODE"] = (
         perform_test_on_pkcs11,
         test_two_masters_one_nodes)
-    tests["TEST PKCS11 TWO MASTERS TWO NODE"] = (
+    tests["PKCS11 TWO MASTERS TWO NODE"] = (
         perform_test_on_pkcs11,
         test_two_masters_two_nodes)
-    tests["TEST PKCS11 MASTERS SIMULTANEOUS"] = (
+    tests["PKCS11 MASTERS SIMULTANEOUS"] = (
         perform_test_on_pkcs11,
         test_two_masters_simultaneous)
-    tests["TEST PKCS11 MASTERS:2 THRES:2 NODES:3"] = (
+    tests["PKCS11 MASTERS:2 THRES:2 NODES:3"] = (
         perform_test_on_pkcs11,
         test_two_masters_thres2_nodes3)
-    tests["TEST PKCS11 SAME DATABASE"] = (test_cryptoki_wout_key, None)
+    tests["PKCS11 SAME DATABASE"] = (test_cryptoki_wout_key, None)
 
     stress_tests = OrderedDict()
     stress_tests["NODE STRESS OPEN CLOSE"] = (test_stress_open_close, None)
