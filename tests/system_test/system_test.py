@@ -34,6 +34,8 @@ NODE_RDY = "Both socket binded, node ready to talk with the Master."
 NODE_TIMEOUT = 5
 MASTER_TIMEOUT = 20
 
+DEBUG = False
+
 
 def erase_dump():
     if exists(DUMP):
@@ -103,14 +105,17 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
     if master is not None:
         timer.start()
 
-    master.wait()
+    stdout_data, stderr_data = master.communicate()
 
     if timer.is_alive():
         timer.cancel()
+        debug_log(stdout_data, stderr_data)
+
         if master.returncode != 0:
             return master, master.returncode, "FAILURE: Master return code: " + str(master.returncode)
-        return None, master.returncode, ""
+        return master, master.returncode, ""
     else:
+        debug_log(stdout_data, stderr_data)
         return master, 1, "FAILURE: Timeout"
 
 
@@ -124,6 +129,17 @@ def create_dummy_file():
     fd = open("to_sign.txt", "w")
     fd.write(":)\n")
     return fd
+
+
+def debug_log(stdout, stderr):
+    if DEBUG:
+        for line in stdout.split("\n"):
+            if line != "":
+                print "DEBUG::STDOUT --> " + line
+        for line in stderr.split("\n"):
+            if line != "":
+                print "DEBUG::STDERR --> " + line
+    print("\n")
 
 
 # NODE ONLY TESTS
@@ -761,6 +777,10 @@ def main(argv=None):
                         help="specify whether you would like to change to path of the dump files",
                         default=DEFAULT_DUMP_PATH,
                         type=str)
+    parser.add_argument("--debug",
+                        help="does not pipe master and node stderr",
+                        default=False,
+                        action="store_true")
     parser.add_argument("-f",
                         "--fail_fast",
                         help="specify this if you want to stop the test case as soon as it fails one test",
@@ -814,6 +834,9 @@ def main(argv=None):
 
     global EXEC_PATH
     EXEC_PATH = abspath(args.build_path)
+
+    global DEBUG
+    DEBUG = args.debug
 
     print(" --- Testing starting --- \n")
 
@@ -927,6 +950,8 @@ def main(argv=None):
             chdir(DUMP)
 
             start = time()
+            if DEBUG:
+                print "\nRunning: " + name + " -->"
 
             if func_args is None:
                 result, mess = func()
