@@ -56,7 +56,7 @@ def exec_node(config):
              config + ".conf"],
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE)
-    except OSError as e:
+    except OSError:
         return node, 1, "ERROR: Exec could not be accesed >> " + EXEC_PATH + "/src/node"
 
     timer = Timer(NODE_TIMEOUT, node.terminate)
@@ -74,13 +74,23 @@ def exec_node(config):
         return node, 1, "FAILURE: Timeout"
 
 
+def close_node(node_proc):
+    if node_proc is not None:
+        node_proc.stderr.close()
+        node_proc.terminate()
+
+
+def close_nodes(nodes):
+    for node in nodes:
+        close_node(node)
+
+
 def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
     if isfile(cryptoki_conf):
         environ["TCHSM_CONFIG"] = abspath(cryptoki_conf)
     else:
         return None, 1, "ERROR: TCHSM_CONFIG env. var. could not be set."
 
-    master = None
     try:
         master = subprocess.Popen(
             master_args,
@@ -104,21 +114,10 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
         return master, 1, "FAILURE: Timeout"
 
 
-def close_node(node_proc):
-    if node_proc is not None:
-        node_proc.stderr.close()
-        node_proc.terminate()
-
-
 def close_master(master):
     if master is not None:
         master.stdout.close()
         master.stderr.close()
-
-
-def close_nodes(nodes):
-    for node in nodes:
-        close_node(node)
 
 
 def create_dummy_file():
@@ -256,7 +255,8 @@ def test_master_n_nodes(master_args, master_name, nb_of_nodes):
 
         open_nodes.append(node_proc)
 
-    master, master_ret, master_mess = exec_master(master_args, master_name)
+    master, master_ret, master_mess = exec_master(
+        *fix_dtc_args(master_args, master_name, nb_of_nodes))
 
     close_nodes(open_nodes)
     close_master(master)
@@ -287,14 +287,16 @@ def test_master_twice(master_args, master_name):
         close_nodes([node_proc1, node_proc2])
         return 1, node_mess2
 
-    master, master_ret, master_mess = exec_master(master_args, master_name)
+    master, master_ret, master_mess = exec_master(
+        *fix_dtc_args(master_args, master_name, 2))
     close_master(master)
 
     if master_ret != 0:
         close_nodes([node_proc1, node_proc2])
         return master_ret, master_mess
 
-    master, master_ret, master_mess = exec_master(master_args, master_name)
+    master, master_ret, master_mess = exec_master(
+        *fix_dtc_args(master_args, master_name, 2))
 
     close_nodes([node_proc1, node_proc2])
     close_master(master)
@@ -323,7 +325,8 @@ def test_three_nodes_one_down(master_args, master_name):
         close_nodes([node_proc1, node_proc2, node_proc3])
         return 1, node_mess3
 
-    master, master_ret, master_mess = exec_master(master_args, master_name)
+    master, master_ret, master_mess = exec_master(
+        *fix_dtc_args(master_args, master_name, 3))
     close_master(master)
 
     if master_ret != 0:
@@ -333,7 +336,8 @@ def test_three_nodes_one_down(master_args, master_name):
 
     close_node(node_proc3)
 
-    master, master_ret, master_mess = exec_master(master_args, master_name)
+    master, master_ret, master_mess = exec_master(
+        *fix_dtc_args(master_args, master_name, 3))
     close_nodes([node_proc1, node_proc2])
     close_master(master)
     return master_ret, master_mess
@@ -350,16 +354,9 @@ def test_insuff_threshold_bordercase(master_args, master_name):
         close_node(node_proc)
         return 1, node_mess
 
-    master, master_ret, master_mess = exec_master(master_args, master_name)
-    close_master(master)
-
-    if master_ret != 0:
-        close_node(node_proc)
-        return master_ret, master_mess
-
+    master, master_ret, master_mess = exec_master(
+        *fix_dtc_args(master_args, master_name, 1, 0))
     close_node(node_proc)
-
-    master, master_ret, master_mess = exec_master(master_args, master_name)
     close_master(master)
 
     if master_ret != 0:
@@ -390,7 +387,8 @@ def test_insuff_threshold(master_args, master_name):
         close_nodes([node_proc1, node_proc2, node_proc3])
         return 1, node_mess3
 
-    master, master_ret, master_mess = exec_master(master_args, master_name)
+    master, master_ret, master_mess = exec_master(
+        *fix_dtc_args(master_args, master_name, 3, 3))
     close_master(master)
 
     if master_ret != 0:
@@ -399,7 +397,8 @@ def test_insuff_threshold(master_args, master_name):
 
     close_node(node_proc3)
 
-    master, master_ret, master_mess = exec_master(master_args, master_name)
+    master, master_ret, master_mess = exec_master(
+        *fix_dtc_args(master_args, master_name, 3, 3))
     close_nodes([node_proc1, node_proc2])
     close_master(master)
 
@@ -426,7 +425,8 @@ def test_three_nodes_two_open(master_args, master_name):
         close_nodes([node_proc1, node_proc2])
         return 1, node_mess2
 
-    master, master_ret, master_mess = exec_master(master_args, master_name)
+    master, master_ret, master_mess = exec_master(
+        *fix_dtc_args(master_args, master_name, 3))
     close_nodes([node_proc1, node_proc2])
     close_master(master)
     return master_ret, master_mess
@@ -448,9 +448,9 @@ def test_master_stress_open_close(master_args, master_name):
         close_nodes([node_proc1, node_proc2])
         return 1, node_mess2
 
-    master = None
     for i in range(0, 10):
-        master, master_ret, master_mess = exec_master(master_args, master_name)
+        master, master_ret, master_mess = exec_master(
+            *fix_dtc_args(master_args, master_name, 2))
         close_master(master)
 
         if master_ret != 0:
@@ -478,8 +478,8 @@ def test_stress_multiple_masters(master_args, master_name):
         return 1, node_mess2
 
     for i in range(1, 11):
-        master, master_ret, master_mess = exec_master(
-            master_args, master_name, "cryptoki" + str(i) + ".conf")
+        master, master_ret, master_mess = exec_master(*fix_dtc_args(
+            master_args, master_name, "cryptoki" + str(i) + ".conf", 2))
         close_master(master)
 
         if master_ret != 0:
@@ -515,7 +515,8 @@ def test_cryptoki_wout_key():
                    "-p",
                    "1234"]
     master_name = "pkcs_11_test"
-    master, master_ret, master_mess = exec_master(master_args, master_name)
+    master, master_ret, master_mess = exec_master(
+        *fix_dtc_args(master_args, master_name, 2))
     close_master(master)
 
     if master_ret != 0:
@@ -530,7 +531,8 @@ def test_cryptoki_wout_key():
                    "-p",
                    "1234"]
     master_name = "pkcs_11_test"
-    master, master_ret, master_mess = exec_master(master_args, master_name)
+    master, master_ret, master_mess = exec_master(
+        *fix_dtc_args(master_args, master_name, 2))
     dummy_file.close()
 
     close_nodes([node_proc1, node_proc2])
@@ -549,16 +551,16 @@ def test_two_masters_one_nodes(master_args, master_name):
         close_node(node_proc1)
         return 1, node_mess1
 
-    master, master_ret, master_mess = exec_master(
-        master_args, master_name, "cryptoki1.conf")
+    master, master_ret, master_mess = exec_master(*fix_dtc_args(
+        master_args, master_name, "cryptoki1.conf", 1))
     close_master(master)
 
     if master_ret != 0:
         close_node(node_proc1)
         return master_ret, master_mess
 
-    master, master_ret, master_mess = exec_master(
-        master_args, master_name, "cryptoki2.conf")
+    master, master_ret, master_mess = exec_master(*fix_dtc_args(
+        master_args, master_name, "cryptoki2.conf", 1))
 
     close_node(node_proc1)
     close_master(master)
@@ -581,16 +583,16 @@ def test_two_masters_two_nodes(master_args, master_name):
         close_nodes([node_proc1, node_proc2])
         return 1, node_mess2
 
-    master, master_ret, master_mess = exec_master(
-        master_args, master_name, "cryptoki1.conf")
+    master, master_ret, master_mess = exec_master(*fix_dtc_args(
+        master_args, master_name, "cryptoki1.conf", 2))
     close_master(master)
 
     if master_ret != 0:
         close_nodes([node_proc1, node_proc2])
         return master_ret, master_mess
 
-    master, master_ret, master_mess = exec_master(
-        master_args, master_name, "cryptoki2.conf")
+    master, master_ret, master_mess = exec_master(*fix_dtc_args(
+        master_args, master_name, "cryptoki2.conf", 2))
 
     close_nodes([node_proc1, node_proc2])
     close_master(master)
@@ -613,10 +615,10 @@ def test_two_masters_simultaneous(master_args, master_name):
         close_nodes([node_proc1, node_proc2])
         return 1, node_mess2
 
-    master1, master_ret1, master_mess1 = exec_master(
-        master_args, master_name, "cryptoki1.conf")
-    master2, master_ret2, master_mess2 = exec_master(
-        master_args, master_name, "cryptoki2.conf")
+    master1, master_ret1, master_mess1 = exec_master(*fix_dtc_args(
+        master_args, master_name, "cryptoki1.conf", 2))
+    master2, master_ret2, master_mess2 = exec_master(*fix_dtc_args(
+        master_args, master_name, "cryptoki2.conf", 2))
 
     if master_ret1 != 0:
         close_nodes([node_proc1, node_proc2])
@@ -648,16 +650,16 @@ def test_two_masters_thres2_nodes3(master_args, master_name):
         close_nodes([node_proc1, node_proc2])
         return 1, node_mess2
 
-    master1, master_ret1, master_mess1 = exec_master(
-        master_args, master_name, "cryptoki1.conf")
+    master1, master_ret1, master_mess1 = exec_master(*fix_dtc_args(
+        master_args, master_name, "cryptoki1.conf", 3))
     close_master(master1)
 
     if master_ret1 != 0:
         close_nodes([node_proc1, node_proc2])
         return master_ret1, master_mess1
 
-    master2, master_ret2, master_mess2 = exec_master(
-        master_args, master_name, "cryptoki2.conf")
+    master2, master_ret2, master_mess2 = exec_master(*fix_dtc_args(
+        master_args, master_name, "cryptoki2.conf", 3))
 
     close_nodes([node_proc1, node_proc2])
     close_master(master2)
@@ -699,6 +701,17 @@ def pretty_print(index, name, result, mess, runtime, verbosity):
         print "      " + str(mess)
 
 
+def fix_dtc_args(master_args, master_name, nb_of_nodes, threshold=None):
+    fixed_master_args = list(master_args)
+
+    if master_name == "dtc_master_test":
+        fixed_master_args.append(str(nb_of_nodes))
+        if threshold is not None:
+            fixed_master_args.append(str(threshold))
+
+    return fixed_master_args, master_name
+
+
 def main(argv=None):
     global NODE_TIMEOUT
     global MASTER_TIMEOUT
@@ -707,17 +720,29 @@ def main(argv=None):
     parser.add_argument("build_path",
                         help="path of the folder where the project is build",
                         type=str)
-    parser.add_argument("-v",
-                        "--verbosity",
-                        help="specify this if you want to see every running test",
+    parser.add_argument("-d",
+                        "--dump_path",
+                        help="specify whether you would like to change to path of the dump files",
+                        default=DEFAULT_DUMP_PATH,
+                        type=str)
+    parser.add_argument("-f",
+                        "--fail_fast",
+                        help="specify this if you want to stop the test case as soon as it fails one test",
                         default=False,
                         action="store_true")
-    parser.add_argument("-ws",
-                        "--with_stress_tests",
-                        help="specify this if you want to add stress tests to the test case",
-                        default=False,
-                        action="store_true")
-    parser.add_argument("-ro",
+    parser.add_argument("-m",
+                        "--master_timeout",
+                        help="maximum time for masters to respond (default: " + str(
+                            MASTER_TIMEOUT) + " seg)",
+                        default=MASTER_TIMEOUT,
+                        type=int)
+    parser.add_argument("-n",
+                        "--node_timeout",
+                        help="maximum time for nodes to respond (default: " + str(
+                            NODE_TIMEOUT) + " seg)",
+                        default=NODE_TIMEOUT,
+                        type=int)
+    parser.add_argument("-r",
                         "--run_only",
                         help="only runs the tests that contain this text",
                         default="",
@@ -727,26 +752,14 @@ def main(argv=None):
                         help="specify this if you want to save dump folders",
                         default=False,
                         action="store_true")
-    parser.add_argument("-dp",
-                        "--dump_path",
-                        help="specify whether you would like to change to path of the dump files",
-                        default=DEFAULT_DUMP_PATH,
-                        type=str)
-    parser.add_argument("-nt",
-                        "--node_timeout",
-                        help="maximum time for nodes to respond (default: " + str(
-                            NODE_TIMEOUT) + " seg)",
-                        default=NODE_TIMEOUT,
-                        type=int)
-    parser.add_argument("-mt",
-                        "--master_timeout",
-                        help="maximum time for masters to respond (default: " + str(
-                            MASTER_TIMEOUT) + " seg)",
-                        default=MASTER_TIMEOUT,
-                        type=int)
-    parser.add_argument("-ff",
-                        "--fail_fast",
-                        help="specify this if you want to stop the test case as soon as it fails one test",
+    parser.add_argument("-v",
+                        "--verbosity",
+                        help="specify this if you want to see every running test",
+                        default=False,
+                        action="store_true")
+    parser.add_argument("-w",
+                        "--with_stress_tests",
+                        help="specify this if you want to add stress tests to the test case",
                         default=False,
                         action="store_true")
     args = parser.parse_args()
@@ -867,13 +880,13 @@ def main(argv=None):
     if not exists(dump_path):
         print "ERROR: Dump path doesn't exists >> " + dump_path
 
-    for index, test_info in zip(range(1, len(tests) + 1), tests.iteritems()):
+    for index, test_info in enumerate(tests.iteritems()):
         name, test = test_info
         func, func_args = test
 
         if args.run_only in name:
             global DUMP
-            dump_prefix = "libdtc_test_" + str(index) + "_"
+            dump_prefix = "libdtc_test_" + str(index + 1) + "_"
             DUMP = mkdtemp(prefix=dump_prefix, dir=dump_path)
             chdir(DUMP)
 
@@ -896,7 +909,7 @@ def main(argv=None):
                 erase_dump()
 
             pretty_print(
-                index,
+                index + 1,
                 name,
                 result,
                 mess,

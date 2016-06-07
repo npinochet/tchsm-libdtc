@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include "logger/logger.h"
 
@@ -23,7 +24,12 @@ int main(int argc, char **argv)
     if(ret_val != DTC_ERR_NONE)
         return 1;
 
-    ret_val = dtc_generate_key_shares(ctx, "hola_id", 512, 2, 2, NULL, &info);
+    int number_of_nodes = atoi(argv[2]);
+    int threshold = (int)floor(number_of_nodes/2.0) + 1;
+    if(argc > 3)
+        threshold = atoi(argv[3]);
+
+    ret_val = dtc_generate_key_shares(ctx, "hola_id", 512, threshold, number_of_nodes, NULL, &info);
     printf("Generate: %d:%s\n", ret_val, dtc_get_error_msg(ret_val));
     if(ret_val != DTC_ERR_NONE) {
         printf("Destroy: %d\n", dtc_destroy(ctx));
