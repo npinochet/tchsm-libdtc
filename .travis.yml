@@ -15,4 +15,4 @@ install:
 script:
     - make check
     - make system_test
-    - python ../tests/system_test/system_test.py ../build/ -v -w --debug
+    - python ../tests/system_test/system_test.py ../build/ -v -w --debug -m 60
