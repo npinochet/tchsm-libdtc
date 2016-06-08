@@ -298,6 +298,7 @@ def test_master_n_nodes(master_args, master_name, nb_of_nodes):
         config_creation_string += " 127.0.0.1:" + \
             str(port) + ":" + str(port + 1)
         port += 2
+    config_creation_string += " -t " + str(MASTER_TIMEOUT)
 
     status, output = getstatusoutput(config_creation_string)
     if status != 0:
@@ -329,8 +330,11 @@ def test_master_two_nodes(master_args, master_name):
 
 
 def test_master_twice(master_args, master_name):
+    config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -t " + \
+        str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
+        "python " + CONFIG_CREATOR_PATH + config_data)
+
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
@@ -361,7 +365,8 @@ def test_master_twice(master_args, master_name):
 
 
 def test_three_nodes_one_down(master_args, master_name):
-    node_info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126"
+    node_info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126 -t " + \
+        str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + node_info)
     if status != 0:
@@ -403,8 +408,10 @@ def test_three_nodes_one_down(master_args, master_name):
 
 
 def test_insuff_threshold_bordercase(master_args, master_name):
+    config_data = " 127.0.0.1:2121:2122 -ct -th 0 -t " + str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 -ct -th 0")
+        "python " + CONFIG_CREATOR_PATH + config_data
+    )
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
@@ -426,8 +433,10 @@ def test_insuff_threshold_bordercase(master_args, master_name):
 
 def test_insuff_threshold(master_args, master_name):
     node_info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126"
+    config_info = node_info + "-ct -th 3 -t " + str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + node_info + "-ct -th 3")
+        "python " + CONFIG_CREATOR_PATH + config_info
+    )
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
@@ -469,8 +478,10 @@ def test_insuff_threshold(master_args, master_name):
 
 def test_three_nodes_two_open(master_args, master_name):
     node_info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126"
+    config_data = node_info + " -t " + str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + node_info)
+        "python " + CONFIG_CREATOR_PATH + config_data
+    )
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
@@ -495,8 +506,11 @@ def test_three_nodes_two_open(master_args, master_name):
 
 
 def test_master_stress_open_close(master_args, master_name):
+    config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -t " + \
+        str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
+        "python " + CONFIG_CREATOR_PATH + config_data)
+
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
@@ -524,8 +538,11 @@ def test_master_stress_open_close(master_args, master_name):
 
 
 def test_stress_multiple_masters(master_args, master_name):
+    config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -m 10 -t " + \
+        str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -m 10")
+        "python " + CONFIG_CREATOR_PATH + config_data)
+
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
@@ -555,8 +572,11 @@ def test_stress_multiple_masters(master_args, master_name):
 
 
 def test_cryptoki_wout_key():
+    config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -t " + \
+        str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
+        "python " + CONFIG_CREATOR_PATH + config_data)
+
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
@@ -605,8 +625,10 @@ def test_cryptoki_wout_key():
 
 
 def test_two_masters_one_nodes(master_args, master_name):
+    config_data = " 127.0.0.1:2121:2122 -m 2 -t " + str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 -m 2")
+        "python " + CONFIG_CREATOR_PATH + config_data)
+
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
@@ -634,8 +656,11 @@ def test_two_masters_one_nodes(master_args, master_name):
 
 
 def test_two_masters_two_nodes(master_args, master_name):
+    config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -m 2 -t " + \
+        str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -m 2")
+        "python " + CONFIG_CREATOR_PATH + config_data)
+
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
@@ -670,8 +695,11 @@ def test_two_masters_two_nodes(master_args, master_name):
 
 
 def test_two_masters_simultaneous(master_args, master_name):
+    config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -m 2 -t " + \
+        str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -m 2")
+        "python " + CONFIG_CREATOR_PATH + config_data)
+
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
@@ -710,7 +738,8 @@ def test_two_masters_simultaneous(master_args, master_name):
 
 
 def test_two_masters_thres2_nodes3(master_args, master_name):
-    info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126 -m 2"
+    info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126 -m 2 -t " + \
+        str(MASTER_TIMEOUT)
     status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + info)
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
