@@ -71,9 +71,11 @@ def exec_node(config):
     timer = Timer(NODE_TIMEOUT, node.terminate)
     timer.start()
 
-    stdout_lines = iter(node.stderr.readline, "")
-    for stdout_line in stdout_lines:
-        if NODE_RDY in stdout_line:
+    stderr_lines = iter(node.stderr.readline, "")
+    for stderr_line in stderr_lines:
+        if DEBUG:
+            sys.stdout.write("DEBUG::STDERR --> " + stderr_line)
+        if NODE_RDY in stderr_line:
             break
 
     if timer.is_alive():
