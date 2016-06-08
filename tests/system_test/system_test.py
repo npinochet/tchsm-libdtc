@@ -16,7 +16,7 @@ from time import time
 """
 Module for System Testing
 
-To add a new test add it in the test array in main.
+To add a new test add it in the test dictionary in main.
 """
 
 __author__ = "Daniel Aviv"
@@ -38,12 +38,19 @@ DEBUG = False
 
 
 def erase_dump():
+    """Deletes the dump folder, if exists"""
     if exists(DUMP):
         shutil.rmtree(DUMP)
     return 0
 
 
 def exec_node(config):
+    """
+    Executes a node linked with a specific configuration file
+
+    :param config: Path of the configuration file
+    :return: Returns the node process, the return code and a return message
+    """
     if not isdir(EXEC_PATH):
         return None, 1, "ERROR: Path doesn't exists >> " + EXEC_PATH
 
@@ -77,17 +84,36 @@ def exec_node(config):
 
 
 def close_node(node_proc):
+    """
+    Closes a node process, closing also the nodes stdout and stderr
+
+    :param node_proc: The node process to be closed
+    """
     if node_proc is not None:
+        node_proc.stdout.close()
         node_proc.stderr.close()
         node_proc.terminate()
 
 
 def close_nodes(nodes):
+    """
+    Closes various node processes, closing also the nodes stdout and stederr
+
+    :param nodes: An array of nodes processes to be closed
+    """
     for node in nodes:
         close_node(node)
 
 
 def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
+    """
+    Executes a master linked with a specific arguments
+
+    :param master_args: Arguments of the process to be run, including the script itself
+    :param master_name: Name of the master, for logging purposes
+    :param cryptoki_conf: Value of the TCHSM_CONFIG env. variable
+    :return: Returns the master process, the return code and a return message
+    """
     if isfile(cryptoki_conf):
         environ["TCHSM_CONFIG"] = abspath(cryptoki_conf)
     else:
@@ -120,18 +146,34 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
 
 
 def close_master(master):
+    """
+    Closes a master stderr and stdout
+
+    :param master: The master process
+    """
     if master is not None:
         master.stdout.close()
         master.stderr.close()
 
 
 def create_dummy_file():
+    """
+    Creates a text file with a fixed string on it
+
+    :return: The file descriptor of the file
+    """
     fd = open("to_sign.txt", "w")
     fd.write(":)\n")
     return fd
 
 
 def debug_output(stdout, stderr):
+    """
+    It prints the content of two output strings line by line
+
+    :param stdout: An output string
+    :param stderr: An output string
+    """
     if DEBUG:
         for line in stdout.split("\n"):
             if line != "":
@@ -708,6 +750,12 @@ def test_two_masters_thres2_nodes3(master_args, master_name):
 
 # INTERFACES FOR DIFFERENT TESTS
 def perform_test_on_pkcs11(test):
+    """
+    Interface for running the tests on pkcs11_master_test
+
+    :param test: Test to be run
+    :return: Test return code and return message
+    """
     dummy_file = create_dummy_file()
     master_args = [join(
                    EXEC_PATH,
@@ -723,6 +771,12 @@ def perform_test_on_pkcs11(test):
 
 
 def perform_test_on_dtc(test):
+    """
+    Interface for running the tests on dtc_master_test
+
+    :param test: Test to be run
+    :return: Test return code and return message
+    """
     config_path = join(DUMP, "master.conf")
     master_args = [join(
                    EXEC_PATH,
@@ -733,6 +787,16 @@ def perform_test_on_dtc(test):
 
 
 def pretty_print(index, name, result, mess, runtime, verbosity):
+    """
+    Prints legible information of the test output
+
+    :param index: Test index
+    :param name: Test name
+    :param result: Test return code
+    :param mess: Test return message
+    :param runtime: Test runtime
+    :param verbosity: If this is true, this will print the passing tests too
+    """
     if result == 0:
         if verbosity:
             print str(index) + ".- " + name + " passed! Run time: " + str(runtime)[:6] + " seconds."
@@ -747,6 +811,16 @@ def fix_dtc_args(
         nb_of_nodes,
         threshold=None,
         index=None):
+    """
+    Method that is used to fix the master arguments in the case of dtc
+
+    :param master_args: Original arguments
+    :param master_name: Master name, this will only do modifications if this is equals to "dtc_master_test"
+    :param nb_of_nodes: Total number of nodes
+    :param threshold: Connection threshold
+    :param index: Index of the master
+    :return: It returns an aray with the fixed arguments and the master name
+    """
     fixed_master_args = list(master_args)
 
     if master_name == "dtc_master_test":
@@ -931,7 +1005,7 @@ def main(argv=None):
             tests[k] = v
 
     tests_passed = 0
-    tests_runned = 0
+    tests_run = 0
     total_time = 0
 
     dump_path = abspath(args.dump_path)
@@ -975,23 +1049,23 @@ def main(argv=None):
                 mess,
                 end - start,
                 args.verbosity)
-            tests_runned += 1
+            tests_run += 1
 
             if args.fail_fast and result != 0:
                 break
 
-    if tests_runned == 0:
-        print(" --- No tests runned ---")
+    if tests_run == 0:
+        print(" --- No tests run ---")
     else:
         test_percentage = str(
-            100 * float(tests_passed) / float(tests_runned))[:5] + "%"
+            100 * float(tests_passed) / float(tests_run))[:5] + "%"
         passing_string = "|" * tests_passed + \
-            " " * (tests_runned - tests_passed)
-        print("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_runned) +
+            " " * (tests_run - tests_passed)
+        print("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_run) +
               " (" + test_percentage + "): [" + passing_string + "] ---")
         print(" --- Total run time: " + str(total_time)[:6] + " seconds ---")
 
-    return tests_runned - tests_passed
+    return tests_run - tests_passed
 
 
 if __name__ == "__main__":
