@@ -433,7 +433,7 @@ def test_insuff_threshold_bordercase(master_args, master_name):
 
 def test_insuff_threshold(master_args, master_name):
     node_info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126"
-    config_info = node_info + "-ct -th 3 -t " + str(MASTER_TIMEOUT)
+    config_info = node_info + " -ct -th 3 -t " + str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + config_info
     )
