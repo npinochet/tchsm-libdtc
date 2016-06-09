@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import sys
-import os
-from os.path import join
 import argparse
 import commands
+import os
+import sys
 from math import floor
+from os.path import join
 
 """
 This module creates the configuration files of nodes and masters for testing purposes.
@@ -105,9 +105,9 @@ def create_master_config(
 
     for node_id, info in nodes.iteritems():
         config_file.write("\t\t{\n")
-        config_file.write("\t\tip=\"" + info[4] + "\"\n")
-        config_file.write("\t\tdealer_port=" + info[0] + "\n")
-        config_file.write("\t\tsub_port=" + info[1] + "\n")
+        config_file.write("\t\tip=\"" + info[4] + "\",\n")
+        config_file.write("\t\tdealer_port=" + info[0] + ",\n")
+        config_file.write("\t\tsub_port=" + info[1] + ",\n")
         config_file.write("\t\tpublic_key=\"" + info[2] + "\"\n")
         config_file.write("\t\t},\n")
 
@@ -149,7 +149,7 @@ def create_node_config(
 
     for master_id, master_key in masters.iteritems():
         config_file.write("\t\t{\n")
-        config_file.write("\t\tpublic_key=\"" + master_key[0] + "\"\n")
+        config_file.write("\t\tpublic_key=\"" + master_key[0] + "\",\n")
         config_file.write("\t\tid=\"" + master_id + "\"\n")
         config_file.write("\t\t},\n")
 
@@ -186,8 +186,8 @@ def get_keygen():
 def create_n_cryptoki_config(
     nodes,
      output_path,
-     instance_id,
      masters,
+     instance_id,
      timeout,
      cryptoki_database,
      threshold):
@@ -195,8 +195,8 @@ def create_n_cryptoki_config(
 
     nodes -- dictionary containing the info of the nodes, where the key is the an id, and the value an array containing the info.
     output_path -- where the config files will land
-    master_id -- prefix id of the masters
     masters -- dictionary of masters information
+    instance_id -- prefix of the masters name
     timeout -- conection timeout in the masters config
     cryptoki_database -- prefix in the database path in the cryptoki config
     threshold -- min amount of nodes to the sign to occurr
@@ -205,7 +205,6 @@ def create_n_cryptoki_config(
         index = ""
         if len(masters) != 1:
             index = master_id[len(instance_id):]
-            print index
 
         file_name = join(output_path, "cryptoki") + index + ".conf"
 
@@ -360,18 +359,18 @@ def main(argv=None):
         config_file.close()
 
     threshold = 0
-    if(args.custom_threshold):
+    if args.custom_threshold:
         custom_threshold = args.threshold
         custom_threshold_as_int = 0
 
         try:
             custom_threshold_as_int = int(custom_threshold)
         except ValueError as e:
-            print("ERROR: Inadaquate threshold")
+            print("ERROR: Inadequate threshold")
             return 1
 
-        if (custom_threshold_as_int < 0 or custom_threshold_as_int > len(nodes)):
-            print("ERROR: Inadaquate threshold")
+        if custom_threshold_as_int < 0 or custom_threshold_as_int > len(nodes):
+            print("ERROR: Inadequate threshold")
             return 1
 
         threshold = custom_threshold_as_int
@@ -381,8 +380,8 @@ def main(argv=None):
     create_n_cryptoki_config(
         nodes,
         args.output_dir,
-     args.instance_id,
      masters,
+     args.instance_id,
      args.timeout,
      args.cryptoki_database,
      threshold)

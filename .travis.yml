@@ -13,4 +13,5 @@ install:
     - make
 
 script:
-    make check
+    - make check
+    - make system_test
