@@ -3,7 +3,7 @@ Distributed version of the Threshold Cryptography Library
 
 ##System Test
 
-The proyect provides a system_test script, to run it, first do:
+The project provides a system_test script, to run it, first do:
 ```
 make system_test
 ```
