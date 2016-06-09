@@ -23,7 +23,7 @@ include(FindBotan)
 
 find_package(LibUUID REQUIRED)
 find_package(Sqlite3 REQUIRED)
-find_package(Botan REQUIRED)
+find_package(Botan 1.11 REQUIRED)
 find_package(TCLib REQUIRED)
 find_package(LibConfig REQUIRED)
 
