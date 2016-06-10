@@ -16,12 +16,17 @@ include_directories("${PROJECT_SOURCE_DIR}/src/include")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
+if (NOT APPLE)
 include(FindLibUUID)
+endif()
+
 include(FindSqlite3)
 include(FindBotan)
 
-
+if (NOT APPLE)
 find_package(LibUUID REQUIRED)
+endif()
+
 find_package(Sqlite3 REQUIRED)
 find_package(Botan 1.11 REQUIRED)
 find_package(TCLib REQUIRED)
@@ -35,10 +40,12 @@ else()
     message(FATAL_ERROR "Cannot find LibConfig library")
 endif()
 
+if (NOT APPLE)
 if (LIBUUID_FOUND)
     include_directories(${LibUUID_INCLUDE_DIRS})
 else()
     message(FATAL_ERROR "Cannot find LibUUID")
+endif()
 endif()
 
 if (SQLITE3_FOUND)

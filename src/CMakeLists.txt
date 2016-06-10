@@ -5,7 +5,11 @@ include(FindSqlite3)
 include(FindJSON-C)
 include(FindLibSodium)
 include(FindLibConfig)
+
+if (NOT APPLE)
 include(FindLibUUID)
+endif()
+
 include(FindTCLib)
 
 find_package(Threads REQUIRED)
@@ -25,8 +29,10 @@ include_directories(${JSON-C_INCLUDE_DIRS})
 find_package(Sqlite3 REQUIRED)
 include_directories(${Sqlite3_INCLUDE_DIRS})
 
-find_package(LibUUID REQUIRED)
-include_directories(${LibUUID_INCLUDE_DIRS})
+if(NOT APPLE)
+  find_package(LibUUID REQUIRED)
+  include_directories(${LibUUID_INCLUDE_DIRS})
+endif()
 
 find_package(TCLib REQUIRED)
 include_directories(${TCLIB_INCLUDE_DIRS})
