@@ -58,11 +58,8 @@ namespace hsm {
         const CK_SESSION_HANDLE handle_;
         const CK_FLAGS flags_;
 
-        // Future use
-        const CK_VOID_PTR application_;
-        const CK_NOTIFY notify_;
-
         // Object Search
+
         bool findInitialized_ = false;
         std::vector<CK_OBJECT_HANDLE> foundObjects_;
         std::vector<CK_OBJECT_HANDLE>::iterator foundObjectsIterator_;
@@ -87,8 +84,7 @@ namespace hsm {
         Botan::AutoSeeded_RNG rng_;
 
     public:
-        Session(CK_FLAGS flags, CK_VOID_PTR pApplication,
-                CK_NOTIFY notify, Slot &currentSlot);
+        Session(CK_FLAGS flags, Slot &currentSlot);
 
         ~Session();
 

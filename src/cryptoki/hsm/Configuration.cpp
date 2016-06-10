@@ -64,7 +64,6 @@ void Configuration::load(std::string configurationPath) {
     config_setting_t *root;
     config_setting_t *cryptoki, *dtc, *slots, *slot, *nodes, *node;
     const char *aux_char;
-    int64_t aux_int64;
     struct node_info aux_node_info;
 
     config_init(&cfg);

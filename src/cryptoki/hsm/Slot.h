@@ -46,13 +46,12 @@ class Slot
     CK_SLOT_ID slotId_;
     Application & application_;
     CK_FLAGS slotFlags_;
-    
+
     std::map<CK_SESSION_HANDLE, SessionPtr> sessions_;
     // A token can be unplugged...
     TokenPtr token_;
     Mutex mutex_;
-    
-    CK_SLOT_ID id_;
+
 public:
     Slot ( CK_SLOT_ID id, Application& application );
     Slot ( Slot & ) = delete;
@@ -61,7 +60,7 @@ public:
     Slot & operator=(Slot &&) = default;
     ~Slot() = default;
 
-    CK_SESSION_HANDLE openSession ( CK_FLAGS flags, CK_VOID_PTR pApplication, CK_NOTIFY notify );
+    CK_SESSION_HANDLE openSession ( CK_FLAGS flags );
     void closeSession ( CK_SESSION_HANDLE handle );
     void closeAllSessions();
     Session & getSession ( CK_SESSION_HANDLE handle );

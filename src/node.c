@@ -1063,7 +1063,7 @@ static void zap_handler(void *zap_data_)
         char *address = s_recv(sock);
         char *identity = s_recv(sock);
         char *mechanism = s_recv(sock);
-        int size = zmq_recv(sock, client_key, 32, 0);
+        zmq_recv(sock, client_key, 32, 0);
 
         char client_key_text [42];
         zmq_z85_encode(client_key_text, client_key, 32);
