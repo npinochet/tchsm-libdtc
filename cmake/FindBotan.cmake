@@ -43,7 +43,7 @@ FIND_PACKAGE_HANDLE_STANDARD_ARGS(Botan DEFAULT_MSG BOTAN_LIBRARY BOTAN_INCLUDE_
 IF(BOTAN_FOUND)
     # If found and version requested, check it.
     IF(Botan_FIND_VERSION)
-        set(VERSION_REGEX ".*libbotan-([0-9]+)\\.([0-9]+).*\\.so.*")
+        set(VERSION_REGEX ".*libbotan-([0-9]+)\\.([0-9]+).*\\.(so|dylib).*")
         string(REGEX REPLACE ${VERSION_REGEX} "\\1" _BOTAN_VERSION_MAJOR ${BOTAN_LIBRARY})
         string(REGEX REPLACE ${VERSION_REGEX} "\\2" _BOTAN_VERSION_MINOR ${BOTAN_LIBRARY})
         set(_BOTAN_FOUND_VERSION "${_BOTAN_VERSION_MAJOR}.${_BOTAN_VERSION_MINOR}")
