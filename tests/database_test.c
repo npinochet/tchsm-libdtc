@@ -637,7 +637,7 @@ static void clean_directory(const char *directory)
     int res;
     char buff[FILENAME_BUFF_SIZE];
     d = opendir(directory);
-    while(p = readdir(d)) {
+    while((p = readdir(d))) {
         if(!strcmp(p->d_name, ".") || !strcmp(p->d_name, ".."))
             continue;
         snprintf(buff, FILENAME_BUFF_SIZE, "%s%s", DT_TCLIB_TEST_DIRECTORY,
