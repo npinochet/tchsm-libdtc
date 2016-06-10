@@ -846,17 +846,21 @@ void Session::signFinal(CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen) {
     signInitialized_ = false;
 }
 
-// TODO: Fix the verifier!
 void Session::verifyInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
     if (verifyInitialized_) {
         throw TcbError("Session::verifyInit", "Operation active.", CKR_OPERATION_ACTIVE);
     }
 
     CryptoObject &keyObject = getObject(hKey);
-    CK_ATTRIBUTE tmpl = {.type = CKA_VENDOR_DEFINED + 1};
-    const CK_ATTRIBUTE *keyMetainfoAttribute = keyObject.findAttribute(&tmpl);
-    if (!keyMetainfoAttribute) {
-        throw TcbError("Session::signInit", "El object handle no contiene keymetainfos", CKR_ARGUMENTS_BAD);
+    CK_ATTRIBUTE publicExponentAttr;
+    CK_ATTRIBUTE modulusAttr;
+    try {
+        publicExponentAttr = keyObject.getAttributes().at(CKA_PUBLIC_EXPONENT);
+        modulusAttr = keyObject.getAttributes().at(CKA_MODULUS);
+    } catch (std::out_of_range &e) {
+        throw TcbError("Session::verifyInit",
+                       "keyObject doesn't have public exponent or modulus.",
+                       CKR_OBJECT_HANDLE_INVALID);
     }
 
     CK_MECHANISM_TYPE signMechanism = pMechanism->mechanism;
@@ -903,18 +907,11 @@ void Session::verifyInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
             break;
 
         default:
-            throw TcbError("Session::sign", "El mecanismo no esta soportado.", CKR_MECHANISM_INVALID);
+            throw TcbError("Session::sign", "Mechanism not supported (yet).", CKR_MECHANISM_INVALID);
     }
 
-    string serializedMetainfo(static_cast<char *>(keyMetainfoAttribute->pValue), keyMetainfoAttribute->ulValueLen);
-
-    KeyMetaInfoPtr metainfo(tc_deserialize_key_metainfo(serializedMetainfo.c_str()));
-    const public_key_t *pk = tc_key_meta_info_public_key(metainfo.get());
-    const bytes_t *nBytes = tc_public_key_n(pk);
-    const bytes_t *eBytes = tc_public_key_e(pk);
-
-    Botan::BigInt n((Botan::byte *) nBytes->data, nBytes->data_len);
-    Botan::BigInt e((Botan::byte *) eBytes->data, eBytes->data_len);
+    Botan::BigInt e((Botan::byte *) publicExponentAttr.pValue, publicExponentAttr.ulValueLen);
+    Botan::BigInt n((Botan::byte *) modulusAttr.pValue, modulusAttr.ulValueLen);
 
     pk_.reset(new Botan::RSA_PublicKey(n, e));
     verifier_.reset(new Botan::PK_Verifier(*pk_, emsa));
