@@ -173,7 +173,7 @@ CK_RV C_Initialize(CK_VOID_PTR pInitArgs) {
              args->LockMutex ||
              args->UnlockMutex);
 
-        if(someButNotAll) { 
+        if(someButNotAll) {
             return CKR_ARGUMENTS_BAD;
         }
 
@@ -200,9 +200,9 @@ CK_RV C_Initialize(CK_VOID_PTR pInitArgs) {
                         args->LockMutex,
                         args->UnlockMutex);
             }
-            // App won't do multithreaded access. 
+            // App won't do multithreaded access.
             //
-            
+
             Mutex::setFunctions(hsm::VoidCreateMutex,
                     hsm::VoidDestroyMutex,
                     hsm::VoidLockMutex,
@@ -431,7 +431,7 @@ CK_RV C_OpenSession(CK_SLOT_ID slotID, CK_FLAGS flags,
             return CKR_TOKEN_NOT_RECOGNIZED;
         }
 
-        *phSession = slot.openSession(flags, pApplication, notify);
+        *phSession = slot.openSession(flags);
     } catch (TcbError &e) {
         return error(e);
     }

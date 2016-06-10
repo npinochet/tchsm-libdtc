@@ -91,13 +91,10 @@ namespace {
     }
 }
 
-Session::Session(CK_FLAGS flags, CK_VOID_PTR pApplication,
-                 CK_NOTIFY notify, Slot &currentSlot)
-        : handle_(++actualHandle),
+Session::Session(CK_FLAGS flags, Slot &currentSlot)
+        : slot_(currentSlot),
+          handle_(++actualHandle),
           flags_(flags),
-          application_(pApplication),
-          notify_(notify),
-          slot_(currentSlot),
           keyMetainfo_(nullptr) {
 
 }

@@ -203,27 +203,26 @@ create_key_pair(CK_SESSION_HANDLE session) {
     CK_BYTE publicExponent[] = {1, 0, 1};
     CK_BYTE subject[] = LABEL;
     CK_BYTE id[] = ID;
-    CK_BBOOL true = CK_TRUE;
-    CK_BBOOL false = CK_FALSE;
+    CK_BBOOL trueVal = CK_TRUE;
     CK_ATTRIBUTE publicKeyTemplate[] = {
             {CKA_ID,              id,             sizeof(id)},
             {CKA_LABEL,           subject, LABEL_LENGTH},
-            {CKA_TOKEN,           &true,          sizeof(true)},
-            {CKA_ENCRYPT,         &true,          sizeof(true)},
-            {CKA_VERIFY,          &true,          sizeof(true)},
-            {CKA_WRAP,            &true,          sizeof(true)},
+            {CKA_TOKEN,           &trueVal,          sizeof(trueVal)},
+            {CKA_ENCRYPT,         &trueVal,          sizeof(trueVal)},
+            {CKA_VERIFY,          &trueVal,          sizeof(trueVal)},
+            {CKA_WRAP,            &trueVal,          sizeof(trueVal)},
             {CKA_MODULUS_BITS,    &modulusBits,   sizeof(modulusBits)},
             {CKA_PUBLIC_EXPONENT, publicExponent, 3}
     };
     CK_ATTRIBUTE privateKeyTemplate[] = {
             {CKA_ID,        id,    sizeof(id)},
             {CKA_LABEL,     subject, LABEL_LENGTH},
-            {CKA_TOKEN,     &true, sizeof(true)},
-            {CKA_PRIVATE,   &true, sizeof(true)},
-            {CKA_SENSITIVE, &true, sizeof(true)},
-            {CKA_DECRYPT,   &true, sizeof(true)},
-            {CKA_SIGN,      &true, sizeof(true)},
-            {CKA_UNWRAP,    &true, sizeof(true)}
+            {CKA_TOKEN,     &trueVal, sizeof(trueVal)},
+            {CKA_PRIVATE,   &trueVal, sizeof(trueVal)},
+            {CKA_SENSITIVE, &trueVal, sizeof(trueVal)},
+            {CKA_DECRYPT,   &trueVal, sizeof(trueVal)},
+            {CKA_SIGN,      &trueVal, sizeof(trueVal)},
+            {CKA_UNWRAP,    &trueVal, sizeof(trueVal)}
     };
 
     rv = C_GenerateKeyPair(session,
@@ -313,7 +312,7 @@ sign_data(CK_SESSION_HANDLE session, CK_BYTE_PTR data, CK_ULONG dataLen, CK_ULON
     return signature;
 }
 
-CK_RV
+void
 verify_data(CK_SESSION_HANDLE session, CK_BYTE_PTR data, CK_ULONG dataLen, CK_BYTE_PTR signature, CK_ULONG signatureLen) {
     CK_RV rv;
     CK_BYTE id[] = ID;
@@ -329,7 +328,6 @@ verify_data(CK_SESSION_HANDLE session, CK_BYTE_PTR data, CK_ULONG dataLen, CK_BY
 
     rv = C_Verify(session, data, dataLen, signature, signatureLen);
     check_return_value(rv, "verify final");
-    return rv;
 }
 
 
@@ -393,7 +391,7 @@ main(int argc, char **argv) {
     for (i = 0; i < howMany; i++) {
         CK_ULONG signatureLen;
         CK_BYTE_PTR signature = sign_data(session, text, text_size, &signatureLen);
-        CK_RV rv = verify_data(session, text, text_size, signature, signatureLen);
+        verify_data(session, text, text_size, signature, signatureLen);
     }
 
     if (pinValue) {

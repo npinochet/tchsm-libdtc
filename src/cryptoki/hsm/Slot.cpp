@@ -32,19 +32,19 @@ Slot::Slot ( CK_SLOT_ID id, Application& application )
 }
 
 CK_SESSION_HANDLE
-Slot::openSession ( CK_FLAGS flags, CK_VOID_PTR pApplication, CK_NOTIFY notify )
+Slot::openSession ( CK_FLAGS flags )
 {
     if ( !isTokenPresent() ) {
         throw TcbError ( "Slot::openSession", "Token not present", CKR_TOKEN_NOT_PRESENT );
     }
 
-    Session * sessionPtr = new Session ( flags, pApplication, notify, *this );
+    Session * sessionPtr = new Session ( flags, *this );
 
     CK_SESSION_HANDLE handle = sessionPtr->getHandle();
 
     ScopedMutexLocker locker(mutex_);
     sessions_[handle].reset ( sessionPtr );
-    
+
     return handle;
 }
 
@@ -93,7 +93,7 @@ bool Slot::hasSession ( CK_SESSION_HANDLE handle )
     return sessions_.count ( handle ) > 0;
 }
 
-CK_ULONG Slot::sessionsCount() 
+CK_ULONG Slot::sessionsCount()
 {
     ScopedMutexLocker locker(mutex_);
     return sessions_.size();
