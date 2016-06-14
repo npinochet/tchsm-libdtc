@@ -186,12 +186,12 @@ CK_OBJECT_HANDLE Session::createObject(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCo
     }
 
     if (isToken == CK_TRUE && this->isReadOnly()) {
-        throw TcbError("Session::createObject", "isToken == CK_TRUE && this->isReadOnly()", CKR_SESSION_READ_ONLY);
+        throw TcbError("Session::createObject", "session is read only.", CKR_SESSION_READ_ONLY);
     }
 
     if (!userAuthorization(getState(), isToken, isPrivate, true))
         throw TcbError("Session::createObject",
-                       "!userAuthorization(getState(), isToken, isPrivate, true)",
+                       "user not logged in.",
                        CKR_USER_NOT_LOGGED_IN);
 
     switch (oClass) {
@@ -217,7 +217,7 @@ CK_OBJECT_HANDLE Session::createObject(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCo
             }
         default:
             throw TcbError("Session::createObject",
-                           "Object class not supported (yet).",
+                           "object class not supported (yet).",
                            CKR_ATTRIBUTE_VALUE_INVALID);
     }
 
@@ -241,14 +241,14 @@ void Session::destroyObject(CK_OBJECT_HANDLE hObject) {
         objectContainer.erase(it);
         getCurrentSlot().getApplication().getDatabase().saveToken(token);
     } else {
-        throw TcbError("Session::destroyObject", "Object not found.", CKR_OBJECT_HANDLE_INVALID);
+        throw TcbError("Session::destroyObject", "object not found.", CKR_OBJECT_HANDLE_INVALID);
     }
 }
 
 void Session::findObjectsInit(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount) {
     // TODO: Verificar correctitud
     if (findInitialized_) {
-        throw TcbError("Session::findObjectsInit", "Operation active.", CKR_OPERATION_ACTIVE);
+        throw TcbError("Session::findObjectsInit", "operation already initialized.", CKR_OPERATION_ACTIVE);
     }
     if (pTemplate == nullptr) {
         throw TcbError("Session::findObjectsInit", "got NULL pointer.", CKR_ARGUMENTS_BAD);
