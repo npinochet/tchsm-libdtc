@@ -113,7 +113,7 @@ namespace
       std::memcpy(dst->pValue, src->pValue, src->ulValueLen);
     } else {
       *(CK_LONG*)(dst->ulValueLen) = dst->ulValueLen;
-      throw TcbError ( "copyAttribute", "Espacio no suficiente", CKR_BUFFER_TOO_SMALL );
+      throw TcbError("copyAttribute", "Buffer too small.", CKR_BUFFER_TOO_SMALL);
     }
 
   }
@@ -123,7 +123,7 @@ namespace
 void CryptoObject::copyAttributes ( CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount ) const
 {
   if ( pTemplate == nullptr ) {
-    throw TcbError ( "CryptoObject::copyAttributes", "pTemplate == nullptr", CKR_ARGUMENTS_BAD );
+    throw TcbError("CryptoObject::copyAttributes", "got NULL pointer.", CKR_ARGUMENTS_BAD);
   }
 
   for ( CK_ULONG i=0; i<ulCount; ++i ) {
@@ -132,7 +132,7 @@ void CryptoObject::copyAttributes ( CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount
     if ( src != nullptr ) {
       copyAttribute ( src, dst );
     } else {
-      throw TcbError ( "CryptoObject::copyAttributes", "src == nullptr", CKR_ARGUMENTS_BAD );
+      throw TcbError("CryptoObject::copyAttributes", "got NULL pointer.", CKR_ARGUMENTS_BAD);
     }
   }
 }

@@ -107,17 +107,20 @@ CK_SLOT_ID Slot::getId() const
 void Slot::getInfo ( CK_SLOT_INFO_PTR pInfo ) const
 {
     if ( pInfo == NULL ) {
-        throw TcbError ( "El puntero pasado a getInfo es NULL.", CKR_ARGUMENTS_BAD );
+        throw TcbError("Slot::getInfo", "got NULL pointer.", CKR_ARGUMENTS_BAD);
     }
 
-    std::fill ( pInfo->slotDescription, pInfo->slotDescription + 64, ' ' );
-    std::fill ( pInfo->manufacturerID, pInfo->manufacturerID + 32, ' ' );
+    std::fill(pInfo->slotDescription, pInfo->slotDescription + 64, ' ');
+    std::fill(pInfo->manufacturerID, pInfo->manufacturerID + 32, ' ');
 
-    char slotDescription[] = "Slot de TCBHSM";
-    char manufacturerID[] = "NicLabs";
+    char slotDescription[] = "TCHSM Slot";
+    size_t slotDescriptionLen = sizeof(slotDescription)/sizeof(slotDescription[0]);
+    
+    char manufacturerID[] = "NIC Chile Research Labs";
+    size_t manufacturerIDLen = sizeof(manufacturerID)/sizeof(manufacturerID[0]);
 
-    std::copy ( slotDescription, slotDescription + 14, pInfo->slotDescription );
-    std::copy ( manufacturerID, manufacturerID + 7, pInfo->manufacturerID );
+    std::copy(slotDescription, slotDescription + slotDescriptionLen, pInfo->slotDescription);
+    std::copy(manufacturerID, manufacturerID + manufacturerIDLen, pInfo->manufacturerID );
 
     pInfo->flags = slotFlags_;
 
@@ -137,7 +140,7 @@ Token & Slot::getToken() const
     if ( isTokenPresent() ) {
         return *token_;
     } else {
-        throw TcbError ( "El token no esta presente.", CKR_TOKEN_NOT_PRESENT );
+        throw TcbError("Slot::getToken", "Token not present.", CKR_TOKEN_NOT_PRESENT);
     }
 }
 

@@ -165,7 +165,7 @@ void Configuration::load(std::string configurationPath) {
 
     if(nodesNumber_ > config_setting_length(nodes)) {
         config_destroy(&cfg);
-        throw TcbError(
+        throw TcbError("nodesNumber",
                 "PKCS11 is configured with an higher number of nodes than the ones provided.",
                 CKR_GENERAL_ERROR);
     }

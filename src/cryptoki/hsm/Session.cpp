@@ -58,7 +58,7 @@ namespace {
 
             case CKS_RO_USER_FUNCTIONS:
                 if (isTokenObject == CK_TRUE) {
-                    return !userAction; // Es más explicito así
+                    return !userAction;
                 } else {
                     return true;
                 }
@@ -139,13 +139,13 @@ void Session::getSessionInfo(CK_SESSION_INFO_PTR pInfo) const {
         pInfo->flags = getFlags();
         pInfo->ulDeviceError = 0;
     } else {
-        throw TcbError("Session::getSessionInfo", "pInfo == nullptr", CKR_ARGUMENTS_BAD);
+        throw TcbError("Session::getSessionInfo", "got NULL pointer.", CKR_ARGUMENTS_BAD);
     }
 }
 
 CK_OBJECT_HANDLE Session::createObject(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount) {
     if (pTemplate == nullptr) {
-        throw TcbError("Session::createObject", "pTemplate es nullptr.", CKR_ARGUMENTS_BAD);
+        throw TcbError("Session::createObject", "got NULL pointer.", CKR_ARGUMENTS_BAD);
     }
 
     // Original from SoftHSM...
@@ -186,12 +186,12 @@ CK_OBJECT_HANDLE Session::createObject(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCo
     }
 
     if (isToken == CK_TRUE && this->isReadOnly()) {
-        throw TcbError("Session::createObject", "isToken == CK_TRUE && this->isReadOnly()", CKR_SESSION_READ_ONLY);
+        throw TcbError("Session::createObject", "session is read only.", CKR_SESSION_READ_ONLY);
     }
 
     if (!userAuthorization(getState(), isToken, isPrivate, true))
         throw TcbError("Session::createObject",
-                       "!userAuthorization(getState(), isToken, isPrivate, true)",
+                       "user not logged in.",
                        CKR_USER_NOT_LOGGED_IN);
 
     switch (oClass) {
@@ -212,12 +212,12 @@ CK_OBJECT_HANDLE Session::createObject(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCo
                 return handle;
             } else {
                 throw TcbError("Session::createObject",
-                               "keyType != CKK_RSA",
+                               "keyType not supported (yet).",
                                CKR_ATTRIBUTE_VALUE_INVALID);
             }
         default:
             throw TcbError("Session::createObject",
-                           "La clase del objeto no está soportada.",
+                           "object class not supported (yet).",
                            CKR_ATTRIBUTE_VALUE_INVALID);
     }
 
@@ -241,17 +241,17 @@ void Session::destroyObject(CK_OBJECT_HANDLE hObject) {
         objectContainer.erase(it);
         getCurrentSlot().getApplication().getDatabase().saveToken(token);
     } else {
-        throw TcbError("Session::destroyObject", "Objeto no encontrado.", CKR_OBJECT_HANDLE_INVALID);
+        throw TcbError("Session::destroyObject", "object not found.", CKR_OBJECT_HANDLE_INVALID);
     }
 }
 
 void Session::findObjectsInit(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount) {
     // TODO: Verificar correctitud
     if (findInitialized_) {
-        throw TcbError("Session::findObjectsInit", "findInitialized", CKR_OPERATION_ACTIVE);
+        throw TcbError("Session::findObjectsInit", "operation already initialized.", CKR_OPERATION_ACTIVE);
     }
     if (pTemplate == nullptr) {
-        throw TcbError("Session::findObjectsInit", "pTemplate == nullptr", CKR_ARGUMENTS_BAD);
+        throw TcbError("Session::findObjectsInit", "got NULL pointer.", CKR_ARGUMENTS_BAD);
     }
 
     Token &token = getCurrentSlot().getToken();
@@ -278,7 +278,7 @@ void Session::findObjectsInit(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount) {
 vector<CK_OBJECT_HANDLE> Session::findObjects(CK_ULONG maxObjectCount) {
     if (!findInitialized_) {
         throw TcbError("Session::findObjects",
-                       "No se inicio la busqueda.",
+                       "operation not initialized.",
                        CKR_OPERATION_NOT_INITIALIZED);
     }
 
@@ -294,7 +294,7 @@ vector<CK_OBJECT_HANDLE> Session::findObjects(CK_ULONG maxObjectCount) {
 
 void Session::findObjectsFinal() {
     if (!findInitialized_) {
-        throw TcbError("Session::findObjects", "No se inicio la busqueda.",
+        throw TcbError("Session::findObjects", "operation not initialized.",
                        CKR_OPERATION_NOT_INITIALIZED);
     } else {
         findInitialized_ = false;
@@ -306,7 +306,7 @@ CryptoObject &Session::getObject(CK_OBJECT_HANDLE objectHandle) {
     try {
         return slot_.getToken().getObject(objectHandle);
     } catch (std::out_of_range &e) {
-        throw TcbError("Session::getObject", "Objeto no existe en la sesion.", CKR_OBJECT_HANDLE_INVALID);
+        throw TcbError("Session::getObject", "object doesn't exists.", CKR_OBJECT_HANDLE_INVALID);
     }
 }
 
@@ -652,7 +652,7 @@ KeyPair Session::generateKeyPair(CK_MECHANISM_PTR pMechanism, CK_ATTRIBUTE_PTR p
                                  CK_ATTRIBUTE_PTR skTemplate, CK_ULONG skAttrCount) {
     // TODO: verificar permisos de acceso.
     if (pMechanism == nullptr || pkTemplate == nullptr || skTemplate == nullptr) {
-        throw TcbError("Session::generateKeyPair", "Argumentos nulos", CKR_ARGUMENTS_BAD);
+        throw TcbError("Session::generateKeyPair", "got NULL pointer.", CKR_ARGUMENTS_BAD);
     }
 
     CK_ULONG modulusBits = 0;
@@ -666,7 +666,7 @@ KeyPair Session::generateKeyPair(CK_MECHANISM_PTR pMechanism, CK_ATTRIBUTE_PTR p
         switch (pkTemplate[i].type) {
             case CKA_MODULUS_BITS: {
                 if (pkTemplate[i].ulValueLen != sizeof(CK_ULONG)) {
-                    throw TcbError("Session::generateKeyPair", "pPublicKeyTemplate[i].ulValueLen != sizeof(CK_ULONG)",
+                    throw TcbError("Session::generateKeyPair", "template incomplete.",
                                    CKR_TEMPLATE_INCOMPLETE);
                 }
                 modulusBits = *static_cast<CK_ULONG *> ( pkTemplate[i].pValue );
@@ -682,7 +682,7 @@ KeyPair Session::generateKeyPair(CK_MECHANISM_PTR pMechanism, CK_ATTRIBUTE_PTR p
     }
 
     if (modulusBits == 0) {
-        throw TcbError("Session::generateKeyPair", "modulusBits == \"\"", CKR_TEMPLATE_INCOMPLETE);
+        throw TcbError("Session::generateKeyPair", "template incomplete.", CKR_TEMPLATE_INCOMPLETE);
     }
 
     switch (pMechanism->mechanism) {
@@ -708,13 +708,13 @@ KeyPair Session::generateKeyPair(CK_MECHANISM_PTR pMechanism, CK_ATTRIBUTE_PTR p
             return KeyPair(sk, pk);
         }
         default:
-            throw TcbError("Session::generateKeyPair", "Mechanism invalid.", CKR_MECHANISM_INVALID);
+            throw TcbError("Session::generateKeyPair", "mechanism invalid.", CKR_MECHANISM_INVALID);
     }
 }
 
 void Session::signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
     if (signInitialized_) {
-        throw TcbError("Session::signInit", "Operation active.", CKR_OPERATION_ACTIVE);
+        throw TcbError("Session::signInit", "operation active.", CKR_OPERATION_ACTIVE);
     }
 
     CryptoObject &keyObject = getObject(hKey);
@@ -722,13 +722,13 @@ void Session::signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
 
     const CK_ATTRIBUTE *keyName = keyObject.findAttribute(&tmpl);
     if (!keyName) {
-        throw TcbError("Session::signInit", "El object handle no contiene ninguna llave", CKR_ARGUMENTS_BAD);
+        throw TcbError("Session::signInit", "object handle doesn't contains any key.", CKR_ARGUMENTS_BAD);
     }
 
     tmpl = {.type = CKA_VENDOR_DEFINED + 1};
     const CK_ATTRIBUTE *keyMetainfoAttribute = keyObject.findAttribute(&tmpl);
     if (!keyMetainfoAttribute) {
-        throw TcbError("Session::signInit", "El object handle no contiene keymetainfos", CKR_ARGUMENTS_BAD);
+        throw TcbError("Session::signInit", "object handle doesn't contains any key metainfo.", CKR_ARGUMENTS_BAD);
     }
 
     string metainfo(static_cast<char *>(keyMetainfoAttribute->pValue), keyMetainfoAttribute->ulValueLen);
@@ -782,7 +782,7 @@ void Session::signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
             break;
 
         default:
-            throw TcbError("Session::sign", "Mechanism Invalid.", CKR_MECHANISM_INVALID);
+            throw TcbError("Session::sign", "mechanism Invalid.", CKR_MECHANISM_INVALID);
     }
 
     padder_.reset(Botan::get_emsa(emsa));
@@ -793,7 +793,7 @@ void Session::signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
 
 void Session::signUpdate(CK_BYTE_PTR pData, CK_ULONG ulDataLen) {
     if (!signInitialized_) {
-        throw TcbError("Session::signUpdate", "Operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
+        throw TcbError("Session::signUpdate", "operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
     }
 
     padder_->update(pData, ulDataLen);
@@ -802,7 +802,7 @@ void Session::signUpdate(CK_BYTE_PTR pData, CK_ULONG ulDataLen) {
 
 void Session::signFinal(CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen) {
     if (!signInitialized_) {
-        throw TcbError("Session::signFinal", "Operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
+        throw TcbError("Session::signFinal", "operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
     }
 
     const public_key_t *pk = tc_key_meta_info_public_key(&*keyMetainfo_);
@@ -830,7 +830,7 @@ void Session::signFinal(CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen) {
 
     if (*pulSignatureLen < signature->data_len) {
 
-        throw TcbError("Session::sign", "Buffer too small.", CKR_BUFFER_TOO_SMALL);
+        throw TcbError("Session::sign", "buffer too small.", CKR_BUFFER_TOO_SMALL);
     }
     *pulSignatureLen = signature->data_len;
 
@@ -845,7 +845,7 @@ void Session::signFinal(CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen) {
 
 void Session::verifyInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
     if (verifyInitialized_) {
-        throw TcbError("Session::verifyInit", "Operation active.", CKR_OPERATION_ACTIVE);
+        throw TcbError("Session::verifyInit", "operation active.", CKR_OPERATION_ACTIVE);
     }
 
     CryptoObject &keyObject = getObject(hKey);
@@ -904,7 +904,7 @@ void Session::verifyInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
             break;
 
         default:
-            throw TcbError("Session::sign", "Mechanism not supported (yet).", CKR_MECHANISM_INVALID);
+            throw TcbError("Session::sign", "mechanism not supported (yet).", CKR_MECHANISM_INVALID);
     }
 
     Botan::BigInt e((Botan::byte *) publicExponentAttr.pValue, publicExponentAttr.ulValueLen);
@@ -918,7 +918,7 @@ void Session::verifyInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
 
 void Session::verifyUpdate(CK_BYTE_PTR pPart, CK_ULONG ulPartLen) {
     if (!verifyInitialized_) {
-        throw TcbError("Session::verifyUpdate", "Operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
+        throw TcbError("Session::verifyUpdate", "operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
     }
 
     verifier_->update(pPart, ulPartLen);
@@ -926,7 +926,7 @@ void Session::verifyUpdate(CK_BYTE_PTR pPart, CK_ULONG ulPartLen) {
 
 bool Session::verifyFinal(CK_BYTE_PTR pSignature, CK_ULONG ulSignatureLen) {
     if (!verifyInitialized_) {
-        throw TcbError("Session::verifyFinal", "Operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
+        throw TcbError("Session::verifyFinal", "operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
     }
 
     bool checks = verifier_->check_signature(pSignature, ulSignatureLen);
@@ -940,11 +940,11 @@ bool Session::verifyFinal(CK_BYTE_PTR pSignature, CK_ULONG ulSignatureLen) {
 
 void Session::digestInit(CK_MECHANISM_PTR pMechanism) {
     if (digestInitialized_) {
-        throw TcbError("Session::digestInit", "Operation active.", CKR_OPERATION_ACTIVE);
+        throw TcbError("Session::digestInit", "operation active.", CKR_OPERATION_ACTIVE);
     }
 
     if (pMechanism == nullptr) {
-        throw TcbError("Session::digestInit", "pMechanism == nullptr.", CKR_ARGUMENTS_BAD);
+        throw TcbError("Session::digestInit", "got NULL pointer.", CKR_ARGUMENTS_BAD);
     }
 
     Botan::HashFunction *f;
@@ -974,11 +974,11 @@ void Session::digestInit(CK_MECHANISM_PTR pMechanism) {
 
 void Session::digest(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pDigest, CK_ULONG_PTR pulDigestLen) {
     if (!digestInitialized_) {
-        throw TcbError("Session::digest", "Operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
+        throw TcbError("Session::digest", "operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
     }
 
     if (pulDigestLen == nullptr) {
-        throw TcbError("Session::digest", "pulDigestLen == nulllptr", CKR_ARGUMENTS_BAD);
+        throw TcbError("Session::digest", "got NULL pointer.", CKR_ARGUMENTS_BAD);
     }
 
     size_t digestSize = hashFunction_->output_length();
@@ -994,7 +994,7 @@ void Session::digest(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pDigest,
     }
 
     if (pData == nullptr) {
-        throw TcbError("Session::digest", "pData == nullptr", CKR_ARGUMENTS_BAD);
+        throw TcbError("Session::digest", "got NULL pointer.", CKR_ARGUMENTS_BAD);
     }
 
     hashFunction_->update(pData, ulDataLen);
@@ -1008,7 +1008,7 @@ void Session::digest(CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pDigest,
 
 void Session::generateRandom(CK_BYTE_PTR pRandomData, CK_ULONG ulRandomLen) {
     if (!pRandomData) {
-        throw TcbError("Session::generateRandom", "pRandomData == nullptr", CKR_ARGUMENTS_BAD);
+        throw TcbError("Session::generateRandom", "got NULL pointer.", CKR_ARGUMENTS_BAD);
     }
 
     rng_.randomize(pRandomData, ulRandomLen);
@@ -1017,7 +1017,7 @@ void Session::generateRandom(CK_BYTE_PTR pRandomData, CK_ULONG ulRandomLen) {
 
 void Session::seedRandom(CK_BYTE_PTR pSeed, CK_ULONG ulSeedLen) {
     if (!pSeed) {
-        throw TcbError("Session::seedRandom", "pSeed == nullptr", CKR_ARGUMENTS_BAD);
+        throw TcbError("Session::seedRandom", "got NULL pointer.", CKR_ARGUMENTS_BAD);
     }
 
     rng_.add_entropy(pSeed, ulSeedLen);
