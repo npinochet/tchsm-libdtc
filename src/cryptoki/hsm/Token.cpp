@@ -35,7 +35,7 @@ Token::Token ( string label, string userPin, string soPin )
     if ( label.size() <= 32 ) {
         label_ = label;
     } else {
-        throw TcbError ( "Token::Token", "Etiqueta con mas de 32 caracteres", CKR_ARGUMENTS_BAD );
+        throw TcbError("Token::Token", "label with more than 32 chars.", CKR_ARGUMENTS_BAD);
     }
 
     tokenFlags_ = CKF_RNG |
@@ -52,7 +52,7 @@ Token::~Token()
 void Token::getInfo ( CK_TOKEN_INFO_PTR pInfo ) const
 {
     if ( !pInfo ) {
-        throw TcbError ( "Token::getInfo", "pInfo == nullptr", CKR_ARGUMENTS_BAD );
+        throw TcbError("Token::getInfo", "got NULL pointer.", CKR_ARGUMENTS_BAD);
     }
 
     if ( label_.empty() ) {
@@ -68,8 +68,8 @@ void Token::getInfo ( CK_TOKEN_INFO_PTR pInfo ) const
     memset ( pInfo->model, ' ', 16 );
     memset ( pInfo->serialNumber, ' ', 16 );
 
-    memcpy ( pInfo->manufacturerID, "NicLabs", 7 );
-    memcpy ( pInfo->model, "tcbhsm", 6 );
+    memcpy ( pInfo->manufacturerID, "NICLabs", 7 );
+    memcpy ( pInfo->model, "TCHSM", 5 );
     memcpy ( pInfo->serialNumber, "1", 1 );
 
     pInfo->flags = tokenFlags_;
@@ -116,7 +116,7 @@ Token::SecurityLevel Token::checkUserPin ( CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinL
     if ( userPin_ == pin ) {
         return SecurityLevel::USER;
     } else {
-        throw TcbError ( "Token::login", "Mal pin", CKR_PIN_INCORRECT );
+        throw TcbError("Token::login", "incorrect pin.", CKR_PIN_INCORRECT);
     }
 }
 
@@ -126,7 +126,7 @@ Token::SecurityLevel Token::checkSecurityOfficerPin ( CK_UTF8CHAR_PTR pPin, CK_U
     if ( soPin_ == pin ) {
         return SecurityLevel::SECURITY_OFFICER;
     } else {
-        throw TcbError ( "Token::login", "Mal pin", CKR_PIN_INCORRECT );
+        throw TcbError("Token::login", "incorrect pin.", CKR_PIN_INCORRECT);
     }
 }
 
@@ -137,14 +137,13 @@ void Token::login ( CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinL
             ( ( userType == CKU_USER && securityLevel_ == SecurityLevel::SECURITY_OFFICER )
               ||
               ( userType == CKU_SO && securityLevel_ == SecurityLevel::USER ) ) ) {
-        throw TcbError ( "Token::login",
-                         "loggedIn_ == true",
-                         CKR_USER_ANOTHER_ALREADY_LOGGED_IN );
-
+        throw TcbError("Token::login", "another user already logged in.",
+                         CKR_USER_ANOTHER_ALREADY_LOGGED_IN);
+	
     }
 
     if ( pPin == nullptr ) {
-        throw TcbError("Token::login", "pPin == nullptr", CKR_ARGUMENTS_BAD);
+        throw TcbError("Token::login", "got NULL pointer.", CKR_ARGUMENTS_BAD);
     }
 
     switch ( userType ) {
@@ -157,7 +156,7 @@ void Token::login ( CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinL
         case CKU_CONTEXT_SPECIFIC:
             switch ( securityLevel_ ) {
                 case SecurityLevel::PUBLIC:
-                    throw TcbError("Token::login", "Mal userType",
+                    throw TcbError("Token::login", "Bad userType.",
                                     CKR_OPERATION_NOT_INITIALIZED);
 
                 case SecurityLevel::USER:
@@ -170,7 +169,7 @@ void Token::login ( CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinL
             }
             break;
         default:
-            throw TcbError("Token::login", "Mal userType", CKR_USER_TYPE_INVALID);
+            throw TcbError("Token::login", "Bad userType.", CKR_USER_TYPE_INVALID);
             break;
     }
 
