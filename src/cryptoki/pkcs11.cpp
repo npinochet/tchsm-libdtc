@@ -681,7 +681,12 @@ CK_RV C_SignFinal(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pSignature, CK_ULONG_P
     }
 
     try {
-        app->getSession(hSession).signFinal(pSignature, pulSignatureLen);
+        if(pSignature == nullptr) {
+            app->getSession(hSession).signLength(pulSignatureLen);
+        }
+        else {
+            app->getSession(hSession).signFinal(pSignature, pulSignatureLen);
+        }
     } catch (TcbError &e) {
         return error(e);
     }
@@ -697,8 +702,12 @@ CK_RV C_Sign(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData, CK_ULONG ulDataLen, 
 
     try {
         Session &session = app->getSession(hSession);
-        session.signUpdate(pData, ulDataLen);
-        session.signFinal(pSignature, pulSignatureLen);
+        if(pSignature == nullptr) {
+            session.signLength(pulSignatureLen);
+        } else {
+            session.signUpdate(pData, ulDataLen);
+            session.signFinal(pSignature, pulSignatureLen);
+        }
     } catch (TcbError &e) {
         return error(e);
     }

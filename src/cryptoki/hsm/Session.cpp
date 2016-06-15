@@ -790,6 +790,16 @@ void Session::signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
     signInitialized_ = true;
 }
 
+void Session::signLength(CK_ULONG_PTR pulSignatureLen) {
+    if(!signInitialized_) {
+        throw TcbError("Session::signLength", "operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
+    }
+
+    const public_key_t *pk = tc_key_meta_info_public_key(&*keyMetainfo_);
+    const bytes_t *nBytes = tc_public_key_n(pk);
+    *pulSignatureLen = nBytes->data_len;
+}
+
 
 void Session::signUpdate(CK_BYTE_PTR pData, CK_ULONG ulDataLen) {
     if (!signInitialized_) {
@@ -807,11 +817,6 @@ void Session::signFinal(CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen) {
 
     const public_key_t *pk = tc_key_meta_info_public_key(&*keyMetainfo_);
     const bytes_t *nBytes = tc_public_key_n(pk);
-    // TODO: Check how much bytes do we need to give when pSignature is null.
-    if(pSignature == nullptr) {
-        *pulSignatureLen = nBytes->data_len;
-        return;
-    }
 
     Botan::BigInt n(static_cast<Botan::byte *>(nBytes->data), nBytes->data_len);
 
