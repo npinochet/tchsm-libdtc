@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-import commands
 import os
 import sys
+import subprocess
 from math import floor
 from os.path import join
 
@@ -175,12 +175,25 @@ def create_node_config(
 
 def get_keygen():
     """Parses the keygen output and returns just the public and private key as strings"""
-    keygen_output = commands.getoutput("curve_keygen")
+    try:
+        keygen = subprocess.Popen(
+            ["curve_keygen"],
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE)
+    except OSError:
+        sys.stderr.write("ERROR: Exec could not be accesed >> curve_keygen\n")
+        sys.exit(1)
 
-    private_key = keygen_output[-40:]
-    public_key = keygen_output[-105:-65]
+    stdout_data, stderr_data = keygen.communicate()
 
-    return public_key, private_key
+    if keygen.returncode != 0:
+        sys.stderr.write("ERROR: curve_keygen found a problem\n")
+        sys.exit(1)
+    else:
+        private_key = stdout_data[-40:]
+        public_key = stdout_data[-105:-65]
+
+        return public_key, private_key
 
 
 def create_n_cryptoki_config(
@@ -327,7 +340,7 @@ def main(argv=None):
     try:
         nodes = parse_nodes(args.nodes)
     except ValueError as e:
-        print("ERROR: " + str(e))
+        sys.stderr.write(ERROR: " + str(e) + "\n")
         return 1
 
     masters = create_n_master_config(
@@ -366,11 +379,11 @@ def main(argv=None):
         try:
             custom_threshold_as_int = int(custom_threshold)
         except ValueError as e:
-            print("ERROR: Inadequate threshold")
+            sys.stderr.write("ERROR: Inadequate threshold\n")
             return 1
 
         if custom_threshold_as_int < 0 or custom_threshold_as_int > len(nodes):
-            print("ERROR: Inadequate threshold")
+            sys.stderr.write("ERROR: Inadequate threshold\n")
             return 1
 
         threshold = custom_threshold_as_int
