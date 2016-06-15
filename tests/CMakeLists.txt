@@ -6,6 +6,10 @@ include_directories(${TCLIB_INCLUDE_DIRS})
 find_package(CHECK REQUIRED)
 include_directories(${CHECK_INCLUDE_DIRS})
 
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    set(REALTIME_LIBRARIES "rt")
+endif()
+
 add_subdirectory(system_test)
 
 set(tests
@@ -16,7 +20,7 @@ set(tests
 
 foreach(test ${tests})
     add_executable(${test} ${test}.c)
-    target_link_libraries(${test} ${CHECK_LIBRARIES} dtc  m rt)
+    target_link_libraries(${test} ${CHECK_LIBRARIES} dtc  m ${REALTIME_LIBRARIES})
 
     add_test(NAME ${test} COMMAND ${test})
 
