@@ -4,7 +4,7 @@ find_package(Threads REQUIRED)
 
 include(FindLibConfig)
 find_package(LibConfig REQUIRED)
-include_directories(${CONFIG_INCLUDE_DIRS})
+include_directories(${LIBCONFIG_INCLUDE_DIRS})
 
 include(FindZeroMQ)
 find_package(ZeroMQ REQUIRED)
