@@ -6,7 +6,7 @@ import subprocess
 import sys
 from math import floor
 from os import makedirs
-from os.path import join, isdir
+from os.path import join, isdir, abspath
 
 """
 This module creates the configuration files of nodes and masters for testing purposes.
@@ -23,9 +23,9 @@ DEFAULT_MASTER_ID = "MASTER_MOCK_ID"
 
 DEFAULT_INTERFACE = "*"
 
-DEFAULT_DATABASE = "node"
+DEFAULT_DATABASE = abspath("node")
 
-DEFAULT_CRYPTOKI_DATABASE = "cryptoki"
+DEFAULT_CRYPTOKI_DATABASE = abspath("cryptoki")
 
 
 def correct_input(nodes_info):
