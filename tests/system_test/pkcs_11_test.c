@@ -370,36 +370,39 @@ main(int argc, char **argv) {
 
     initialize();
     slot = get_slot();
-
-    /* signing */
-    input_file = fopen(filename, "r");
-    output_file = stdout;
+    
     session = start_session(slot);
     if (pinValue) {
-        login(session, pinValue);
+	login(session, pinValue);
     }
 
     read_private_keys(session);
 
     if (createKeys) {
-        create_key_pair(session);
+	create_key_pair(session);
     }
 
-    CK_BYTE_PTR text;
-    CK_ULONG text_size = read_all_file(input_file, &text);
-    int i;
-    for (i = 0; i < howMany; i++) {
-        CK_ULONG signatureLen;
-        CK_BYTE_PTR signature = sign_data(session, text, text_size, &signatureLen);
-        verify_data(session, text, text_size, signature, signatureLen);
+    /* signing */
+    if (filename) {
+	input_file = fopen(filename, "r");
+	output_file = stdout;
+	CK_BYTE_PTR text;
+	CK_ULONG text_size = read_all_file(input_file, &text);
+	int i;
+	for (i = 0; i < howMany; i++) {
+	    CK_ULONG signatureLen;
+	    CK_BYTE_PTR signature = sign_data(session, text, text_size, &signatureLen);
+	    verify_data(session, text, text_size, signature, signatureLen);
+	}
+
+	fclose(input_file);
+	fclose(output_file);
     }
 
     if (pinValue) {
-        logout(session);
+	logout(session);
     }
     end_session(session);
-    fclose(input_file);
-    fclose(output_file);
 
     finalize();
 
