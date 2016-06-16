@@ -1,8 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import argparse
 from os import environ
 
+import Crypto.PublicKey.RSA as RSA
+from Crypto.Hash import SHA256
+from Crypto.Signature import PKCS1_PSS
 from PyKCS11 import *
 
 """
@@ -83,16 +87,12 @@ def get_key(session):
     return public_key, private_key
 
 
-def verify(session, content, private_key, public_exponent, modulus):
+def sign_and_verify(session, content, private_key, public_exponent, modulus):
     """
     Verifies that the signing process is OK
     :param content: Content of the file in binary
     :param private_key: Private key in the session
     """
-    import Crypto.PublicKey.RSA as RSA
-    from Crypto.Hash import SHA256
-    from Crypto.Signature import PKCS1_PSS
-
     signature = bytes(session.sign(private_key, content,
                                    mecha=Mechanism(CKM['CKM_SHA256_RSA_PKCS_PSS'], None)))
 
@@ -119,8 +119,6 @@ def finalize(session):
 
 
 def main(argv=None):
-    import argparse
-
     parser = argparse.ArgumentParser(description="System Testing")
     parser.add_argument("-c",
                         "--create_key",
@@ -181,7 +179,12 @@ def main(argv=None):
         content = file.read()
 
         for _ in range(0, args.sign_loops):
-            verify(session, content, private_key, public_exponent, modulus)
+            sign_and_verify(
+                session,
+                content,
+                private_key,
+                public_exponent,
+                modulus)
 
     finalize(session)
     return 0
