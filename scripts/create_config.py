@@ -23,7 +23,7 @@ DEFAULT_MASTER_ID = "MASTER_MOCK_ID"
 
 DEFAULT_INTERFACE = "*"
 
-DEFAULT_DATABASE = abspath("node")
+DEFAULT_NODE_DATABASE = abspath("node")
 
 DEFAULT_CRYPTOKI_DATABASE = abspath("cryptoki")
 
@@ -347,7 +347,7 @@ def main(argv=None):
         "-db",
         "--database",
         help="path of database in the node config",
-        default=DEFAULT_DATABASE,
+        default=DEFAULT_NODE_DATABASE,
         type=str)
     parser.add_argument(
         "-cdb",
