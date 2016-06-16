@@ -5,7 +5,8 @@ import argparse
 import subprocess
 import sys
 from math import floor
-from os.path import join
+from os import makedirs
+from os.path import join, isdir
 
 """
 This module creates the configuration files of nodes and masters for testing purposes.
@@ -27,11 +28,29 @@ DEFAULT_DATABASE = "node"
 DEFAULT_CRYPTOKI_DATABASE = "cryptoki"
 
 
+def correct_input(nodes_info):
+    """
+    Checks if the node info is comprised by three parameters
+    :param nodes_info: The list of positional arguments
+    :return: Boolean indicating the validity of the
+    """
+    for node_info in nodes_info:
+        if node_info.count(":") != 2:
+            return False
+
+    return True
+
+
 def parse_nodes(nodes_info):
     """Tranforms the user input in a node info dictionary.
 
     nodes_info -- an array with the node info in the format ip:router_port:sub:port
     """
+    if not correct_input(nodes_info):
+        sys.stderr.write("ERROR: Invalid node argument format\n")
+        sys.stderr.write("- Tip: Try <ip>:<port>:<port> ...")
+        sys.exit(1)
+
     node_dict = {}
 
     count = 0
@@ -315,7 +334,7 @@ def main(argv=None):
     parser.add_argument(
         "-o",
         "--output_dir",
-        help="where the config files will be stored",
+        help="where the config files will be stored, if it does not exist, it will be created",
         default=".",
         type=str)
     parser.add_argument(
@@ -349,10 +368,15 @@ def main(argv=None):
         default=-1)
     args = parser.parse_args()
 
+    if args.output_dir is not None:
+        if not isdir(args.output_dir):
+            makedirs(args.output_dir)
+
     try:
         nodes = parse_nodes(args.nodes)
-    except ValueError as e:
-        sys.stderr.write("ERROR: " + str(e) + "\n")
+    except ValueError:
+        sys.stderr.write("ERROR: Invalid node argument format\n")
+        sys.stderr.write(" - Tip: Try <ip>:<port>:<port> ...")
         return 1
 
     masters = create_n_master_config(
