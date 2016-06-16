@@ -47,9 +47,9 @@ class Slot
     Application & application_;
     CK_FLAGS slotFlags_;
 
+    TokenPtr token_;
     std::map<CK_SESSION_HANDLE, SessionPtr> sessions_;
     // A token can be unplugged...
-    TokenPtr token_;
     Mutex mutex_;
 
 public:
