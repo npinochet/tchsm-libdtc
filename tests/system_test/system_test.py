@@ -6,12 +6,13 @@ import shutil
 import subprocess
 import sys
 from collections import OrderedDict
-from commands import getstatusoutput
 from os import chdir, environ
 from os.path import join, exists, split, abspath, isdir, isfile
 from tempfile import mkdtemp
 from threading import Timer
 from time import time
+
+from commands import getstatusoutput
 
 """
 Module for System Testing
@@ -179,10 +180,10 @@ def debug_output(stdout, stderr):
     if DEBUG:
         for line in stdout.split("\n"):
             if line != "":
-                print "DEBUG::STDOUT --> " + line
+                sys.stdout.write("DEBUG::STDOUT --> " + line + "\n")
         for line in stderr.split("\n"):
             if line != "":
-                print "DEBUG::STDERR --> " + line
+                sys.stdout.write("DEBUG::STDERR --> " + line + "\n")
 
 
 # NODE ONLY TESTS
@@ -298,7 +299,7 @@ def test_master_n_nodes(master_args, master_name, nb_of_nodes):
     port = 2121
     for i in range(0, nb_of_nodes):
         config_creation_string += " 127.0.0.1:" + \
-            str(port) + ":" + str(port + 1)
+                                  str(port) + ":" + str(port + 1)
         port += 2
     config_creation_string += " -t " + str(MASTER_TIMEOUT)
 
@@ -333,7 +334,7 @@ def test_master_two_nodes(master_args, master_name):
 
 def test_master_twice(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -t " + \
-        str(MASTER_TIMEOUT)
+                  str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + config_data)
 
@@ -368,7 +369,7 @@ def test_master_twice(master_args, master_name):
 
 def test_three_nodes_one_down(master_args, master_name):
     node_info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126 -t " + \
-        str(MASTER_TIMEOUT)
+                str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + node_info)
     if status != 0:
@@ -509,7 +510,7 @@ def test_three_nodes_two_open(master_args, master_name):
 
 def test_master_stress_open_close(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -t " + \
-        str(MASTER_TIMEOUT)
+                  str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + config_data)
 
@@ -541,7 +542,7 @@ def test_master_stress_open_close(master_args, master_name):
 
 def test_stress_multiple_masters(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -m 10 -t " + \
-        str(MASTER_TIMEOUT)
+                  str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + config_data)
 
@@ -575,7 +576,7 @@ def test_stress_multiple_masters(master_args, master_name):
 
 def test_cryptoki_wout_key():
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -t " + \
-        str(MASTER_TIMEOUT)
+                  str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + config_data)
 
@@ -594,12 +595,12 @@ def test_cryptoki_wout_key():
 
     dummy_file = create_dummy_file()
     master_args = [join(
-                   EXEC_PATH,
-                   "tests/system_test/pkcs_11_test"),
-                   "-cf",
-                   dummy_file.name,
-                   "-p",
-                   "1234"]
+        EXEC_PATH,
+        "tests/system_test/pkcs_11_test"),
+        "-cf",
+        dummy_file.name,
+        "-p",
+        "1234"]
     master_name = "pkcs_11_test"
     master, master_ret, master_mess = exec_master(
         *fix_dtc_args(master_args, master_name, 2))
@@ -610,12 +611,12 @@ def test_cryptoki_wout_key():
         return master_ret, master_mess
 
     master_args = [join(
-                   EXEC_PATH,
-                   "tests/system_test/pkcs_11_test"),
-                   "-f",
-                   dummy_file.name,
-                   "-p",
-                   "1234"]
+        EXEC_PATH,
+        "tests/system_test/pkcs_11_test"),
+        "-f",
+        dummy_file.name,
+        "-p",
+        "1234"]
     master_name = "pkcs_11_test"
     master, master_ret, master_mess = exec_master(
         *fix_dtc_args(master_args, master_name, 2))
@@ -659,7 +660,7 @@ def test_two_masters_one_nodes(master_args, master_name):
 
 def test_two_masters_two_nodes(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -m 2 -t " + \
-        str(MASTER_TIMEOUT)
+                  str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + config_data)
 
@@ -698,7 +699,7 @@ def test_two_masters_two_nodes(master_args, master_name):
 
 def test_two_masters_simultaneous(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -m 2 -t " + \
-        str(MASTER_TIMEOUT)
+                  str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + config_data)
 
@@ -741,7 +742,7 @@ def test_two_masters_simultaneous(master_args, master_name):
 
 def test_two_masters_thres2_nodes3(master_args, master_name):
     info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126 -m 2 -t " + \
-        str(MASTER_TIMEOUT)
+           str(MASTER_TIMEOUT)
     status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + info)
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
@@ -789,12 +790,12 @@ def perform_test_on_pkcs11(test):
     """
     dummy_file = create_dummy_file()
     master_args = [join(
-                   EXEC_PATH,
-                   "tests/system_test/pkcs_11_test"),
-                   "-cf",
-                   dummy_file.name,
-                   "-p",
-                   "1234"]
+        EXEC_PATH,
+        "tests/system_test/pkcs_11_test"),
+        "-cf",
+        dummy_file.name,
+        "-p",
+        "1234"]
     ret, mess = test(master_args, "pkcs_11_test")
 
     dummy_file.close()
@@ -810,9 +811,9 @@ def perform_test_on_dtc(test):
     """
     config_path = join(DUMP, "master.conf")
     master_args = [join(
-                   EXEC_PATH,
-                   "tests/system_test/dtc_master_test"),
-                   config_path]
+        EXEC_PATH,
+        "tests/system_test/dtc_master_test"),
+        config_path]
 
     return test(master_args, "dtc_master_test")
 
@@ -830,10 +831,10 @@ def pretty_print(index, name, result, mess, runtime, verbosity):
     """
     if result == 0:
         if verbosity:
-            print str(index) + ".- " + name + " passed! Run time: " + str(runtime)[:6] + " seconds."
+            sys.stdout.write(str(index) + ".- " + name + " passed! Run time: " + str(runtime)[:6] + " seconds.\n")
     else:
-        print str(index) + ".- " + name + " failed!"
-        print "      " + str(mess)
+        sys.stdout.write(str(index) + ".- " + name + " failed!\n")
+        sys.stdout.write("    " + str(mess) + "\n")
 
 
 def fix_dtc_args(
@@ -942,7 +943,7 @@ def main(argv=None):
     global DEBUG
     DEBUG = args.debug
 
-    print(" --- Testing starting --- \n")
+    sys.stdout.write(" --- Testing starting --- \n\n")
 
     tests = OrderedDict()
 
@@ -1041,7 +1042,8 @@ def main(argv=None):
 
     dump_path = abspath(args.dump_path)
     if not exists(dump_path):
-        print "ERROR: Dump path doesn't exists >> " + dump_path
+        sys.stdout("ERROR: Dump path doesn't exists >> " + dump_path + "\n")
+        sys.exit(1)
 
     for index, test_info in enumerate(tests.iteritems()):
         name, test = test_info
@@ -1055,7 +1057,7 @@ def main(argv=None):
 
             start = time()
             if DEBUG:
-                print "\nRunning: " + name + " -->"
+                sys.stdout.write("\nRunning: " + name + " -->\n")
 
             if func_args is None:
                 result, mess = func()
@@ -1086,15 +1088,15 @@ def main(argv=None):
                 break
 
     if tests_run == 0:
-        print(" --- No tests run ---")
+        sys.stdout.write(" --- No tests run ---\n")
     else:
         test_percentage = str(
             100 * float(tests_passed) / float(tests_run))[:5] + "%"
         passing_string = "|" * tests_passed + \
-            " " * (tests_run - tests_passed)
-        print("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_run) +
-              " (" + test_percentage + "): [" + passing_string + "] ---")
-        print(" --- Total run time: " + str(total_time)[:6] + " seconds ---")
+                         " " * (tests_run - tests_passed)
+        sys.stdout.write("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_run) +
+                         " (" + test_percentage + "): [" + passing_string + "] ---\n")
+        sys.stdout.write(" --- Total run time: " + str(total_time)[:6] + " seconds ---\n")
 
     return tests_run - tests_passed
 
