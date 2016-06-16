@@ -130,6 +130,10 @@ def main(argv=None):
                         help="Path of the file to sign",
                         default="",
                         type=str)
+    parser.add_argument("-l",
+                        "--pykcs11lib",
+                        help="Value of the PYKCS11LIB env variable",
+                        type=str)
     parser.add_argument("-n",
                         "--sign_loops",
                         help="Amount of times the signing process will occur",
@@ -140,10 +144,22 @@ def main(argv=None):
                         help="Specifies the pin used in the session login",
                         default=DEFAULT_PIN,
                         type=str)
+    parser.add_argument("-t",
+                        "--tchsm_config",
+                        help="Value of the TCHSM_CONFIG env variable",
+                        type=str)
     args = parser.parse_args()
 
+    if args.tchsm_config is not None:
+        environ["TCHSM_CONFIG"] = args.tchsm_config
+    if args.pykcs11lib is not None:
+        environ["PYKCS11LIB"] = args.pykcs11lib
+
     if environ.get("TCHSM_CONFIG") is None:
-        sys.stderr("ERROR: TCHSM_CONFIG is not set.\n")
+        sys.stderr("ERROR: TCHSM_CONFIG is wrongly set.\n")
+        sys.exit(1)
+    if environ.get("PYKCS11LIB") is None:
+        sys.stderr("ERROR: PYKCS11LIB is wrongly set.\n")
         sys.exit(1)
 
     lib = None
