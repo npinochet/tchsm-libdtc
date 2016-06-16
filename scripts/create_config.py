@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-import os
-import sys
 import subprocess
+import sys
 from math import floor
 from os.path import join
 
@@ -50,24 +49,25 @@ def parse_nodes(nodes_info):
 
 
 def create_n_master_config(
-    nodes,
+     nodes,
      output_path,
      nb_of_masters,
      instance_id,
      timeout):
     """Creates one config file for each master
 
-    nodes -- dictionary containing the info of the nodes, where the key is the an id, and the value an array containing the info.
+    nodes -- dictionary containing the info of the nodes, where the key is the an id, and the value an array containing
+    the info.
     output_path -- where the config files will land
     nb_of_masters -- number of masters
     instance_id -- the prefix that the masters will have as id
-    timeout -- conection timeout in the masters config
+    timeout -- connection timeout in the masters config
     """
     masters = {}
 
     for i in range(1, nb_of_masters + 1):
         index = ""
-        if(nb_of_masters):
+        if nb_of_masters:
             index = i
 
         file_name = join(output_path, "master") + str(i) + ".conf"
@@ -86,7 +86,7 @@ def create_n_master_config(
 
 
 def create_master_config(
-    title,
+     title,
      config_file,
      nodes,
      instance_id,
@@ -103,17 +103,17 @@ def create_master_config(
     config_file.write(title + ":\n{\n")
     config_file.write("\tnodes = (\n")
 
-    for node_id, info in nodes.iteritems():
+    for loop_index, data in enumerate(iter(nodes.items())):
+        node_id, info = data
+
         config_file.write("\t\t{\n")
         config_file.write("\t\tip=\"" + info[4] + "\",\n")
         config_file.write("\t\tdealer_port=" + info[0] + ",\n")
         config_file.write("\t\tsub_port=" + info[1] + ",\n")
         config_file.write("\t\tpublic_key=\"" + info[2] + "\"\n")
-        config_file.write("\t\t},\n")
-
-    # Removes extra comma
-    config_file.seek(-2, os.SEEK_END)
-    config_file.truncate()
+        config_file.write("\t\t}")
+        if loop_index < len(nodes) - 1:
+            config_file.write(",\n")
 
     if master_info is None:
         master_info = get_keygen()
@@ -129,7 +129,7 @@ def create_master_config(
 
 
 def create_node_config(
-    config_file,
+     config_file,
      node_info,
      masters,
      index,
@@ -147,15 +147,16 @@ def create_node_config(
     config_file.write("node:\n{\n")
     config_file.write("\tmasters = (\n")
 
-    for master_id, master_key in masters.iteritems():
+    for loop_index, data in enumerate(iter(masters.items())):
+        master_id, master_key = data
+
         config_file.write("\t\t{\n")
         config_file.write("\t\tpublic_key=\"" + master_key[0] + "\",\n")
         config_file.write("\t\tid=\"" + master_id + "\"\n")
-        config_file.write("\t\t},\n")
-
-    # Removes extra comma
-    config_file.seek(-2, os.SEEK_END)
-    config_file.truncate()
+        config_file.write("\t\t}")
+        
+        if loop_index < len(masters) - 1:
+            config_file.write(",\n")
 
     config_file.write("\n\t)\n")
     config_file.write("\trouter_port=" + node_info[0] + ",\n")
@@ -163,10 +164,10 @@ def create_node_config(
     config_file.write(
         "\tdatabase=\"" +
         database +
-     "_" +
-     index +
-     ".db" +
-     "\",\n")
+        "_" +
+        index +
+        ".db" +
+        "\",\n")
     config_file.write("\tprivate_key=\"" + node_info[3] + "\",\n")
     config_file.write("\tpublic_key=\"" + node_info[2] + "\",\n")
     config_file.write("\tinterface=\"" + interface + "\"\n")
@@ -184,20 +185,31 @@ def get_keygen():
         sys.stderr.write("ERROR: Exec could not be accesed >> curve_keygen\n")
         sys.exit(1)
 
-    stdout_data, stderr_data = keygen.communicate()
+    proc_stdout, proc_stderr = keygen.communicate()
 
     if keygen.returncode != 0:
         sys.stderr.write("ERROR: curve_keygen found a problem\n")
+
+        if keygen is not None:
+            keygen.stdout.close()
+            keygen.stderr.close()
+
         sys.exit(1)
     else:
-        private_key = stdout_data[-40:]
-        public_key = stdout_data[-105:-65]
+        stdout_data = proc_stdout.decode()
+
+        private_key = stdout_data[-41:-1]
+        public_key = stdout_data[-106:-66]
+
+        if keygen is not None:
+            keygen.stdout.close()
+            keygen.stderr.close()
 
         return public_key, private_key
 
 
 def create_n_cryptoki_config(
-    nodes,
+     nodes,
      output_path,
      masters,
      instance_id,
@@ -206,7 +218,8 @@ def create_n_cryptoki_config(
      threshold):
     """Creates one cryptoki config file for each master.
 
-    nodes -- dictionary containing the info of the nodes, where the key is the an id, and the value an array containing the info.
+    nodes -- dictionary containing the info of the nodes, where the key is the an id, and the value an array containing
+    the info.
     output_path -- where the config files will land
     masters -- dictionary of masters information
     instance_id -- prefix of the masters name
@@ -214,7 +227,7 @@ def create_n_cryptoki_config(
     cryptoki_database -- prefix in the database path in the cryptoki config
     threshold -- min amount of nodes to the sign to occurr
     """
-    for master_id, master_info in masters.iteritems():
+    for master_id, master_info in iter(masters.items()):
         index = ""
         if len(masters) != 1:
             index = master_id[len(instance_id):]
@@ -243,7 +256,7 @@ def create_n_cryptoki_config(
 
 
 def create_cryptoki_config(
-    config_file,
+     config_file,
      amount_of_nodes,
      index,
      database_path,
@@ -260,9 +273,9 @@ def create_cryptoki_config(
     config_file.write(
         "\tdatabase_path=\"" +
         database_path +
-     index +
-     ".db" +
-     "\",\n")
+        index +
+        ".db" +
+        "\",\n")
     config_file.write("\tnodes_number=" + str(amount_of_nodes) + ",\n")
     config_file.write("\tthreshold=" + str(threshold) + ",\n")
     config_file.write("\tslots = (\n\t\t{label=\"TCBHSM\"}\n\t)\n")
@@ -280,86 +293,85 @@ def main(argv=None):
     parser.add_argument(
         "nodes",
         help="a list of ips and ports of the nodes",
-     nargs="+")
+        nargs="+")
     parser.add_argument(
         "-m",
         "--masters",
-     help="the number of masters",
-     default=1,
-     type=int)
+        help="the number of masters",
+        default=1,
+        type=int)
     parser.add_argument(
         "-mid",
         "--instance_id",
-     help="changes default masters instance id",
-     default=DEFAULT_MASTER_ID,
-     type=str)
+        help="changes default masters instance id",
+        default=DEFAULT_MASTER_ID,
+        type=str)
     parser.add_argument(
         "-t",
         "--timeout",
-     help="changes default timeout value",
-     default=DEFAULT_TIMEOUT,
-     type=int)
+        help="changes default timeout value",
+        default=DEFAULT_TIMEOUT,
+        type=int)
     parser.add_argument(
         "-o",
         "--output_dir",
-     help="where the config files will be stored",
-     default=".",
-     type=str)
+        help="where the config files will be stored",
+        default=".",
+        type=str)
     parser.add_argument(
         "-i",
         "--interface",
-     help="interface of the nodes",
-     default=DEFAULT_INTERFACE,
-     type=str)
+        help="interface of the nodes",
+        default=DEFAULT_INTERFACE,
+        type=str)
     parser.add_argument(
         "-db",
         "--database",
-     help="path of database in the node config",
-     default=DEFAULT_DATABASE,
-     type=str)
+        help="path of database in the node config",
+        default=DEFAULT_DATABASE,
+        type=str)
     parser.add_argument(
         "-cdb",
         "--cryptoki_database",
-     help="path of database in cryptoki config",
-     default=DEFAULT_CRYPTOKI_DATABASE,
-     type=str)
+        help="path of database in cryptoki config",
+        default=DEFAULT_CRYPTOKI_DATABASE,
+        type=str)
     parser.add_argument(
         "-ct",
         "--custom_threshold",
-     help="specify this if you want to use a custom threshold",
-     default=False,
-     action="store_true")
+        help="specify this if you want to use a custom threshold",
+        default=False,
+        action="store_true")
     parser.add_argument(
         "-th",
         "--threshold",
-     help="custom threshold for the cryptoki config",
-     default=-1)
+        help="custom threshold for the cryptoki config",
+        default=-1)
     args = parser.parse_args()
 
-    nodes = None
     try:
         nodes = parse_nodes(args.nodes)
     except ValueError as e:
-        sys.stderr.write(ERROR: " + str(e) + "\n")
+        sys.stderr.write("ERROR: " + str(e) + "\n")
         return 1
 
     masters = create_n_master_config(
         nodes,
         args.output_dir,
-     args.masters,
-     args.instance_id,
-     args.timeout)
+        args.masters,
+        args.instance_id,
+        args.timeout)
 
     count = 0
-    for node in nodes.itervalues():
+    for node in iter(nodes.values()):
         index = str(count + 1)
         config_file = open(
             join(
                 args.output_dir,
                 "node") +
             index +
-         ".conf",
-         "w")
+            ".conf",
+            "w")
         create_node_config(
             config_file,
             node,
@@ -371,14 +383,12 @@ def main(argv=None):
 
         config_file.close()
 
-    threshold = 0
     if args.custom_threshold:
         custom_threshold = args.threshold
-        custom_threshold_as_int = 0
 
         try:
             custom_threshold_as_int = int(custom_threshold)
-        except ValueError as e:
+        except ValueError:
             sys.stderr.write("ERROR: Inadequate threshold\n")
             return 1
 
@@ -393,11 +403,11 @@ def main(argv=None):
     create_n_cryptoki_config(
         nodes,
         args.output_dir,
-     masters,
-     args.instance_id,
-     args.timeout,
-     args.cryptoki_database,
-     threshold)
+        masters,
+        args.instance_id,
+        args.timeout,
+        args.cryptoki_database,
+        threshold)
 
     return 0
 
