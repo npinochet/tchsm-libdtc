@@ -155,8 +155,8 @@ void Configuration::load(std::string configurationPath) {
         throw TcbError(configurationPath, "instance_id error",
                        CKR_GENERAL_ERROR);
     }
-    privateKey_ = Botan::secure_vector<char>(
-            aux_char, aux_char + strlen(aux_char));
+
+    privateKey_.assign(aux_char, aux_char + strlen(aux_char));
 
     if(!(nodes = config_setting_get_member(dtc, "nodes"))) {
         config_destroy(&cfg);
@@ -209,6 +209,8 @@ Configuration::~Configuration() {
         std::free((void*)node_info.ip);
         std::free((void*)node_info.public_key);
     }
+
+    std::fill(privateKey_.begin(), privateKey_.end(), '\0');
 }
 
 std::vector<Configuration::SlotConf> const &Configuration::getSlotConf() const {
