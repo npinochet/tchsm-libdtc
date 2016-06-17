@@ -134,6 +134,7 @@ static int get_monitor_event(void *monitor, uint16_t *event,
 {
     zmq_msg_t msg;
     uint8_t *data;
+    size_t size;
 
     zmq_msg_init(&msg);
 
@@ -162,7 +163,10 @@ static int get_monitor_event(void *monitor, uint16_t *event,
 
     if(address) {
         data = (uint8_t *)zmq_msg_data(&msg);
-        *address = strdup((char *)data);
+        size = zmq_msg_size(&msg);
+        *address = (char *)malloc(size + 1);
+        memcpy(*address, data, size);
+        *address[size] = '\0';
     }
 
     zmq_msg_close(&msg);
