@@ -58,7 +58,7 @@ private:
     uint16_t threshold_;
 
     std::vector<struct node_info> nodes_;
-    std::vector<char> privateKey_;
+    std::string privateKey_;
     std::string publicKey_;
     std::string instanceId_;
     uint16_t timeout_;

@@ -22,7 +22,7 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
-#include <string.h>
+#include <cstring>
 
 #include <libconfig.h>
 
@@ -156,7 +156,7 @@ void Configuration::load(std::string configurationPath) {
                        CKR_GENERAL_ERROR);
     }
 
-    privateKey_.assign(aux_char, aux_char + strlen(aux_char));
+    privateKey_ = std::string(aux_char);
 
     if(!(nodes = config_setting_get_member(dtc, "nodes"))) {
         config_destroy(&cfg);
