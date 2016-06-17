@@ -44,6 +44,8 @@ struct dtc_ctx {
     pthread_mutex_t pub_socket_mutex;
     //Router socket thread
     pthread_t router_socket_thr_pid;
+    //Monitoring thread pid;
+    pthread_t monitoring_thr_pid;
 
     Hash_t *expected_msgs[OP_MAX];
 };
@@ -54,6 +56,12 @@ struct router_socket_handler_data {
     void *inproc_socket;
     void *close_thread_socket;
     Hash_t *expected_msgs[OP_MAX];
+};
+
+struct monitoring_thread_data {
+    void **monitors;
+    const char **monitors_names;
+    int monitors_cant;
 };
 
 struct handle_store_key_data {
@@ -118,6 +126,101 @@ static char* configuration_to_string(const struct dtc_configuration *conf)
     }
 
     return &buff[0];
+}
+
+
+static int get_monitor_event(void *monitor, uint16_t *event,
+                             uint32_t *event_value, char **address)
+{
+    zmq_msg_t msg;
+    uint8_t *data;
+
+    zmq_msg_init(&msg);
+
+    if(zmq_msg_recv(&msg, monitor, 0) == -1) {
+        LOG(LOG_LVL_CRIT, "LOG_ERR, Monitor thread recv error %s",
+            zmq_strerror(errno));
+        zmq_msg_close(&msg);
+        return -1;
+    }
+
+    data = (uint8_t *)zmq_msg_data(&msg);
+    if(event)
+        *event = *(uint16_t *)data;
+    if(event_value)
+        *event_value = *(uint32_t *)(data + 2);
+
+    zmq_msg_close(&msg);
+    zmq_msg_init(&msg);
+
+    if(zmq_msg_recv(&msg, monitor, 0) == -1) {
+        LOG(LOG_LVL_CRIT, "LOG_ERR, Monitor thread recv error %s",
+            zmq_strerror(errno));
+        zmq_msg_close(&msg);
+        return -1;
+    }
+
+    if(address) {
+        data = (uint8_t *)zmq_msg_data(&msg);
+        *address = strdup((char *)data);
+    }
+
+    zmq_msg_close(&msg);
+
+    return 1;
+}
+
+static void *monitoring_thread(void *data_)
+{
+    int i, it;
+    int rc;
+    uint16_t event;
+    uint32_t event_value;
+    char *address;
+
+    struct monitoring_thread_data *data =
+            (struct monitoring_thread_data *)data_;
+    void **monitors = data->monitors;
+    const char **monitors_names = data->monitors_names;
+    int monitors_cant = data->monitors_cant;
+    int poll_items = monitors_cant;
+
+    zmq_pollitem_t items[poll_items];
+    for(i = 0; i < poll_items; i++) {
+        items[i].socket = monitors[i];
+        items[i].events = ZMQ_POLLIN;
+    }
+
+    while(1) {
+        rc = zmq_poll(items, poll_items, -1);
+        if(rc == -1) {
+            break;
+        }
+
+        for(i = 0; i < poll_items; i++)
+            if(items[i].revents)
+                it = i;
+
+        rc = get_monitor_event(monitors[it], &event, &event_value, &address);
+        if(rc != 0) {
+            LOG(LOG_LVL_ERRO, "Error getting monitor event");
+            continue;
+        }
+
+        LOG(LOG_LVL_INFO, "Event %d with value %d received at %s", event,
+            event_value, address);
+        free(address);
+    }
+
+    for(i = 0; i < monitors_cant; i++)
+        zmq_close(monitors[i]);
+
+    free(monitors);
+    free(monitors_names);
+    free(data_);
+    LOG(LOG_LVL_INFO, "Closing monitoring thread");
+
+    return NULL;
 }
 
 int wait_n_connections(void **monitors, int monitors_cant,
@@ -231,13 +334,13 @@ static int send_router_msg(void *zmq_ctx, const struct op_req *op,
     ret = zmq_connect(sock, SEND_ROUTER_INPROC_BINDING);
     if(ret != 0) {
         LOG(LOG_LVL_ERRO, "zmq_connect:%s", zmq_strerror(errno));
-        return 0;
+        goto err_exit;
     }
 
     msg_size = serialize_op_req(op, &serialized_msg);
     if(!msg_size) {
         LOG(LOG_LVL_ERRO, "Serialization at send_router_msg");
-        return 0;
+        goto err_exit;
     }
 
     ret = zmq_msg_init_data(msg, serialized_msg, msg_size, free_wrapper, free);
@@ -886,15 +989,19 @@ int dtc_destroy(dtc_ctx_t *ctx)
         return DTC_ERR_NONE;
     zmq_close(ctx->pub_socket);
 
-    if(!close_router_thread(ctx->zmq_ctx)){
-        zmq_ctx_shutdown(ctx->zmq_ctx);
-    }
+    close_router_thread(ctx->zmq_ctx);
+    // This will trigger a ETERM at monitoring thread and close its sockets
+    // It is important the monitor sockets are closed after the monitored
+    // sockets, otherwise it could lead to a deadlock when closing.
+    zmq_ctx_shutdown(ctx->zmq_ctx);
 
     pthread_join(ctx->router_socket_thr_pid, NULL);
+    pthread_join(ctx->monitoring_thr_pid, NULL);
 
     zmq_ctx_term(ctx->zmq_ctx);
     for(i = 0; i < OP_MAX; i++)
         ht_free(ctx->expected_msgs[i]);
+
 
     free((void *)ctx->instance_id);
     free(ctx);
@@ -957,6 +1064,7 @@ static int create_connect_sockets(const struct dtc_configuration *conf,
 {
     void *pub_socket, *router_socket;
     void *monitors[2];
+    struct monitoring_thread_data *mon_thread_data;
     int ret_val = 0;
     int i = 0;
     char *protocol = "tcp";
@@ -1085,12 +1193,35 @@ static int create_connect_sockets(const struct dtc_configuration *conf,
     if(ret != DTC_ERR_NONE)
         goto err_exit;
 
+
+
+    mon_thread_data = (struct monitoring_thread_data *)malloc(
+            sizeof(struct monitoring_thread_data));
+    mon_thread_data->monitors = malloc(sizeof(void *) * 2);
+    mon_thread_data->monitors_names = malloc(sizeof(char *) * 2);
+    if(mon_thread_data == NULL || mon_thread_data->monitors == NULL
+       || mon_thread_data->monitors_names == NULL) {
+        LOG(LOG_LVL_CRIT, "Not enough memory for monitoring_thread_data");
+        ret = DTC_ERR_NOMEM;
+        goto err_exit;
+    }
+    mon_thread_data->monitors[0] = monitors[0];
+    mon_thread_data->monitors[1] = monitors[1];
+    mon_thread_data->monitors_names[0] = "PUB Socket";;
+    mon_thread_data->monitors_names[1] = "ROUTER Socket";
+    mon_thread_data->monitors_cant = 2;
+
+    ret = pthread_create(&ctx->monitoring_thr_pid, NULL, monitoring_thread,
+                         (void *)mon_thread_data);
+    if(ret != 0) {
+        LOG(LOG_LVL_CRIT, "Failed creating monitoring pthread.");
+        ret = DTC_ERR_INTERN;
+        goto err_exit;
+    }
+
     ctx->zmq_ctx = zmq_ctx;
     ctx->pub_socket = pub_socket;
     ctx->router_socket = router_socket;
-
-    zmq_close(monitors[0]);
-    zmq_close(monitors[1]);
 
     return ret;
 
