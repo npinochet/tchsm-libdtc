@@ -23,8 +23,6 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 #include <vector>
 #include <memory>
 
-#include <botan/secmem.h>
-
 #include <dtc.h>
 
 namespace hsm
@@ -60,7 +58,7 @@ private:
     uint16_t threshold_;
 
     std::vector<struct node_info> nodes_;
-    Botan::secure_vector<char> privateKey_;
+    std::string privateKey_;
     std::string publicKey_;
     std::string instanceId_;
     uint16_t timeout_;
