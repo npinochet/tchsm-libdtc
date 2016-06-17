@@ -166,7 +166,7 @@ static int get_monitor_event(void *monitor, uint16_t *event,
         size = zmq_msg_size(&msg);
         *address = (char *)malloc(size + 1);
         memcpy(*address, data, size);
-        *address[size] = '\0';
+        (*address)[size] = '\0';
     }
 
     zmq_msg_close(&msg);
@@ -1071,6 +1071,7 @@ static int create_connect_sockets(const struct dtc_configuration *conf,
     struct monitoring_thread_data *mon_thread_data;
     int ret_val = 0;
     int i = 0;
+    int events;
     char *protocol = "tcp";
     const int BUFF_SIZE = 200;
     // This is the max time, in milisecs, between the socket is asked to close
@@ -1095,11 +1096,9 @@ static int create_connect_sockets(const struct dtc_configuration *conf,
                   zmq_strerror(errno));
         return DTC_ERR_ZMQ_ERROR;
     }
-
-    ret = zmq_socket_monitor(pub_socket, ZMQ_MONITOR_PUB_SOCKET,
-                             ZMQ_EVENT_ALL);
-    ret += zmq_socket_monitor(router_socket, ZMQ_MONITOR_ROUTER_SOCKET,
-                              ZMQ_EVENT_ALL);
+    events = ZMQ_EVENT_CONNECTED | ZMQ_EVENT_DISCONNECTED;
+    ret = zmq_socket_monitor(pub_socket, ZMQ_MONITOR_PUB_SOCKET, events);
+    ret += zmq_socket_monitor(router_socket, ZMQ_MONITOR_ROUTER_SOCKET, events);
     ret += zmq_setsockopt(pub_socket, ZMQ_LINGER, &linger, sizeof(int));
     ret += zmq_setsockopt(router_socket, ZMQ_LINGER, &linger, sizeof(int));
     if(ret != 0) {
