@@ -202,7 +202,7 @@ static void *monitoring_thread(void *data_)
                 it = i;
 
         rc = get_monitor_event(monitors[it], &event, &event_value, &address);
-        if(rc != 0) {
+        if(rc != 1) {
             LOG(LOG_LVL_ERRO, "Error getting monitor event");
             continue;
         }
