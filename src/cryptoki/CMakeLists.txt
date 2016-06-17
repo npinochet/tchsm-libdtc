@@ -31,7 +31,7 @@ find_package(Sqlite3 REQUIRED)
 include_directories(${SQLITE3_INCLUDE_DIRS})
 
 include(FindBotan)
-find_package(Botan 1.11 REQUIRED)
+find_package(Botan 1.10 REQUIRED)
 include_directories(${BOTAN_INCLUDE_DIRS})
 
 find_package(TCLib REQUIRED)
