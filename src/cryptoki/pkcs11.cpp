@@ -681,17 +681,26 @@ CK_RV C_SignFinal(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pSignature, CK_ULONG_P
     }
 
     try {
-        if(pSignature == nullptr) {
-            app->getSession(hSession).signLength(pulSignatureLen);
+        Session &session = app->getSession(hSession);
+        if(pulSignatureLen == nullptr) {
+            return CKR_ARGUMENTS_BAD;
+        }
+        else if(pSignature == nullptr) {
+            *pulSignatureLen = session.signLength();
+            return CKR_OK;
+        }
+        else if(*pulSignatureLen < session.signLength()){
+            *pulSignatureLen = session.signLength();
+            return CKR_BUFFER_TOO_SMALL;
         }
         else {
-            app->getSession(hSession).signFinal(pSignature, pulSignatureLen);
+            session.signFinal(pSignature, pulSignatureLen);
+            return CKR_OK;
         }
     } catch (TcbError &e) {
         return error(e);
     }
 
-    return CKR_OK;
 }
 
 CK_RV C_Sign(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pSignature,
@@ -702,17 +711,25 @@ CK_RV C_Sign(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData, CK_ULONG ulDataLen, 
 
     try {
         Session &session = app->getSession(hSession);
-        if(pSignature == nullptr) {
-            session.signLength(pulSignatureLen);
-        } else {
+        if(pulSignatureLen == nullptr) {
+            return CKR_ARGUMENTS_BAD;
+        }
+        else if(pSignature == nullptr) {
+            *pulSignatureLen = session.signLength();
+            return CKR_OK;
+        }
+        else if(*pulSignatureLen < session.signLength()){
+            *pulSignatureLen = session.signLength();
+            return CKR_BUFFER_TOO_SMALL;
+        }
+        else {
             session.signUpdate(pData, ulDataLen);
             session.signFinal(pSignature, pulSignatureLen);
+            return CKR_OK;
         }
     } catch (TcbError &e) {
         return error(e);
     }
-
-    return CKR_OK;
 }
 
 CK_RV C_VerifyInit(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {

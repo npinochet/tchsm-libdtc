@@ -790,14 +790,14 @@ void Session::signInit(CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) {
     signInitialized_ = true;
 }
 
-void Session::signLength(CK_ULONG_PTR pulSignatureLen) {
+CK_ULONG Session::signLength() {
     if(!signInitialized_) {
         throw TcbError("Session::signLength", "operation not initialized.", CKR_OPERATION_NOT_INITIALIZED);
     }
 
     const public_key_t *pk = tc_key_meta_info_public_key(&*keyMetainfo_);
     const bytes_t *nBytes = tc_public_key_n(pk);
-    *pulSignatureLen = nBytes->data_len;
+    return static_cast<CK_ULONG>(nBytes->data_len);
 }
 
 
@@ -833,10 +833,6 @@ void Session::signFinal(CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen) {
         throw TcbError("Session::sign", err_msg + dtc_get_error_msg(sign_err), CKR_GENERAL_ERROR);
     }
 
-    if (*pulSignatureLen < signature->data_len) {
-
-        throw TcbError("Session::sign", "buffer too small.", CKR_BUFFER_TOO_SMALL);
-    }
     *pulSignatureLen = signature->data_len;
 
     CK_BYTE_PTR data = (CK_BYTE_PTR) signature->data;

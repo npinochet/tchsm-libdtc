@@ -115,7 +115,7 @@ namespace hsm {
 
         void signUpdate(CK_BYTE_PTR pData, CK_ULONG ulDataLen);
 
-        void signLength(CK_ULONG_PTR pulSignatureLen);
+        CK_ULONG signLength();
 
         void signFinal(CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen);
 
