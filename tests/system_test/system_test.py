@@ -40,7 +40,7 @@ TEST_FAIL = 0
 
 
 class TestSuite:
-    def __init__(self, name, test, master, expected_value=TEST_SUCCESS):
+    def __init__(self, name, test, master=None, expected_value=TEST_SUCCESS):
         self.name = name
         self.test = test
         self.master = master
@@ -797,6 +797,28 @@ def test_two_masters_thres2_nodes3(master_args, master_name):
 
 # INTERFACES FOR DIFFERENT TESTS
 def perform_test_on_pkcs11(test):
+    """
+    Interface for running the tests on pkcs11_master_test, the python version
+
+    :param test: Test to be run
+    :return: Test return code and return message
+    """
+    dummy_file = create_dummy_file()
+    master_args = [
+        "python3",
+        join(EXEC_PATH, "tests/system_test/pkcs_11_test.py"),
+        "-c",
+        "-f",
+        dummy_file.name,
+        "-p",
+        "1234"]
+    ret, mess = test(master_args, "pkcs_11_test")
+
+    dummy_file.close()
+    return ret, mess
+
+
+def old_perform_test_on_pkcs11(test):
     """
     Interface for running the tests on pkcs11_master_test
 
