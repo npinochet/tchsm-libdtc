@@ -12,8 +12,6 @@ from tempfile import mkdtemp
 from threading import Timer
 from time import time
 
-from commands import getstatusoutput
-
 """
 Module for System Testing
 
@@ -86,11 +84,14 @@ def exec_node(config):
     timer = Timer(NODE_TIMEOUT, node.terminate)
     timer.start()
 
-    stderr_lines = iter(node.stderr.readline, "")
+    node_stderr = node.stderr
+    stderr_lines = iter(node_stderr.readline, "")
     for stderr_line in stderr_lines:
+        stderr_line_decoded = stderr_line.decode()
+
         if DEBUG:
-            sys.stdout.write("DEBUG::STDERR --> " + stderr_line)
-        if NODE_RDY in stderr_line:
+            sys.stdout.write("DEBUG::STDERR --> " + stderr_line_decoded)
+        if NODE_RDY in stderr_line_decoded:
             break
 
     if timer.is_alive():
@@ -202,7 +203,7 @@ def debug_output(stdout, stderr):
 
 # NODE ONLY TESTS
 def test_one_node():
-    status, output = getstatusoutput(
+    status, output = subprocess.getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
@@ -213,7 +214,7 @@ def test_one_node():
 
 
 def test_two_nodes():
-    status, output = getstatusoutput(
+    status, output = subprocess.getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
@@ -230,7 +231,7 @@ def test_two_nodes():
 
 
 def test_opening_closing_node():
-    status, output = getstatusoutput(
+    status, output = subprocess.getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
@@ -248,7 +249,7 @@ def test_opening_closing_node():
 
 
 def test_open_close_with_node_open():
-    status, output = getstatusoutput(
+    status, output = subprocess.getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
@@ -272,7 +273,7 @@ def test_open_close_with_node_open():
 
 
 def test_stress_open_close():
-    status, output = getstatusoutput(
+    status, output = subprocess.getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
@@ -291,7 +292,7 @@ def test_stress_simultaneous():
     proc_array = []
 
     for port in range(2121, 2121 + 60, 2):
-        status, output = getstatusoutput(
+        status, output = subprocess.getstatusoutput(
             "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:" + str(port) + ":" + str(port + 1))
         if status != 0:
             return 1, "ERROR: Configuration files could not be created."
@@ -317,7 +318,7 @@ def test_master_n_nodes(master_args, master_name, nb_of_nodes):
         port += 2
     config_creation_string += " -t " + str(MASTER_TIMEOUT)
 
-    status, output = getstatusoutput(config_creation_string)
+    status, output = subprocess.getstatusoutput(config_creation_string)
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
@@ -349,7 +350,7 @@ def test_master_two_nodes(master_args, master_name):
 def test_master_twice(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -t " + \
                   str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
+    status, output = subprocess.getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
@@ -384,7 +385,7 @@ def test_master_twice(master_args, master_name):
 def test_three_nodes_one_down(master_args, master_name):
     node_info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126 -t " + \
                 str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
+    status, output = subprocess.getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + node_info)
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
@@ -426,7 +427,7 @@ def test_three_nodes_one_down(master_args, master_name):
 
 def test_insuff_threshold_bordercase(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 -ct -th 0 -t " + str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
+    status, output = subprocess.getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + config_data
     )
     if status != 0:
@@ -451,7 +452,7 @@ def test_insuff_threshold_bordercase(master_args, master_name):
 def test_insuff_threshold(master_args, master_name):
     node_info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126"
     config_info = node_info + " -ct -th 3 -t " + str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
+    status, output = subprocess.getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + config_info
     )
     if status != 0:
@@ -496,7 +497,7 @@ def test_insuff_threshold(master_args, master_name):
 def test_three_nodes_two_open(master_args, master_name):
     node_info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126"
     config_data = node_info + " -t " + str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
+    status, output = subprocess.getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + config_data
     )
     if status != 0:
@@ -525,7 +526,7 @@ def test_three_nodes_two_open(master_args, master_name):
 def test_master_stress_open_close(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -t " + \
                   str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
+    status, output = subprocess.getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
@@ -557,7 +558,7 @@ def test_master_stress_open_close(master_args, master_name):
 def test_stress_multiple_masters(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -m 10 -t " + \
                   str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
+    status, output = subprocess.getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
@@ -591,7 +592,7 @@ def test_stress_multiple_masters(master_args, master_name):
 def test_cryptoki_wout_key():
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -t " + \
                   str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
+    status, output = subprocess.getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
@@ -643,7 +644,7 @@ def test_cryptoki_wout_key():
 
 def test_two_masters_one_nodes(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 -m 2 -t " + str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
+    status, output = subprocess.getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
@@ -675,7 +676,7 @@ def test_two_masters_one_nodes(master_args, master_name):
 def test_two_masters_two_nodes(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -m 2 -t " + \
                   str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
+    status, output = subprocess.getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
@@ -714,7 +715,7 @@ def test_two_masters_two_nodes(master_args, master_name):
 def test_two_masters_simultaneous(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -m 2 -t " + \
                   str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
+    status, output = subprocess.getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
@@ -757,7 +758,7 @@ def test_two_masters_simultaneous(master_args, master_name):
 def test_two_masters_thres2_nodes3(master_args, master_name):
     info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126 -m 2 -t " + \
            str(MASTER_TIMEOUT)
-    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + info)
+    status, output = subprocess.getstatusoutput("python " + CONFIG_CREATOR_PATH + info)
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
@@ -1047,7 +1048,7 @@ def main(argv=None):
         test_stress_multiple_masters)
 
     if args.with_stress_tests:
-        for k, v in stress_tests.iteritems():
+        for k, v in iter(stress_tests.items()):
             tests[k] = v
 
     tests_passed = 0
@@ -1059,7 +1060,7 @@ def main(argv=None):
         sys.stdout("ERROR: Dump path doesn't exists >> " + dump_path + "\n")
         sys.exit(1)
 
-    for index, test_info in enumerate(tests.iteritems()):
+    for index, test_info in enumerate(iter(tests.items())):
         name, test = test_info
         func, func_args = test
 
