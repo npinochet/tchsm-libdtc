@@ -37,6 +37,20 @@ MASTER_TIMEOUT = 20
 
 DEBUG = False
 
+TEST_SUCCESS = 1
+TEST_FAIL = 0
+
+
+class TestSuite:
+    def __init__(self, name, test, master, expected_value=TEST_SUCCESS):
+        self.name = name
+        self.test = test
+        self.master = master
+        self.expected_value = expected_value
+
+    def run(self):
+        pass
+
 
 def erase_dump():
     """Deletes the dump folder, if exists"""
