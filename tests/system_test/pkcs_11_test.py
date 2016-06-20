@@ -33,7 +33,7 @@ def initialize(lib):
     try:
         pkcs11.load(lib)
     except PyKCS11Error:
-        sys.stderr("ERROR: The library could not be loaded\n")
+        sys.stderr.write("ERROR: The library could not be loaded\n")
         sys.exit(1)
 
     return pkcs11
@@ -156,10 +156,10 @@ def main(argv=None):
         environ["PYKCS11LIB"] = args.pykcs11lib
 
     if environ.get("TCHSM_CONFIG") is None:
-        sys.stderr("ERROR: TCHSM_CONFIG is wrongly set.\n")
+        sys.stderr.write("ERROR: TCHSM_CONFIG is wrongly set.\n")
         sys.exit(1)
     if environ.get("PYKCS11LIB") is None:
-        sys.stderr("ERROR: PYKCS11LIB is wrongly set.\n")
+        sys.stderr.write("ERROR: PYKCS11LIB is wrongly set.\n")
         sys.exit(1)
 
     lib = None
