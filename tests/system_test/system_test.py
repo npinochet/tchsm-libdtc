@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-import shlex
 import shutil
 import subprocess
 import sys
@@ -813,8 +812,7 @@ def perform_test_on_pkcs11(test):
         dummy_file.name,
         "-p",
         "1234"]
-    master_args = shlex.split("python3 /home/danielaviv/Documentos/Daniel/tchsm-libdtc/tests/system_test/pkcs_11_test.py -c -f to_sign.txt -p 1234")
-    master_args = ["mkdir", "hola"]
+
     ret, mess = test(master_args, "pkcs_11_test")
 
     dummy_file.close()
