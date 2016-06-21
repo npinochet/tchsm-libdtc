@@ -11,7 +11,8 @@ install:
     - cmake ..
     - make dtc
     - make
+    - make system_test
 
 script:
     - make check
-    - make system_test
+    - python3 ../tests/system_test/system_test -v --debug -r "PKCS11 TWO NODES"
