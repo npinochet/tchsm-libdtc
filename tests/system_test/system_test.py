@@ -193,10 +193,12 @@ def debug_output(stdout, stderr):
     :param stderr: An output string
     """
     if DEBUG:
-        for line in stdout.split("\n"):
+        for encoded_line in stdout.split("\n"):
+            line = encoded_line.decode()
             if line != "":
                 sys.stdout.write("DEBUG::STDOUT --> " + line + "\n")
-        for line in stderr.split("\n"):
+        for encoded_line in stderr.split("\n"):
+            line = encoded_line.decode()
             if line != "":
                 sys.stdout.write("DEBUG::STDERR --> " + line + "\n")
 
@@ -796,26 +798,29 @@ def test_two_masters_thres2_nodes3(master_args, master_name):
 
 
 # INTERFACES FOR DIFFERENT TESTS
-def perform_test_on_pkcs11(test):
+def perform_test_on_pkcs11(test_func):
     """
     Interface for running the tests on pkcs11_master_test, the python version
 
-    :param test: Test to be run
+    :param test_func: Test to be run
     :return: Test return code and return message
     """
     dummy_file = create_dummy_file()
+    dummy_name = dummy_file.name
+    dummy_file.close()
+
+    environ["PYKCS11LIB"] = "/home/danielaviv/Documentos/Daniel/tchsm-libdtc/build/src/cryptoki/libpkcs11.so"
+
     master_args = [
         "python3",
         join(EXEC_PATH, "..", "tests/system_test/pkcs_11_test.py"),
         "-c",
         "-f",
-        dummy_file.name,
+        dummy_name,
         "-p",
         "1234"]
 
-    ret, mess = test(master_args, "pkcs_11_test")
-
-    dummy_file.close()
+    ret, mess = test_func(master_args, "pkcs_11_test")
     return ret, mess
 
 
