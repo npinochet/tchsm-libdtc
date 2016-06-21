@@ -39,7 +39,7 @@ TEST_SUCCESS = 1
 TEST_FAIL = 0
 
 
-class TestSuite:
+class TestSuite(Object):
     def __init__(self, name, test, master=None, expected_value=TEST_SUCCESS):
         self.name = name
         self.test = test
@@ -479,9 +479,9 @@ def test_insuff_threshold(master_args, master_name):
         *fix_dtc_args(master_args, master_name, 3, 3))
     close_master(master)
 
-    if master_ret == 0:
-        close_nodes([node_proc1, node_proc2])
-        return 1, "FAILURE: The master should not be able to sign."
+    if master_ret != 0:
+        close_nodes([node_proc1, node_proc2, node_proc3])
+        return master_ret, master_mess
 
     close_node(node_proc3)
 
