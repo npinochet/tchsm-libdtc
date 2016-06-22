@@ -15,4 +15,4 @@ install:
 
 script:
     - make check
-    - python3 ../tests/system_test/system_test.py -v --debug -r "PKCS11 TWO NODES"
+    - python3 ../tests/system_test/system_test.py ./ -v --debug -r "PKCS11 TWO NODES"
