@@ -39,7 +39,7 @@ TEST_SUCCESS = 1
 TEST_FAIL = 0
 
 
-class TestSuite(Object):
+class TestSuite(object):
     def __init__(self, name, test, master=None, expected_value=TEST_SUCCESS):
         self.name = name
         self.test = test
@@ -90,7 +90,8 @@ def exec_node(config):
         stderr_line_decoded = stderr_line.decode()
 
         if DEBUG:
-            sys.stdout.write("DEBUG::STDERR --> " + stderr_line_decoded)
+            if not (stderr_line_decoded.isspace() or (len(stderr_line) == 0)):
+                sys.stdout.write("DEBUG::STDERR --> " + stderr_line_decoded)
         if NODE_RDY in stderr_line_decoded:
             break
 
@@ -192,14 +193,15 @@ def debug_output(stdout, stderr):
     :param stdout: An output string
     :param stderr: An output string
     """
+    stdout_decoded = stdout.decode()
+    stderr_decoded = stderr.decode()
+
     if DEBUG:
-        for encoded_line in stdout.split("\n"):
-            line = encoded_line.decode()
-            if line != "":
+        for line in stdout_decoded.strip().split("\n"):
+            if not (line.isspace() or line == ""):
                 sys.stdout.write("DEBUG::STDOUT --> " + line + "\n")
-        for encoded_line in stderr.split("\n"):
-            line = encoded_line.decode()
-            if line != "":
+        for line in stderr_decoded.split("\n"):
+            if not (line.isspace() or line == ""):
                 sys.stdout.write("DEBUG::STDERR --> " + line + "\n")
 
 
