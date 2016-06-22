@@ -5,7 +5,6 @@ import argparse
 import shutil
 import subprocess
 import sys
-from collections import OrderedDict
 from os import chdir, environ
 from os.path import join, exists, split, abspath, isdir, isfile
 from tempfile import mkdtemp
@@ -31,23 +30,83 @@ CONFIG_CREATOR_PATH = ""
 NODE_RDY = "Both socket binded, node ready to talk with the Master."
 
 NODE_TIMEOUT = 5
-MASTER_TIMEOUT = 20
+MASTER_TIMEOUT = 25
 
 DEBUG = False
 
-TEST_SUCCESS = 1
-TEST_FAIL = 0
+TEST_SUCCESS = 0
+TEST_FAIL = 1
+
+HANDLER_PKCS11 = 0
+HANDLER_DTC = 1
 
 
 class TestSuite(object):
-    def __init__(self, name, test, master=None, expected_value=TEST_SUCCESS):
+
+    def __init__(
+       self,
+       name,
+       test_func,
+       handler=None,
+       expected_value=TEST_SUCCESS):
         self.name = name
-        self.test = test
-        self.master = master
+        self.test_func = test_func
+        self.handler = handler
         self.expected_value = expected_value
 
     def run(self):
-        pass
+        if self.handler == HANDLER_PKCS11:
+            return self.run_with_pkcs11()
+        elif self.handler == HANDLER_DTC:
+            return self.run_with_dtc()
+        elif self.handler is None:
+            return self.test_func()
+
+    def run_with_pkcs11(self):
+        """
+        Interface for running the tests on pkcs11_master_test, the python version
+
+        :return: Test return code and return message
+        """
+        dummy_file = create_dummy_file()
+
+        environ[
+            "PYKCS11LIB"] = "/home/danielaviv/Documentos/Daniel/tchsm-libdtc/build/src/cryptoki/libpkcs11.so"
+
+        master_args = [
+            "python3",
+            join(EXEC_PATH, "..", "tests/system_test/pkcs_11_test.py"),
+            "-c",
+            "-f",
+            dummy_file,
+            "-p",
+            "1234"]
+
+        ret, mess = self.test_func(master_args, "pkcs_11_test")
+
+        if ret != self.expected_value:
+            return 1, mess
+
+        return 0, mess
+
+    def run_with_dtc(self):
+        """
+        Interface for running the tests on dtc_master_test
+
+        :return: Test return code and return message
+        """
+        config_path = join(DUMP, "master.conf")
+        master_args = [join(
+            EXEC_PATH,
+            "tests/system_test/dtc_master_test"),
+            config_path]
+
+        ret, mess = self.test_func(master_args, "dtc_master_test")
+
+        if ret != self.expected_value:
+            return 1, mess
+
+        return 0, mess
 
 
 def erase_dump():
@@ -84,7 +143,7 @@ def exec_node(config):
     if node.returncode is not None:
         return node, node.returncode, "ERROR: Node finished with return code >> " + str(node.returncode)
 
-    timer = Timer(NODE_TIMEOUT, node.kill)
+    timer = Timer(NODE_TIMEOUT, node.terminate)
     timer.start()
 
     node_stderr = node.stderr
@@ -94,7 +153,9 @@ def exec_node(config):
 
         if DEBUG:
             if not (stderr_line_decoded.isspace() or (len(stderr_line) == 0)):
-                sys.stdout.write("DEBUG::STDERR --> " + stderr_line_decoded)
+                sys.stdout.write(
+                    "    DEBUG::STDERR --> " +
+                    stderr_line_decoded)
         if NODE_RDY in stderr_line_decoded:
             break
         if not timer.is_alive():
@@ -167,7 +228,7 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
         return master, master.returncode, ""
     else:
         debug_output(stdout_data, stderr_data)
-        return master, 1, "FAILURE: Timeout"
+        return master, 1, "FAILURE: Master timeout"
 
 
 def close_master(master):
@@ -185,11 +246,13 @@ def create_dummy_file():
     """
     Creates a text file with a fixed string on it
 
-    :return: The file descriptor of the file
+    :return: The filename of the created file
     """
     fd = open("to_sign.txt", "w")
     fd.write(":)\n")
-    return fd
+    filename = fd.name
+    fd.close()
+    return filename
 
 
 def debug_output(stdout, stderr):
@@ -205,10 +268,10 @@ def debug_output(stdout, stderr):
     if DEBUG:
         for line in stdout_decoded.strip().split("\n"):
             if not (line.isspace() or line == ""):
-                sys.stdout.write("DEBUG::STDOUT --> " + line + "\n")
+                sys.stdout.write("    DEBUG::STDOUT --> " + line + "\n")
         for line in stderr_decoded.split("\n"):
             if not (line.isspace() or line == ""):
-                sys.stdout.write("DEBUG::STDERR --> " + line + "\n")
+                sys.stdout.write("    DEBUG::STDERR --> " + line + "\n")
 
 
 # NODE ONLY TESTS
@@ -623,7 +686,7 @@ def test_cryptoki_wout_key():
         EXEC_PATH,
         "tests/system_test/pkcs_11_test"),
         "-cf",
-        dummy_file.name,
+        dummy_file,
         "-p",
         "1234"]
     master_name = "pkcs_11_test"
@@ -639,13 +702,12 @@ def test_cryptoki_wout_key():
         EXEC_PATH,
         "tests/system_test/pkcs_11_test"),
         "-f",
-        dummy_file.name,
+        dummy_file,
         "-p",
         "1234"]
     master_name = "pkcs_11_test"
     master, master_ret, master_mess = exec_master(
         *fix_dtc_args(master_args, master_name, 2))
-    dummy_file.close()
 
     close_nodes([node_proc1, node_proc2])
     close_master(master)
@@ -768,7 +830,8 @@ def test_two_masters_simultaneous(master_args, master_name):
 def test_two_masters_thres2_nodes3(master_args, master_name):
     info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126 -m 2 -t " + \
            str(MASTER_TIMEOUT)
-    status, output = subprocess.getstatusoutput("python3 " + CONFIG_CREATOR_PATH + info)
+    status, output = subprocess.getstatusoutput(
+        "python3 " + CONFIG_CREATOR_PATH + info)
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
 
@@ -805,70 +868,6 @@ def test_two_masters_thres2_nodes3(master_args, master_name):
         return 1, "FAILURE: The test should fail, as it should not generate keys."
 
 
-# INTERFACES FOR DIFFERENT TESTS
-def perform_test_on_pkcs11(test_func):
-    """
-    Interface for running the tests on pkcs11_master_test, the python version
-
-    :param test_func: Test to be run
-    :return: Test return code and return message
-    """
-    dummy_file = create_dummy_file()
-    dummy_name = dummy_file.name
-    dummy_file.close()
-
-    environ["PYKCS11LIB"] = "/home/danielaviv/Documentos/Daniel/tchsm-libdtc/build/src/cryptoki/libpkcs11.so"
-
-    master_args = [
-        "python3",
-        join(EXEC_PATH, "..", "tests/system_test/pkcs_11_test.py"),
-        "-c",
-        "-f",
-        dummy_name,
-        "-p",
-        "1234"]
-
-    ret, mess = test_func(master_args, "pkcs_11_test")
-    return ret, mess
-
-
-def old_perform_test_on_pkcs11(test):
-    """
-    Interface for running the tests on pkcs11_master_test
-
-    :param test: Test to be run
-    :return: Test return code and return message
-    """
-    dummy_file = create_dummy_file()
-    master_args = [join(
-        EXEC_PATH,
-        "tests/system_test/pkcs_11_test"),
-        "-cf",
-        dummy_file.name,
-        "-p",
-        "1234"]
-    ret, mess = test(master_args, "pkcs_11_test")
-
-    dummy_file.close()
-    return ret, mess
-
-
-def perform_test_on_dtc(test):
-    """
-    Interface for running the tests on dtc_master_test
-
-    :param test: Test to be run
-    :return: Test return code and return message
-    """
-    config_path = join(DUMP, "master.conf")
-    master_args = [join(
-        EXEC_PATH,
-        "tests/system_test/dtc_master_test"),
-        config_path]
-
-    return test(master_args, "dtc_master_test")
-
-
 def pretty_print(index, name, result, mess, runtime, verbosity):
     """
     Prints legible information of the test output
@@ -882,7 +881,8 @@ def pretty_print(index, name, result, mess, runtime, verbosity):
     """
     if result == 0:
         if verbosity:
-            sys.stdout.write(str(index) + ".- " + name + " passed! Run time: " + str(runtime)[:6] + " seconds.\n")
+            sys.stdout.write(
+                str(index) + ".- " + name + " passed! Run time: " + str(runtime)[:6] + " seconds.\n")
     else:
         sys.stdout.write(str(index) + ".- " + name + " failed!\n")
         sys.stdout.write("    " + str(mess) + "\n")
@@ -996,96 +996,94 @@ def main(argv=None):
 
     sys.stdout.write(" --- Testing starting --- \n\n")
 
-    tests = OrderedDict()
+    tests = list()
+    tests.append(TestSuite("ONE NODE", test_one_node))
+    tests.append(TestSuite("TWO NODE", test_two_nodes))
+    tests.append(TestSuite("OPEN CLOSED NODE", test_opening_closing_node))
+    tests.append(
+        TestSuite(
+            "OPEN CLOSE w/ NODE OPEN",
+            test_open_close_with_node_open))
 
-    tests["ONE NODE"] = (test_one_node, None)
-    tests["TWO NODE"] = (test_two_nodes, None)
-    tests["OPEN CLOSED NODE"] = (test_opening_closing_node, None)
-    tests["OPEN CLOSE w/ NODE OPEN"] = (
-        test_open_close_with_node_open, None)
+    tests.append(
+        TestSuite(
+            "DTC ONE NODE",
+            test_master_one_node,
+            handler=HANDLER_DTC,
+            expected_value=1))
+    tests.append(
+        TestSuite(
+            "DTC TWO NODES",
+            test_master_two_nodes,
+            handler=HANDLER_DTC))
+    tests.append(
+        TestSuite(
+            "DTC RUN TWICE",
+            test_master_twice,
+            handler=HANDLER_DTC))
+    tests.append(TestSuite("DTC THREE NODES, ONE FALLS",
+                           test_three_nodes_one_down, handler=HANDLER_DTC))
+    tests.append(TestSuite("DTC THREE NODES, TWO OPEN",
+                           test_three_nodes_two_open, handler=HANDLER_DTC))
+    tests.append(TestSuite("DTC INSUFFICIENT THRESHOLD BORDER CASE",
+                           test_insuff_threshold_bordercase, handler=HANDLER_DTC))
+    tests.append(TestSuite("DTC INSUFFICIENT THRESHOLD",
+                           test_insuff_threshold, handler=HANDLER_DTC))
+    tests.append(TestSuite("DTC TWO MASTERS ONE NODE",
+                           test_two_masters_one_nodes, handler=HANDLER_DTC, expected_value=1))
+    tests.append(TestSuite("DTC TWO MASTERS TWO NODE",
+                           test_two_masters_two_nodes, handler=HANDLER_DTC))
+    tests.append(TestSuite("DTC MASTERS SIMULTANEOUS",
+                           test_two_masters_simultaneous, handler=HANDLER_DTC))
+    tests.append(TestSuite("DTC MASTERS:2 THRES:2 NODES:3",
+                           test_two_masters_thres2_nodes3, handler=HANDLER_DTC))
 
-    tests["DTC ONE NODE"] = (perform_test_on_dtc, test_master_one_node)
-    tests["DTC TWO NODES"] = (perform_test_on_dtc, test_master_two_nodes)
-    tests["DTC RUN TWICE"] = (perform_test_on_dtc, test_master_twice)
-    tests["DTC THREE NODES, ONE FALLS"] = (
-        perform_test_on_dtc,
-        test_three_nodes_one_down)
-    tests["DTC THREE NODES, TWO OPEN"] = (
-        perform_test_on_dtc,
-        test_three_nodes_two_open)
-    tests["DTC INSUFFICIENT THRESHOLD BORDER CASE"] = (
-        perform_test_on_dtc,
-        test_insuff_threshold_bordercase)
-    tests["DTC INSUFFICIENT THRESHOLD"] = (
-        perform_test_on_dtc, test_insuff_threshold)
-    tests["DTC TWO MASTERS ONE NODE"] = (
-        perform_test_on_dtc,
-        test_two_masters_one_nodes)
-    tests["DTC TWO MASTERS TWO NODE"] = (
-        perform_test_on_dtc,
-        test_two_masters_two_nodes)
-    tests["DTC MASTERS SIMULTANEOUS"] = (
-        perform_test_on_dtc,
-        test_two_masters_simultaneous)
-    tests["DTC MASTERS:2 THRES:2 NODES:3"] = (
-        perform_test_on_dtc,
-        test_two_masters_thres2_nodes3)
+    tests.append(TestSuite("PKCS11 ONE NODE",
+                           test_master_one_node, handler=HANDLER_PKCS11, expected_value=1))
+    tests.append(TestSuite("PKCS11 TWO NODES",
+                           test_master_two_nodes, handler=HANDLER_PKCS11))
+    tests.append(TestSuite("PKCS11 RUN TWICE",
+                           test_master_twice, handler=HANDLER_PKCS11))
+    tests.append(TestSuite("PKCS11 THREE NODES, ONE FALLS",
+                           test_three_nodes_one_down, handler=HANDLER_PKCS11))
+    tests.append(TestSuite("PKCS11 THREE NODES, TWO OPEN",
+                           test_three_nodes_two_open, handler=HANDLER_PKCS11))
+    tests.append(TestSuite("PKCS11 INSUFFICIENT THRESHOLD BORDER CASE",
+                           test_insuff_threshold_bordercase, handler=HANDLER_PKCS11))
+    tests.append(TestSuite("PKCS11 INSUFFICIENT THRESHOLD",
+                           test_insuff_threshold, handler=HANDLER_PKCS11))
+    tests.append(TestSuite("PKCS11 TWO MASTERS ONE NODE",
+                           test_two_masters_one_nodes, handler=HANDLER_PKCS11, expected_value=1))
+    tests.append(TestSuite("PKCS11 TWO MASTERS TWO NODE",
+                           test_two_masters_two_nodes, handler=HANDLER_PKCS11))
+    tests.append(TestSuite("PKCS11 MASTERS SIMULTANEOUS",
+                           test_two_masters_simultaneous, handler=HANDLER_PKCS11))
+    tests.append(TestSuite("PKCS11 MASTERS:2 THRES:2 NODES:3",
+                           test_two_masters_thres2_nodes3, handler=HANDLER_PKCS11))
+    tests.append(TestSuite("PKCS11 SAME DATABASE", test_cryptoki_wout_key))
 
-    tests["PKCS11 ONE NODE"] = (
-        perform_test_on_pkcs11,
-        test_master_one_node)
-    tests["PKCS11 TWO NODES"] = (
-        perform_test_on_pkcs11,
-        test_master_two_nodes)
-    tests["PKCS11 RUN TWICE"] = (
-        perform_test_on_pkcs11,
-        test_master_twice)
-    tests["PKCS11 THREE NODES, ONE FALLS"] = (
-        perform_test_on_pkcs11,
-        test_three_nodes_one_down)
-    tests["PKCS11 THREE NODES, TWO OPEN"] = (
-        perform_test_on_pkcs11,
-        test_three_nodes_two_open)
-    tests["PKCS11 INSUFFICIENT THRESHOLD BORDER CASE"] = (
-        perform_test_on_pkcs11,
-        test_insuff_threshold_bordercase)
-    tests["PKCS11 INSUFFICIENT THRESHOLD"] = (
-        perform_test_on_pkcs11, test_insuff_threshold)
-    tests["PKCS11 TWO MASTERS ONE NODE"] = (
-        perform_test_on_pkcs11,
-        test_two_masters_one_nodes)
-    tests["PKCS11 TWO MASTERS TWO NODE"] = (
-        perform_test_on_pkcs11,
-        test_two_masters_two_nodes)
-    tests["PKCS11 MASTERS SIMULTANEOUS"] = (
-        perform_test_on_pkcs11,
-        test_two_masters_simultaneous)
-    tests["PKCS11 MASTERS:2 THRES:2 NODES:3"] = (
-        perform_test_on_pkcs11,
-        test_two_masters_thres2_nodes3)
-    tests["PKCS11 SAME DATABASE"] = (test_cryptoki_wout_key, None)
+    stress_tests = list()
+    stress_tests.append(
+        TestSuite(
+            "NODE STRESS OPEN CLOSE",
+            test_stress_open_close))
+    stress_tests.append(
+        TestSuite(
+            "NODE STRESS SIMULTANEOUS",
+            test_stress_simultaneous))
 
-    stress_tests = OrderedDict()
-    stress_tests["NODE STRESS OPEN CLOSE"] = (test_stress_open_close, None)
-    stress_tests["NODE STRESS SIMULTANEOUS"] = (test_stress_simultaneous, None)
+    stress_tests.append(TestSuite("DTC STRESS SAME NODE",
+                                  test_master_stress_open_close, handler=HANDLER_DTC))
+    stress_tests.append(TestSuite("DTC STRESS MULTIPLE MASTERS",
+                                  test_stress_multiple_masters, handler=HANDLER_DTC))
 
-    stress_tests["DTC STRESS SAME NODE"] = (
-        perform_test_on_dtc,
-        test_master_stress_open_close)
-    stress_tests["DTC STRESS MULTIPLE MASTERS"] = (
-        perform_test_on_dtc,
-        test_stress_multiple_masters)
-
-    stress_tests["PKCS11 STRESS SAME NODE"] = (
-        perform_test_on_pkcs11,
-        test_master_stress_open_close)
-    stress_tests["PKCS11 STRESS MULTIPLE MASTERS"] = (
-        perform_test_on_pkcs11,
-        test_stress_multiple_masters)
+    stress_tests.append(TestSuite("PKCS11 STRESS SAME NODE",
+                                  test_master_stress_open_close, handler=HANDLER_PKCS11))
+    stress_tests.append(TestSuite("PKCS11 STRESS MULTIPLE MASTERS",
+                                  test_stress_multiple_masters, handler=HANDLER_PKCS11))
 
     if args.with_stress_tests:
-        for k, v in iter(stress_tests.items()):
-            tests[k] = v
+        tests.extend(stress_tests)
 
     tests_passed = 0
     tests_run = 0
@@ -1096,11 +1094,8 @@ def main(argv=None):
         sys.stdout("ERROR: Dump path doesn't exists >> " + dump_path + "\n")
         sys.exit(1)
 
-    for index, test_info in enumerate(iter(tests.items())):
-        name, test = test_info
-        func, func_args = test
-
-        if args.run_only in name:
+    for index, test_suite in enumerate(tests):
+        if args.run_only in test_suite.name:
             global DUMP
             dump_prefix = "libdtc_test_" + str(index + 1) + "_"
             DUMP = mkdtemp(prefix=dump_prefix, dir=dump_path)
@@ -1108,12 +1103,9 @@ def main(argv=None):
 
             start = time()
             if DEBUG:
-                sys.stdout.write("\nRunning: " + name + " -->\n")
+                sys.stdout.write("\nRunning: " + test_suite.name + " -->\n")
 
-            if func_args is None:
-                result, mess = func()
-            else:
-                result, mess = func(func_args)
+            result, mess = test_suite.run()
 
             end = time()
             total_time += end - start
@@ -1128,7 +1120,7 @@ def main(argv=None):
 
             pretty_print(
                 index + 1,
-                name,
+                test_suite.name,
                 result,
                 mess,
                 end - start,
@@ -1147,7 +1139,8 @@ def main(argv=None):
                          " " * (tests_run - tests_passed)
         sys.stdout.write("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_run) +
                          " (" + test_percentage + "): [" + passing_string + "] ---\n")
-        sys.stdout.write(" --- Total run time: " + str(total_time)[:6] + " seconds ---\n")
+        sys.stdout.write(
+            " --- Total run time: " + str(total_time)[:6] + " seconds ---\n")
 
     return tests_run - tests_passed
 
