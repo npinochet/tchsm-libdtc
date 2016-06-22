@@ -79,7 +79,10 @@ def exec_node(config):
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE)
     except OSError:
-        return node, 1, "ERROR: Exec could not be accesed >> " + EXEC_PATH + "/src/node"
+        return node, 1, "ERROR: Exec could not be accessed >> " + EXEC_PATH + "/src/node"
+
+    if node.returncode is not None:
+        return node, node.returncode, "ERROR: Node finished with return code >> " + str(node.returncode)
 
     timer = Timer(NODE_TIMEOUT, node.kill)
     timer.start()
@@ -94,12 +97,15 @@ def exec_node(config):
                 sys.stdout.write("DEBUG::STDERR --> " + stderr_line_decoded)
         if NODE_RDY in stderr_line_decoded:
             break
+        if not timer.is_alive():
+            timer.cancel()
+            return node, 1, "FAILURE: Node timeout"
 
     if timer.is_alive():
         timer.cancel()
         return node, 0, ""
     else:
-        return node, 1, "FAILURE: Timeout"
+        return node, 1, "FAILURE: Node timeout"
 
 
 def close_node(node_proc):
