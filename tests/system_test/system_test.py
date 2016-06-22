@@ -390,7 +390,7 @@ def test_master_n_nodes(master_args, master_name, nb_of_nodes):
                                   str(port) + ":" + str(port + 1)
         port += 2
     config_creation_string += " -t " + str(MASTER_TIMEOUT)
-
+    print("CONFIG: " + config_creation_string)
     status, output = subprocess.getstatusoutput(config_creation_string)
     if status != 0:
         return 1, "ERROR: Configuration files could not be created."
@@ -447,12 +447,12 @@ def test_master_twice(master_args, master_name):
         close_nodes([node_proc1, node_proc2])
         return master_ret, master_mess
 
-    master, master_ret, master_mess = exec_master(
+    master2, master_ret2, master_mess2 = exec_master(
         *fix_dtc_args(master_args, master_name, 2))
 
     close_nodes([node_proc1, node_proc2])
-    close_master(master)
-    return master_ret, master_mess
+    close_master(master2)
+    return master_ret2, master_mess2
 
 
 def test_three_nodes_one_down(master_args, master_name):
@@ -769,19 +769,18 @@ def test_two_masters_two_nodes(master_args, master_name):
     master, master_ret, master_mess = exec_master(
         fixed_args, master_name, "cryptoki1.conf")
     close_master(master)
-
     if master_ret != 0:
         close_nodes([node_proc1, node_proc2])
         return master_ret, master_mess
 
     fixed_args, master_name = fix_dtc_args(
         master_args, master_name, 2, index=2)
-    master, master_ret, master_mess = exec_master(
+    master2, master_ret2, master_mess2 = exec_master(
         fixed_args, master_name, "cryptoki2.conf")
 
     close_nodes([node_proc1, node_proc2])
-    close_master(master)
-    return master_ret, master_mess
+    close_master(master2)
+    return master_ret2, master_mess2
 
 
 def test_two_masters_simultaneous(master_args, master_name):
