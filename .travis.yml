@@ -15,4 +15,5 @@ install:
 
 script:
     - make check
-    - python ../tests/system_test/system_test.py ./ -v --debug -r "PKCS11 TWO NODES" -d ./
+    - python3 /home/travis/build/niclabs/tchsm-libdtc/tests/system_test/../../scripts/create_config.py 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -t 25
+    - python3 ../tests/system_test/system_test.py ./ -v --debug -r "PKCS11 TWO NODES" -d ./
