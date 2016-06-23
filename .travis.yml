@@ -12,7 +12,7 @@ install:
     - make dtc
     - make
     - make system_test
-    - pip install -r ../tests/system_test/requirements.txt
+    - sudo pip install -r ../tests/system_test/requirements.txt
 
 script:
     - make check
