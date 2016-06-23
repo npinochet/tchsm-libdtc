@@ -207,7 +207,7 @@ def get_keygen():
     proc_stdout, proc_stderr = keygen.communicate()
 
     if keygen.returncode != 0:
-        sys.stderr.write("ERROR: curve_keygen found a problem\n")
+        sys.stderr.write("ERROR: curve_keygen found a problem: " + proc_stderr + "\n")
 
         if keygen is not None:
             keygen.stdout.close()

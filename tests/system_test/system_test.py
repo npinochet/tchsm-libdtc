@@ -1029,7 +1029,7 @@ def main(argv=None):
     tests.append(TestSuite("DTC INSUFFICIENT THRESHOLD",
                            test_insuff_threshold, handler=HANDLER_DTC))
     tests.append(TestSuite("DTC TWO MASTERS ONE NODE",
-                           test_two_masters_one_nodes, handler=HANDLER_DTC, expected_value=1))
+                           test_two_masters_one_nodes, handler=HANDLER_DTC, expected_value=TEST_FAIL))
     tests.append(TestSuite("DTC TWO MASTERS TWO NODE",
                            test_two_masters_two_nodes, handler=HANDLER_DTC))
     tests.append(TestSuite("DTC MASTERS SIMULTANEOUS",
@@ -1038,7 +1038,7 @@ def main(argv=None):
                            test_two_masters_thres2_nodes3, handler=HANDLER_DTC))
 
     tests.append(TestSuite("PKCS11 ONE NODE",
-                           test_master_one_node, handler=HANDLER_PKCS11, expected_value=1))
+                           test_master_one_node, handler=HANDLER_PKCS11, expected_value=TEST_FAIL))
     tests.append(TestSuite("PKCS11 TWO NODES",
                            test_master_two_nodes, handler=HANDLER_PKCS11))
     tests.append(TestSuite("PKCS11 RUN TWICE",
@@ -1052,7 +1052,7 @@ def main(argv=None):
     tests.append(TestSuite("PKCS11 INSUFFICIENT THRESHOLD",
                            test_insuff_threshold, handler=HANDLER_PKCS11))
     tests.append(TestSuite("PKCS11 TWO MASTERS ONE NODE",
-                           test_two_masters_one_nodes, handler=HANDLER_PKCS11, expected_value=1))
+                           test_two_masters_one_nodes, handler=HANDLER_PKCS11, expected_value=TEST_FAIL))
     tests.append(TestSuite("PKCS11 TWO MASTERS TWO NODE",
                            test_two_masters_two_nodes, handler=HANDLER_PKCS11))
     tests.append(TestSuite("PKCS11 MASTERS SIMULTANEOUS",
