@@ -12,7 +12,7 @@ install:
     - make dtc
     - make
     - make system_test
-    - sudo apt-get install python3-pip
+    - sudo apt-get install -y python3-pip
     - sudo pip3 install -r ../tests/system_test/requirements.txt
 
 script:
