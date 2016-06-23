@@ -44,7 +44,7 @@ HANDLER_DTC = 1
 class TestSuite(object):
 
     def __init__(
-       self,
+        self,
        name,
        test_func,
        handler=None,
@@ -279,7 +279,7 @@ def test_one_node():
     status, output = subprocess.getstatusoutput(
         "python3 " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     proc, ret, mess = exec_node("node1")
     close_node(proc)
@@ -290,7 +290,7 @@ def test_two_nodes():
     status, output = subprocess.getstatusoutput(
         "python3 " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node1, ret1, mess1 = exec_node("node1")
     if ret1 == 1:
@@ -307,7 +307,7 @@ def test_opening_closing_node():
     status, output = subprocess.getstatusoutput(
         "python3 " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node, ret, mess = exec_node("node1")
     if ret == 1:
@@ -325,7 +325,7 @@ def test_open_close_with_node_open():
     status, output = subprocess.getstatusoutput(
         "python3 " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node1, ret1, mess1 = exec_node("node1")
     if ret1 == 1:
@@ -349,7 +349,7 @@ def test_stress_open_close():
     status, output = subprocess.getstatusoutput(
         "python3 " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     for i in range(0, 100):
         proc, ret, mess = exec_node("node1")
@@ -368,7 +368,7 @@ def test_stress_simultaneous():
         status, output = subprocess.getstatusoutput(
             "python3 " + CONFIG_CREATOR_PATH + " 127.0.0.1:" + str(port) + ":" + str(port + 1))
         if status != 0:
-            return 1, "ERROR: Configuration files could not be created."
+            return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
         proc, ret, mess = exec_node("node1")
         proc_array.append(proc)
@@ -390,10 +390,10 @@ def test_master_n_nodes(master_args, master_name, nb_of_nodes):
                                   str(port) + ":" + str(port + 1)
         port += 2
     config_creation_string += " -t " + str(MASTER_TIMEOUT)
-    print("CONFIG: " + config_creation_string)
+
     status, output = subprocess.getstatusoutput(config_creation_string)
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     open_nodes = []
     for i in range(0, nb_of_nodes):
@@ -427,7 +427,7 @@ def test_master_twice(master_args, master_name):
         "python3 " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -461,7 +461,7 @@ def test_three_nodes_one_down(master_args, master_name):
     status, output = subprocess.getstatusoutput(
         "python3 " + CONFIG_CREATOR_PATH + node_info)
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -504,7 +504,7 @@ def test_insuff_threshold_bordercase(master_args, master_name):
         "python3 " + CONFIG_CREATOR_PATH + config_data
     )
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc, node_ret, node_mess = exec_node("node1")
     if node_ret == 1:
@@ -529,7 +529,7 @@ def test_insuff_threshold(master_args, master_name):
         "python3 " + CONFIG_CREATOR_PATH + config_info
     )
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -574,7 +574,7 @@ def test_three_nodes_two_open(master_args, master_name):
         "python3 " + CONFIG_CREATOR_PATH + config_data
     )
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -603,7 +603,7 @@ def test_master_stress_open_close(master_args, master_name):
         "python3 " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -635,7 +635,7 @@ def test_stress_multiple_masters(master_args, master_name):
         "python3 " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -669,7 +669,7 @@ def test_cryptoki_wout_key():
         "python3 " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -720,7 +720,7 @@ def test_two_masters_one_nodes(master_args, master_name):
         "python3 " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -752,7 +752,7 @@ def test_two_masters_two_nodes(master_args, master_name):
         "python3 " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -790,7 +790,7 @@ def test_two_masters_simultaneous(master_args, master_name):
         "python3 " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -832,7 +832,7 @@ def test_two_masters_thres2_nodes3(master_args, master_name):
     status, output = subprocess.getstatusoutput(
         "python3 " + CONFIG_CREATOR_PATH + info)
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
