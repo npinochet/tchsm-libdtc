@@ -23,5 +23,3 @@ cd /tmp/libsodium-1.0.9/ && ./configure && make && sudo make install
 cd /tmp/zeromq-4.1.4 && ./configure --with-libsodium && make && sudo make install && sudo ldconfig
 
 cd /tmp/tchsm-libtc-master && mkdir build && cd build && cmake .. && sudo make install
-
-cd /tmp/botan && sudo rsync -av * /usr/local
