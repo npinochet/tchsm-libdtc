@@ -1,12 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import argparse
 import shutil
 import subprocess
 import sys
-from collections import OrderedDict
-from commands import getstatusoutput
 from os import chdir, environ
 from os.path import join, exists, split, abspath, isdir, isfile
 from tempfile import mkdtemp
@@ -32,9 +30,83 @@ CONFIG_CREATOR_PATH = ""
 NODE_RDY = "Both socket binded, node ready to talk with the Master."
 
 NODE_TIMEOUT = 5
-MASTER_TIMEOUT = 20
+MASTER_TIMEOUT = 25
 
 DEBUG = False
+
+TEST_SUCCESS = 0
+TEST_FAIL = 1
+
+HANDLER_PKCS11 = 0
+HANDLER_DTC = 1
+
+
+class TestSuite(object):
+
+    def __init__(
+        self,
+       name,
+       test_func,
+       handler=None,
+       expected_value=TEST_SUCCESS):
+        self.name = name
+        self.test_func = test_func
+        self.handler = handler
+        self.expected_value = expected_value
+
+    def run(self):
+        if self.handler == HANDLER_PKCS11:
+            return self.run_with_pkcs11()
+        elif self.handler == HANDLER_DTC:
+            return self.run_with_dtc()
+        elif self.handler is None:
+            return self.test_func()
+
+    def run_with_pkcs11(self):
+        """
+        Interface for running the tests on pkcs11_master_test, the python version
+
+        :return: Test return code and return message
+        """
+        dummy_file = create_dummy_file()
+
+        environ[
+            "PYKCS11LIB"] = "/home/danielaviv/Documentos/Daniel/tchsm-libdtc/build/src/cryptoki/libpkcs11.so"
+
+        master_args = [
+            "python3",
+            join(EXEC_PATH, "..", "tests/system_test/pkcs_11_test.py"),
+            "-c",
+            "-f",
+            dummy_file,
+            "-p",
+            "1234"]
+
+        ret, mess = self.test_func(master_args, "pkcs_11_test")
+
+        if ret != self.expected_value:
+            return 1, mess
+
+        return 0, mess
+
+    def run_with_dtc(self):
+        """
+        Interface for running the tests on dtc_master_test
+
+        :return: Test return code and return message
+        """
+        config_path = join(DUMP, "master.conf")
+        master_args = [join(
+            EXEC_PATH,
+            "tests/system_test/dtc_master_test"),
+            config_path]
+
+        ret, mess = self.test_func(master_args, "dtc_master_test")
+
+        if ret != self.expected_value:
+            return 1, mess
+
+        return 0, mess
 
 
 def erase_dump():
@@ -66,23 +138,35 @@ def exec_node(config):
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE)
     except OSError:
-        return node, 1, "ERROR: Exec could not be accesed >> " + EXEC_PATH + "/src/node"
+        return node, 1, "ERROR: Exec could not be accessed >> " + EXEC_PATH + "/src/node"
+
+    if node.returncode is not None:
+        return node, node.returncode, "ERROR: Node finished with return code >> " + str(node.returncode)
 
     timer = Timer(NODE_TIMEOUT, node.terminate)
     timer.start()
 
-    stderr_lines = iter(node.stderr.readline, "")
+    node_stderr = node.stderr
+    stderr_lines = iter(node_stderr.readline, "")
     for stderr_line in stderr_lines:
+        stderr_line_decoded = stderr_line.decode()
+
         if DEBUG:
-            sys.stdout.write("DEBUG::STDERR --> " + stderr_line)
-        if NODE_RDY in stderr_line:
+            if not (stderr_line_decoded.isspace() or (len(stderr_line) == 0)):
+                sys.stdout.write(
+                    "    DEBUG::STDERR --> " +
+                    stderr_line_decoded)
+        if NODE_RDY in stderr_line_decoded:
             break
+        if not timer.is_alive():
+            timer.cancel()
+            return node, 1, "FAILURE: Node timeout"
 
     if timer.is_alive():
         timer.cancel()
         return node, 0, ""
     else:
-        return node, 1, "FAILURE: Timeout"
+        return node, 1, "FAILURE: Node timeout"
 
 
 def close_node(node_proc):
@@ -127,7 +211,7 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE)
     except OSError:
-        return None, 1, "ERROR: Exec could not be accesed >> " + master_name
+        return None, 1, "ERROR: Exec could not be accessed >> " + master_name
 
     timer = Timer(MASTER_TIMEOUT, master.terminate)
     if master is not None:
@@ -144,7 +228,7 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
         return master, master.returncode, ""
     else:
         debug_output(stdout_data, stderr_data)
-        return master, 1, "FAILURE: Timeout"
+        return master, 1, "FAILURE: Master timeout"
 
 
 def close_master(master):
@@ -162,11 +246,13 @@ def create_dummy_file():
     """
     Creates a text file with a fixed string on it
 
-    :return: The file descriptor of the file
+    :return: The filename of the created file
     """
     fd = open("to_sign.txt", "w")
     fd.write(":)\n")
-    return fd
+    filename = fd.name
+    fd.close()
+    return filename
 
 
 def debug_output(stdout, stderr):
@@ -176,21 +262,24 @@ def debug_output(stdout, stderr):
     :param stdout: An output string
     :param stderr: An output string
     """
+    stdout_decoded = stdout.decode()
+    stderr_decoded = stderr.decode()
+
     if DEBUG:
-        for line in stdout.split("\n"):
-            if line != "":
-                print "DEBUG::STDOUT --> " + line
-        for line in stderr.split("\n"):
-            if line != "":
-                print "DEBUG::STDERR --> " + line
+        for line in stdout_decoded.strip().split("\n"):
+            if not (line.isspace() or line == ""):
+                sys.stdout.write("    DEBUG::STDOUT --> " + line + "\n")
+        for line in stderr_decoded.split("\n"):
+            if not (line.isspace() or line == ""):
+                sys.stdout.write("    DEBUG::STDERR --> " + line + "\n")
 
 
 # NODE ONLY TESTS
 def test_one_node():
-    status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
+    status, output = subprocess.getstatusoutput(
+        "python3 " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     proc, ret, mess = exec_node("node1")
     close_node(proc)
@@ -198,10 +287,10 @@ def test_one_node():
 
 
 def test_two_nodes():
-    status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
+    status, output = subprocess.getstatusoutput(
+        "python3 " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node1, ret1, mess1 = exec_node("node1")
     if ret1 == 1:
@@ -215,10 +304,10 @@ def test_two_nodes():
 
 
 def test_opening_closing_node():
-    status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
+    status, output = subprocess.getstatusoutput(
+        "python3 " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node, ret, mess = exec_node("node1")
     if ret == 1:
@@ -233,10 +322,10 @@ def test_opening_closing_node():
 
 
 def test_open_close_with_node_open():
-    status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
+    status, output = subprocess.getstatusoutput(
+        "python3 " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node1, ret1, mess1 = exec_node("node1")
     if ret1 == 1:
@@ -257,10 +346,10 @@ def test_open_close_with_node_open():
 
 
 def test_stress_open_close():
-    status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
+    status, output = subprocess.getstatusoutput(
+        "python3 " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     for i in range(0, 100):
         proc, ret, mess = exec_node("node1")
@@ -276,10 +365,10 @@ def test_stress_simultaneous():
     proc_array = []
 
     for port in range(2121, 2121 + 60, 2):
-        status, output = getstatusoutput(
-            "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:" + str(port) + ":" + str(port + 1))
+        status, output = subprocess.getstatusoutput(
+            "python3 " + CONFIG_CREATOR_PATH + " 127.0.0.1:" + str(port) + ":" + str(port + 1))
         if status != 0:
-            return 1, "ERROR: Configuration files could not be created."
+            return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
         proc, ret, mess = exec_node("node1")
         proc_array.append(proc)
@@ -294,17 +383,17 @@ def test_stress_simultaneous():
 
 # MASTER TESTS
 def test_master_n_nodes(master_args, master_name, nb_of_nodes):
-    config_creation_string = "python " + CONFIG_CREATOR_PATH
+    config_creation_string = "python3 " + CONFIG_CREATOR_PATH
     port = 2121
     for i in range(0, nb_of_nodes):
         config_creation_string += " 127.0.0.1:" + \
-            str(port) + ":" + str(port + 1)
+                                  str(port) + ":" + str(port + 1)
         port += 2
     config_creation_string += " -t " + str(MASTER_TIMEOUT)
 
-    status, output = getstatusoutput(config_creation_string)
+    status, output = subprocess.getstatusoutput(config_creation_string)
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     open_nodes = []
     for i in range(0, nb_of_nodes):
@@ -333,12 +422,12 @@ def test_master_two_nodes(master_args, master_name):
 
 def test_master_twice(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -t " + \
-        str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + config_data)
+                  str(MASTER_TIMEOUT)
+    status, output = subprocess.getstatusoutput(
+        "python3 " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -358,21 +447,21 @@ def test_master_twice(master_args, master_name):
         close_nodes([node_proc1, node_proc2])
         return master_ret, master_mess
 
-    master, master_ret, master_mess = exec_master(
+    master2, master_ret2, master_mess2 = exec_master(
         *fix_dtc_args(master_args, master_name, 2))
 
     close_nodes([node_proc1, node_proc2])
-    close_master(master)
-    return master_ret, master_mess
+    close_master(master2)
+    return master_ret2, master_mess2
 
 
 def test_three_nodes_one_down(master_args, master_name):
     node_info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126 -t " + \
-        str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + node_info)
+                str(MASTER_TIMEOUT)
+    status, output = subprocess.getstatusoutput(
+        "python3 " + CONFIG_CREATOR_PATH + node_info)
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -411,11 +500,11 @@ def test_three_nodes_one_down(master_args, master_name):
 
 def test_insuff_threshold_bordercase(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 -ct -th 0 -t " + str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + config_data
+    status, output = subprocess.getstatusoutput(
+        "python3 " + CONFIG_CREATOR_PATH + config_data
     )
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc, node_ret, node_mess = exec_node("node1")
     if node_ret == 1:
@@ -436,11 +525,11 @@ def test_insuff_threshold_bordercase(master_args, master_name):
 def test_insuff_threshold(master_args, master_name):
     node_info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126"
     config_info = node_info + " -ct -th 3 -t " + str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + config_info
+    status, output = subprocess.getstatusoutput(
+        "python3 " + CONFIG_CREATOR_PATH + config_info
     )
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -461,9 +550,9 @@ def test_insuff_threshold(master_args, master_name):
         *fix_dtc_args(master_args, master_name, 3, 3))
     close_master(master)
 
-    if master_ret == 0:
-        close_nodes([node_proc1, node_proc2])
-        return 1, "FAILURE: The master should not be able to sign."
+    if master_ret != 0:
+        close_nodes([node_proc1, node_proc2, node_proc3])
+        return master_ret, master_mess
 
     close_node(node_proc3)
 
@@ -481,11 +570,11 @@ def test_insuff_threshold(master_args, master_name):
 def test_three_nodes_two_open(master_args, master_name):
     node_info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126"
     config_data = node_info + " -t " + str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + config_data
+    status, output = subprocess.getstatusoutput(
+        "python3 " + CONFIG_CREATOR_PATH + config_data
     )
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -509,12 +598,12 @@ def test_three_nodes_two_open(master_args, master_name):
 
 def test_master_stress_open_close(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -t " + \
-        str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + config_data)
+                  str(MASTER_TIMEOUT)
+    status, output = subprocess.getstatusoutput(
+        "python3 " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -541,12 +630,12 @@ def test_master_stress_open_close(master_args, master_name):
 
 def test_stress_multiple_masters(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -m 10 -t " + \
-        str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + config_data)
+                  str(MASTER_TIMEOUT)
+    status, output = subprocess.getstatusoutput(
+        "python3 " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -575,12 +664,12 @@ def test_stress_multiple_masters(master_args, master_name):
 
 def test_cryptoki_wout_key():
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -t " + \
-        str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + config_data)
+                  str(MASTER_TIMEOUT)
+    status, output = subprocess.getstatusoutput(
+        "python3 " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -594,12 +683,12 @@ def test_cryptoki_wout_key():
 
     dummy_file = create_dummy_file()
     master_args = [join(
-                   EXEC_PATH,
-                   "tests/system_test/pkcs_11_test"),
-                   "-cf",
-                   dummy_file.name,
-                   "-p",
-                   "1234"]
+        EXEC_PATH,
+        "tests/system_test/pkcs_11_test"),
+        "-cf",
+        dummy_file,
+        "-p",
+        "1234"]
     master_name = "pkcs_11_test"
     master, master_ret, master_mess = exec_master(
         *fix_dtc_args(master_args, master_name, 2))
@@ -610,16 +699,15 @@ def test_cryptoki_wout_key():
         return master_ret, master_mess
 
     master_args = [join(
-                   EXEC_PATH,
-                   "tests/system_test/pkcs_11_test"),
-                   "-f",
-                   dummy_file.name,
-                   "-p",
-                   "1234"]
+        EXEC_PATH,
+        "tests/system_test/pkcs_11_test"),
+        "-f",
+        dummy_file,
+        "-p",
+        "1234"]
     master_name = "pkcs_11_test"
     master, master_ret, master_mess = exec_master(
         *fix_dtc_args(master_args, master_name, 2))
-    dummy_file.close()
 
     close_nodes([node_proc1, node_proc2])
     close_master(master)
@@ -628,11 +716,11 @@ def test_cryptoki_wout_key():
 
 def test_two_masters_one_nodes(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 -m 2 -t " + str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + config_data)
+    status, output = subprocess.getstatusoutput(
+        "python3 " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -659,12 +747,12 @@ def test_two_masters_one_nodes(master_args, master_name):
 
 def test_two_masters_two_nodes(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -m 2 -t " + \
-        str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + config_data)
+                  str(MASTER_TIMEOUT)
+    status, output = subprocess.getstatusoutput(
+        "python3 " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -681,29 +769,28 @@ def test_two_masters_two_nodes(master_args, master_name):
     master, master_ret, master_mess = exec_master(
         fixed_args, master_name, "cryptoki1.conf")
     close_master(master)
-
     if master_ret != 0:
         close_nodes([node_proc1, node_proc2])
         return master_ret, master_mess
 
     fixed_args, master_name = fix_dtc_args(
         master_args, master_name, 2, index=2)
-    master, master_ret, master_mess = exec_master(
+    master2, master_ret2, master_mess2 = exec_master(
         fixed_args, master_name, "cryptoki2.conf")
 
     close_nodes([node_proc1, node_proc2])
-    close_master(master)
-    return master_ret, master_mess
+    close_master(master2)
+    return master_ret2, master_mess2
 
 
 def test_two_masters_simultaneous(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -m 2 -t " + \
-        str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
-        "python " + CONFIG_CREATOR_PATH + config_data)
+                  str(MASTER_TIMEOUT)
+    status, output = subprocess.getstatusoutput(
+        "python3 " + CONFIG_CREATOR_PATH + config_data)
 
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -741,10 +828,11 @@ def test_two_masters_simultaneous(master_args, master_name):
 
 def test_two_masters_thres2_nodes3(master_args, master_name):
     info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126 -m 2 -t " + \
-        str(MASTER_TIMEOUT)
-    status, output = getstatusoutput("python " + CONFIG_CREATOR_PATH + info)
+           str(MASTER_TIMEOUT)
+    status, output = subprocess.getstatusoutput(
+        "python3 " + CONFIG_CREATOR_PATH + info)
     if status != 0:
-        return 1, "ERROR: Configuration files could not be created."
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
     node_proc1, node_ret1, node_mess1 = exec_node("node1")
     if node_ret1 == 1:
@@ -779,44 +867,6 @@ def test_two_masters_thres2_nodes3(master_args, master_name):
         return 1, "FAILURE: The test should fail, as it should not generate keys."
 
 
-# INTERFACES FOR DIFFERENT TESTS
-def perform_test_on_pkcs11(test):
-    """
-    Interface for running the tests on pkcs11_master_test
-
-    :param test: Test to be run
-    :return: Test return code and return message
-    """
-    dummy_file = create_dummy_file()
-    master_args = [join(
-                   EXEC_PATH,
-                   "tests/system_test/pkcs_11_test"),
-                   "-cf",
-                   dummy_file.name,
-                   "-p",
-                   "1234"]
-    ret, mess = test(master_args, "pkcs_11_test")
-
-    dummy_file.close()
-    return ret, mess
-
-
-def perform_test_on_dtc(test):
-    """
-    Interface for running the tests on dtc_master_test
-
-    :param test: Test to be run
-    :return: Test return code and return message
-    """
-    config_path = join(DUMP, "master.conf")
-    master_args = [join(
-                   EXEC_PATH,
-                   "tests/system_test/dtc_master_test"),
-                   config_path]
-
-    return test(master_args, "dtc_master_test")
-
-
 def pretty_print(index, name, result, mess, runtime, verbosity):
     """
     Prints legible information of the test output
@@ -830,10 +880,11 @@ def pretty_print(index, name, result, mess, runtime, verbosity):
     """
     if result == 0:
         if verbosity:
-            print str(index) + ".- " + name + " passed! Run time: " + str(runtime)[:6] + " seconds."
+            sys.stdout.write(
+                str(index) + ".- " + name + " passed! Run time: " + str(runtime)[:6] + " seconds.\n")
     else:
-        print str(index) + ".- " + name + " failed!"
-        print "      " + str(mess)
+        sys.stdout.write(str(index) + ".- " + name + " failed!\n")
+        sys.stdout.write("    " + str(mess) + "\n")
 
 
 def fix_dtc_args(
@@ -942,98 +993,96 @@ def main(argv=None):
     global DEBUG
     DEBUG = args.debug
 
-    print(" --- Testing starting --- \n")
+    sys.stdout.write(" --- Testing starting --- \n\n")
 
-    tests = OrderedDict()
+    tests = list()
+    tests.append(TestSuite("ONE NODE", test_one_node))
+    tests.append(TestSuite("TWO NODE", test_two_nodes))
+    tests.append(TestSuite("OPEN CLOSED NODE", test_opening_closing_node))
+    tests.append(
+        TestSuite(
+            "OPEN CLOSE w/ NODE OPEN",
+            test_open_close_with_node_open))
 
-    tests["ONE NODE"] = (test_one_node, None)
-    tests["TWO NODE"] = (test_two_nodes, None)
-    tests["OPEN CLOSED NODE"] = (test_opening_closing_node, None)
-    tests["OPEN CLOSE w/ NODE OPEN"] = (
-        test_open_close_with_node_open, None)
+    tests.append(
+        TestSuite(
+            "DTC ONE NODE",
+            test_master_one_node,
+            handler=HANDLER_DTC,
+            expected_value=1))
+    tests.append(
+        TestSuite(
+            "DTC TWO NODES",
+            test_master_two_nodes,
+            handler=HANDLER_DTC))
+    tests.append(
+        TestSuite(
+            "DTC RUN TWICE",
+            test_master_twice,
+            handler=HANDLER_DTC))
+    tests.append(TestSuite("DTC THREE NODES, ONE FALLS",
+                           test_three_nodes_one_down, handler=HANDLER_DTC))
+    tests.append(TestSuite("DTC THREE NODES, TWO OPEN",
+                           test_three_nodes_two_open, handler=HANDLER_DTC))
+    tests.append(TestSuite("DTC INSUFFICIENT THRESHOLD BORDER CASE",
+                           test_insuff_threshold_bordercase, handler=HANDLER_DTC))
+    tests.append(TestSuite("DTC INSUFFICIENT THRESHOLD",
+                           test_insuff_threshold, handler=HANDLER_DTC))
+    tests.append(TestSuite("DTC TWO MASTERS ONE NODE",
+                           test_two_masters_one_nodes, handler=HANDLER_DTC, expected_value=TEST_FAIL))
+    tests.append(TestSuite("DTC TWO MASTERS TWO NODE",
+                           test_two_masters_two_nodes, handler=HANDLER_DTC))
+    tests.append(TestSuite("DTC MASTERS SIMULTANEOUS",
+                           test_two_masters_simultaneous, handler=HANDLER_DTC))
+    tests.append(TestSuite("DTC MASTERS:2 THRES:2 NODES:3",
+                           test_two_masters_thres2_nodes3, handler=HANDLER_DTC))
 
-    tests["DTC ONE NODE"] = (perform_test_on_dtc, test_master_one_node)
-    tests["DTC TWO NODES"] = (perform_test_on_dtc, test_master_two_nodes)
-    tests["DTC RUN TWICE"] = (perform_test_on_dtc, test_master_twice)
-    tests["DTC THREE NODES, ONE FALLS"] = (
-        perform_test_on_dtc,
-        test_three_nodes_one_down)
-    tests["DTC THREE NODES, TWO OPEN"] = (
-        perform_test_on_dtc,
-        test_three_nodes_two_open)
-    tests["DTC INSUFFICIENT THRESHOLD BORDER CASE"] = (
-        perform_test_on_dtc,
-        test_insuff_threshold_bordercase)
-    tests["DTC INSUFFICIENT THRESHOLD"] = (
-        perform_test_on_dtc, test_insuff_threshold)
-    tests["DTC TWO MASTERS ONE NODE"] = (
-        perform_test_on_dtc,
-        test_two_masters_one_nodes)
-    tests["DTC TWO MASTERS TWO NODE"] = (
-        perform_test_on_dtc,
-        test_two_masters_two_nodes)
-    tests["DTC MASTERS SIMULTANEOUS"] = (
-        perform_test_on_dtc,
-        test_two_masters_simultaneous)
-    tests["DTC MASTERS:2 THRES:2 NODES:3"] = (
-        perform_test_on_dtc,
-        test_two_masters_thres2_nodes3)
+    tests.append(TestSuite("PKCS11 ONE NODE",
+                           test_master_one_node, handler=HANDLER_PKCS11, expected_value=TEST_FAIL))
+    tests.append(TestSuite("PKCS11 TWO NODES",
+                           test_master_two_nodes, handler=HANDLER_PKCS11))
+    tests.append(TestSuite("PKCS11 RUN TWICE",
+                           test_master_twice, handler=HANDLER_PKCS11))
+    tests.append(TestSuite("PKCS11 THREE NODES, ONE FALLS",
+                           test_three_nodes_one_down, handler=HANDLER_PKCS11))
+    tests.append(TestSuite("PKCS11 THREE NODES, TWO OPEN",
+                           test_three_nodes_two_open, handler=HANDLER_PKCS11))
+    tests.append(TestSuite("PKCS11 INSUFFICIENT THRESHOLD BORDER CASE",
+                           test_insuff_threshold_bordercase, handler=HANDLER_PKCS11))
+    tests.append(TestSuite("PKCS11 INSUFFICIENT THRESHOLD",
+                           test_insuff_threshold, handler=HANDLER_PKCS11))
+    tests.append(TestSuite("PKCS11 TWO MASTERS ONE NODE",
+                           test_two_masters_one_nodes, handler=HANDLER_PKCS11, expected_value=TEST_FAIL))
+    tests.append(TestSuite("PKCS11 TWO MASTERS TWO NODE",
+                           test_two_masters_two_nodes, handler=HANDLER_PKCS11))
+    tests.append(TestSuite("PKCS11 MASTERS SIMULTANEOUS",
+                           test_two_masters_simultaneous, handler=HANDLER_PKCS11))
+    tests.append(TestSuite("PKCS11 MASTERS:2 THRES:2 NODES:3",
+                           test_two_masters_thres2_nodes3, handler=HANDLER_PKCS11))
+    tests.append(TestSuite("PKCS11 SAME DATABASE", test_cryptoki_wout_key))
 
-    tests["PKCS11 ONE NODE"] = (
-        perform_test_on_pkcs11,
-        test_master_one_node)
-    tests["PKCS11 TWO NODES"] = (
-        perform_test_on_pkcs11,
-        test_master_two_nodes)
-    tests["PKCS11 RUN TWICE"] = (
-        perform_test_on_pkcs11,
-        test_master_twice)
-    tests["PKCS11 THREE NODES, ONE FALLS"] = (
-        perform_test_on_pkcs11,
-        test_three_nodes_one_down)
-    tests["PKCS11 THREE NODES, TWO OPEN"] = (
-        perform_test_on_pkcs11,
-        test_three_nodes_two_open)
-    tests["PKCS11 INSUFFICIENT THRESHOLD BORDER CASE"] = (
-        perform_test_on_pkcs11,
-        test_insuff_threshold_bordercase)
-    tests["PKCS11 INSUFFICIENT THRESHOLD"] = (
-        perform_test_on_pkcs11, test_insuff_threshold)
-    tests["PKCS11 TWO MASTERS ONE NODE"] = (
-        perform_test_on_pkcs11,
-        test_two_masters_one_nodes)
-    tests["PKCS11 TWO MASTERS TWO NODE"] = (
-        perform_test_on_pkcs11,
-        test_two_masters_two_nodes)
-    tests["PKCS11 MASTERS SIMULTANEOUS"] = (
-        perform_test_on_pkcs11,
-        test_two_masters_simultaneous)
-    tests["PKCS11 MASTERS:2 THRES:2 NODES:3"] = (
-        perform_test_on_pkcs11,
-        test_two_masters_thres2_nodes3)
-    tests["PKCS11 SAME DATABASE"] = (test_cryptoki_wout_key, None)
+    stress_tests = list()
+    stress_tests.append(
+        TestSuite(
+            "NODE STRESS OPEN CLOSE",
+            test_stress_open_close))
+    stress_tests.append(
+        TestSuite(
+            "NODE STRESS SIMULTANEOUS",
+            test_stress_simultaneous))
 
-    stress_tests = OrderedDict()
-    stress_tests["NODE STRESS OPEN CLOSE"] = (test_stress_open_close, None)
-    stress_tests["NODE STRESS SIMULTANEOUS"] = (test_stress_simultaneous, None)
+    stress_tests.append(TestSuite("DTC STRESS SAME NODE",
+                                  test_master_stress_open_close, handler=HANDLER_DTC))
+    stress_tests.append(TestSuite("DTC STRESS MULTIPLE MASTERS",
+                                  test_stress_multiple_masters, handler=HANDLER_DTC))
 
-    stress_tests["DTC STRESS SAME NODE"] = (
-        perform_test_on_dtc,
-        test_master_stress_open_close)
-    stress_tests["DTC STRESS MULTIPLE MASTERS"] = (
-        perform_test_on_dtc,
-        test_stress_multiple_masters)
-
-    stress_tests["PKCS11 STRESS SAME NODE"] = (
-        perform_test_on_pkcs11,
-        test_master_stress_open_close)
-    stress_tests["PKCS11 STRESS MULTIPLE MASTERS"] = (
-        perform_test_on_pkcs11,
-        test_stress_multiple_masters)
+    stress_tests.append(TestSuite("PKCS11 STRESS SAME NODE",
+                                  test_master_stress_open_close, handler=HANDLER_PKCS11))
+    stress_tests.append(TestSuite("PKCS11 STRESS MULTIPLE MASTERS",
+                                  test_stress_multiple_masters, handler=HANDLER_PKCS11))
 
     if args.with_stress_tests:
-        for k, v in stress_tests.iteritems():
-            tests[k] = v
+        tests.extend(stress_tests)
 
     tests_passed = 0
     tests_run = 0
@@ -1041,13 +1090,11 @@ def main(argv=None):
 
     dump_path = abspath(args.dump_path)
     if not exists(dump_path):
-        print "ERROR: Dump path doesn't exists >> " + dump_path
+        sys.stdout("ERROR: Dump path doesn't exists >> " + dump_path + "\n")
+        sys.exit(1)
 
-    for index, test_info in enumerate(tests.iteritems()):
-        name, test = test_info
-        func, func_args = test
-
-        if args.run_only in name:
+    for index, test_suite in enumerate(tests):
+        if args.run_only in test_suite.name:
             global DUMP
             dump_prefix = "libdtc_test_" + str(index + 1) + "_"
             DUMP = mkdtemp(prefix=dump_prefix, dir=dump_path)
@@ -1055,12 +1102,9 @@ def main(argv=None):
 
             start = time()
             if DEBUG:
-                print "\nRunning: " + name + " -->"
+                sys.stdout.write("\nRunning: " + test_suite.name + " -->\n")
 
-            if func_args is None:
-                result, mess = func()
-            else:
-                result, mess = func(func_args)
+            result, mess = test_suite.run()
 
             end = time()
             total_time += end - start
@@ -1075,7 +1119,7 @@ def main(argv=None):
 
             pretty_print(
                 index + 1,
-                name,
+                test_suite.name,
                 result,
                 mess,
                 end - start,
@@ -1086,15 +1130,16 @@ def main(argv=None):
                 break
 
     if tests_run == 0:
-        print(" --- No tests run ---")
+        sys.stdout.write(" --- No tests run ---\n")
     else:
         test_percentage = str(
             100 * float(tests_passed) / float(tests_run))[:5] + "%"
         passing_string = "|" * tests_passed + \
-            " " * (tests_run - tests_passed)
-        print("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_run) +
-              " (" + test_percentage + "): [" + passing_string + "] ---")
-        print(" --- Total run time: " + str(total_time)[:6] + " seconds ---")
+                         " " * (tests_run - tests_passed)
+        sys.stdout.write("\n --- Tests passed " + str(tests_passed) + "/" + str(tests_run) +
+                         " (" + test_percentage + "): [" + passing_string + "] ---\n")
+        sys.stdout.write(
+            " --- Total run time: " + str(total_time)[:6] + " seconds ---\n")
 
     return tests_run - tests_passed
 

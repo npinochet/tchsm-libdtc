@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import argparse
@@ -201,13 +201,13 @@ def get_keygen():
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE)
     except OSError:
-        sys.stderr.write("ERROR: Exec could not be accesed >> curve_keygen\n")
+        sys.stderr.write("ERROR: Exec could not be accessed >> curve_keygen\n")
         sys.exit(1)
 
     proc_stdout, proc_stderr = keygen.communicate()
 
     if keygen.returncode != 0:
-        sys.stderr.write("ERROR: curve_keygen found a problem\n")
+        sys.stderr.write("ERROR: curve_keygen found a problem: " + proc_stderr.decode() + "\n")
 
         if keygen is not None:
             keygen.stdout.close()
