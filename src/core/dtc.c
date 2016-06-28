@@ -13,7 +13,8 @@
 
 #include <tc.h>
 
-#include "include/dtc.h"
+#include <dtc.h>
+#include "logger.h"
 #include "messages.h"
 #include "structs.h"
 #include "utilities.h"

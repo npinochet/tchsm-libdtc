@@ -6,8 +6,8 @@
 
 #include <json.h>
 
-#include "logger/logger.h"
-#include "messages.h"
+#include "include/logger.h"
+#include "include/messages.h"
 
 // TODO(fmontoto) Helper method to check valid versions.
 

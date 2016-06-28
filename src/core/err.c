@@ -1,4 +1,4 @@
-#include "include/dtc.h"
+#include <dtc.h>
 
 const char *err_msgs[] = {
     "Not an error.",

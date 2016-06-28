@@ -19,7 +19,7 @@ along with PKCS11-TsCrypto.  If not, see <http://www.gnu.org/licenses/>.
 #include <cstring>
 #include <cstdlib>
 
-#include <Token.h>
+#include "Token.h"
 #include "CryptoObject.h"
 #include "Database.h"
 #include "TcbError.h"

@@ -32,20 +32,19 @@ include(FindTCLib)
 find_package(TCLib REQUIRED)
 include_directories(${TCLIB_INCLUDE_DIRS})
 
+include_directories(${COMMON_INCLUDE_DIRS})
+
 message(STATUS "TCLIB: ${TCLIB_INCLUDE_DIRS}")
 
-set(NODE_FILES
+set(NODE_COMMON_FILES
     blocking_sql3.h
     database.c
     database.h
-    err.c
-    logger/logger.h
-    messages.c
-    messages.h
-    structs.c
-    structs.h
-    utilities.c
-    utilities.h)
+    )
+
+add_library(node_common STATIC ${NODE_COMMON_FILES})
+target_link_libraries(node_common common)
+set_target_properties(node_common PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 add_executable(node node.c)
 
@@ -57,14 +56,14 @@ if(CMAKE_THREAD_LIBS_INIT)
     target_link_libraries(node "${CMAKE_THREAD_LIBS_INIT}")
 endif()
 
-target_link_libraries(node ${LIBCONFIG_LIBRARIES}
+target_link_libraries(node common
+                           node_common
+                           ${LIBCONFIG_LIBRARIES}
                            ${ZEROMQ_LIBRARIES}
                            ${LIBSODIUM_LIBRARIES}
                            ${JSON-C_LIBRARIES}
                            ${TCLIB_LIBRARIES}
                            ${SQLITE3_LIBRARIES}
                            ${LIBUUID_LIBRARIES})
-
-target_link_libraries(node dtc)
 
 install(TARGETS node DESTINATION bin)
