@@ -2,7 +2,7 @@
 
 #include <check.h>
 
-#include "../src/messages.h"
+#include "messages.h"
 
 char *TEST_INSTANCE_ID = "instance_01";
 char *TEST_KEY_ID = "key_id_01";

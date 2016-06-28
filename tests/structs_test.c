@@ -1,6 +1,6 @@
 #include <check.h>
 
-#include "../src/structs.h"
+#include "structs.h"
 
 START_TEST(buffer_simple_timeout)
 {
