@@ -43,8 +43,8 @@ set(COMMON_FILES
 set(DTC_FILES
         dtc.c)
 
-
 add_library(common STATIC ${COMMON_FILES})
+set_target_properties(common PROPERTIES POSITION_INDEPENDENT_CODE ON)
 add_library(dtc SHARED ${DTC_FILES})
 
 if(THREADS_HAVE_PTHREAD_ARG)
@@ -66,4 +66,3 @@ target_link_libraries(dtc common
 target_include_directories(dtc PUBLIC include)
 
 install(TARGETS dtc DESTINATION lib)
-install(FILES include/dtc.h DESTINATION include)
