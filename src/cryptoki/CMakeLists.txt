@@ -67,4 +67,3 @@ add_library(pkcs11 SHARED pkcs11.cpp ${HSM_SRC})
 target_link_libraries(pkcs11 dtc ${SQLITE3_LIBRARIES} ${BOTAN_LIBRARIES} ${LIBCONFIG_LIBRARIES} ${LIBUUID_LIBRARIES})
 
 install(TARGETS pkcs11 DESTINATION lib)
-install(FILES ./cryptoki.conf DESTINATION etc)
