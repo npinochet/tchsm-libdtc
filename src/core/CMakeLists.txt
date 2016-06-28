@@ -31,6 +31,7 @@ endif()
 include(FindTCLib)
 find_package(TCLib REQUIRED)
 include_directories(${TCLIB_INCLUDE_DIRS})
+include_directories("../include")
 
 message(STATUS "TCLIB: ${TCLIB_INCLUDE_DIRS}")
 
