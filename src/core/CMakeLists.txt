@@ -68,6 +68,5 @@ target_link_libraries(dtc common
                           ${LIBUUID_LIBRARIES})
 
 target_include_directories(common PUBLIC include)
-message(STATUS "HOLI: ${COMMON_INCLUDE_DIRS}")
 
 install(TARGETS dtc DESTINATION lib)
