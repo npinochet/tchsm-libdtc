@@ -37,7 +37,6 @@ message(STATUS "TCLIB: ${TCLIB_INCLUDE_DIRS}")
 
 set(COMMON_FILES
         err.c
-        include/err.h
         messages.c
         include/messages.h
         utilities.c
@@ -68,6 +67,7 @@ target_link_libraries(dtc common
                           ${SQLITE3_LIBRARIES}
                           ${LIBUUID_LIBRARIES})
 
-target_include_directories(common PUBLIC include)
+target_include_directories(common PUBLIC include ../include)
+target_include_directories(dtc PUBLIC ../include)
 
 install(TARGETS dtc DESTINATION lib)
