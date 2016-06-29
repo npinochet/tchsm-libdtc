@@ -144,7 +144,7 @@ START_TEST(serialize_unserialize_store_key_ack) {
     operation_request.args = &com_args;
 
     ret = serialize_op_req(&operation_request, &output);
-    ck_assert_gt(ret, 0);
+    ck_assert_int_gt(ret, 0);
 
     unserialized_op_req = unserialize_op_req(output, ret);
 
