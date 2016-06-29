@@ -27,7 +27,7 @@ DUMP = ""
 EXEC_PATH = ""
 CONFIG_CREATOR_PATH = ""
 
-NODE_RDY = "Both socket binded, node ready to talk with the Master."
+NODE_RDY = "Both sockets bound, node ready to talk with the Master."
 
 NODE_TIMEOUT = 5
 MASTER_TIMEOUT = 25

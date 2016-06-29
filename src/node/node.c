@@ -835,7 +835,7 @@ static struct communication_objects *create_and_bind_sockets(
     ret_value = zmq_bind(router_socket, bind_buff);
     EXIT_ON_FALSE(!ret_value, "Bind failed at: %s.", bind_buff);
 
-    LOG(LOG_LVL_NOTI, "Both socket binded, node ready to talk with the Master.");
+    LOG(LOG_LVL_NOTI, "Both sockets bound, node ready to talk with the Master.");
     return ret_val;
 }
 
