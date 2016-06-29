@@ -63,12 +63,12 @@ target_link_libraries(common ${LIBCONFIG_LIBRARIES}
                              ${ZEROMQ_LIBRARIES})
 
 target_link_libraries(dtc common
-                          ${LIBCONFIG_LIBRARIES}
-                          ${ZEROMQ_LIBRARIES}
-                          ${LIBSODIUM_LIBRARIES}
                           ${JSON-C_LIBRARIES}
+                          ${LIBCONFIG_LIBRARIES}
+                          ${LIBSODIUM_LIBRARIES}
+                          ${SQLITE3_LIBRARIES}
                           ${TCLIB_LIBRARIES}
-                          ${SQLITE3_LIBRARIES})
+                          ${ZEROMQ_LIBRARIES})
 
 target_include_directories(common PUBLIC include ../include)
 target_include_directories(dtc PUBLIC ../include)
