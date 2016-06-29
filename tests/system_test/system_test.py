@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import sys
 from os import chdir, environ
-from os.path import join, exists, split, abspath, isdir, isfile
+from os.path import join, exists, split, abspath, isdir, isfile, dirname
 from tempfile import mkdtemp
 from threading import Timer
 from time import time
@@ -123,22 +123,24 @@ def exec_node(config):
     :param config: Path of the configuration file
     :return: Returns the node process, the return code and a return message
     """
+    NODE_BUILD_PATH = "src/node/tchsm_node"
+    NODE_PATH = join(EXEC_PATH, NODE_BUILD_PATH)
     if not isdir(EXEC_PATH):
         return None, 1, "ERROR: Path doesn't exists >> " + EXEC_PATH
 
-    if not isdir(join(EXEC_PATH, "src")):
-        return None, 1, "ERROR: Path doesn't exists >> " + EXEC_PATH + "/src"
+    if not isdir(dirname(NODE_PATH)):
+        return None, 1, "ERROR: Path doesn't exists >> " + dirname(NODE_PATH)
 
     node = None
     try:
         node = subprocess.Popen(
-            [EXEC_PATH + "/src/node/node",
+            [NODE_PATH,
              "-c",
              config + ".conf"],
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE)
     except OSError:
-        return node, 1, "ERROR: Exec could not be accessed >> " + EXEC_PATH + "/src/node"
+        return node, 1, "ERROR: Exec could not be accessed >> " + EXEC_PATH + NODE_BUILD_PATH
 
     if node.returncode is not None:
         return node, node.returncode, "ERROR: Node finished with return code >> " + str(node.returncode)

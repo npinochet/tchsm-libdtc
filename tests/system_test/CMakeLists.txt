@@ -11,5 +11,6 @@ add_executable(pkcs_11_test pkcs_11_test.c)
 target_link_libraries(dtc_master_test dtc m ${REALTIME_LIBRARIES})
 target_link_libraries(pkcs_11_test pkcs11 m ${REALTIME_LIBRARIES})
 
-add_dependencies(system_test dtc_master_test)
-add_dependencies(system_test pkcs_11_test)
+add_dependencies(system_test dtc_master_test
+                             pkcs_11_test
+                             tchsm_node)
