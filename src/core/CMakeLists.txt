@@ -68,8 +68,7 @@ target_link_libraries(dtc common
                           ${LIBSODIUM_LIBRARIES}
                           ${JSON-C_LIBRARIES}
                           ${TCLIB_LIBRARIES}
-                          ${SQLITE3_LIBRARIES}
-                          ${LIBUUID_LIBRARIES})
+                          ${SQLITE3_LIBRARIES})
 
 target_include_directories(common PUBLIC include ../include)
 target_include_directories(dtc PUBLIC ../include)
