@@ -3,7 +3,6 @@
 
 #include <libconfig.h>
 
-#include "logger/logger.h"
 
 /**
  * Auxiliary function to read an uint16_t from a config_setting_t, it's read

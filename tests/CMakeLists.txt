@@ -6,6 +6,9 @@ include_directories(${TCLIB_INCLUDE_DIRS})
 find_package(CHECK REQUIRED)
 include_directories(${CHECK_INCLUDE_DIRS})
 
+include_directories(${COMMON_INCLUDE_DIRS})
+include_directories(${NODE_COMMON_INCLUDE_DIRS})
+
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     set(REALTIME_LIBRARIES "rt")
 endif()
@@ -20,7 +23,7 @@ set(tests
 
 foreach(test ${tests})
     add_executable(${test} ${test}.c)
-    target_link_libraries(${test} ${CHECK_LIBRARIES} dtc  m ${REALTIME_LIBRARIES})
+    target_link_libraries(${test} ${CHECK_LIBRARIES} dtc node_common m ${REALTIME_LIBRARIES})
 
     add_test(NAME ${test} COMMAND ${test})
 

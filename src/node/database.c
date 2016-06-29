@@ -7,11 +7,13 @@
 #include <string.h>
 
 #include <sqlite3.h>
-#include "database.h"
+
+#include <dtc.h>
+
 //TODO do not use this anymore.
 #include "blocking_sql3.h"
-#include "include/dtc.h"
-#include "logger/logger.h"
+#include "database.h"
+#include "logger.h"
 #include "utilities.h"
 
 struct database_conn {

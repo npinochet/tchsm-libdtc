@@ -7,11 +7,11 @@ set(MIN_PIN_LEN 3)
 set(MAX_PIN_LEN 10)
 
 configure_file (
-  "${PROJECT_SOURCE_DIR}/src/cryptoki/hsm/config.h.in"
-  "${PROJECT_BINARY_DIR}/src/cryptoki/hsm/config.h"
+  "${PROJECT_SOURCE_DIR}/src/cryptoki/config.h.in"
+  "${PROJECT_BINARY_DIR}/src/cryptoki/config.h"
   )
 
-include_directories("${PROJECT_BINARY_DIR}/src/cryptoki/hsm")
+#include_directories("${PROJECT_BINARY_DIR}/src/cryptoki/hsm")
 include_directories("${PROJECT_SOURCE_DIR}/src/include")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
@@ -36,31 +36,30 @@ include_directories(${BOTAN_INCLUDE_DIRS})
 
 find_package(TCLib REQUIRED)
 include_directories(${TCLIB_INCLUDE_DIRS})
-    
+
 include_directories("cryptoki_compat")
-include_directories("hsm")
 
 set(HSM_SRC
-  hsm/Database.cpp
-  hsm/Database.h
-  hsm/Session.cpp
-  hsm/Session.h
-  hsm/Slot.cpp
-  hsm/Slot.h
-  hsm/TcbError.cpp
-  hsm/TcbError.h
-  hsm/Token.cpp
-  hsm/Token.h
-  hsm/Configuration.cpp
-  hsm/Configuration.h
-  hsm/CryptoObject.cpp
-  hsm/CryptoObject.h
-  hsm/Application.cpp
-  hsm/Application.h
-  hsm/Mutex.cpp
-  hsm/Mutex.h
-  hsm/OSMutex.cpp
-  hsm/OSMutex.h
+  Database.cpp
+  Database.h
+  Session.cpp
+  Session.h
+  Slot.cpp
+  Slot.h
+  TcbError.cpp
+  TcbError.h
+  Token.cpp
+  Token.h
+  Configuration.cpp
+  Configuration.h
+  CryptoObject.cpp
+  CryptoObject.h
+  Application.cpp
+  Application.h
+  Mutex.cpp
+  Mutex.h
+  OSMutex.cpp
+  OSMutex.h
   )
 
 
@@ -68,4 +67,3 @@ add_library(pkcs11 SHARED pkcs11.cpp ${HSM_SRC})
 target_link_libraries(pkcs11 dtc ${SQLITE3_LIBRARIES} ${BOTAN_LIBRARIES} ${LIBCONFIG_LIBRARIES} ${LIBUUID_LIBRARIES})
 
 install(TARGETS pkcs11 DESTINATION lib)
-install(FILES ./cryptoki.conf DESTINATION etc)

@@ -3,9 +3,9 @@
 #include <string.h>
 #include <math.h>
 
-#include "logger/logger.h"
+#include "logger.h"
 
-#include "include/dtc.h"
+#include <include/dtc.h>
 
 int main(int argc, char **argv)
 {

@@ -8,7 +8,7 @@
 
 #include "khash.h"
 
-#include "structs.h"
+#include "include/structs.h"
 
 
 typedef struct buffer{

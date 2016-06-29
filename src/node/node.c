@@ -10,11 +10,12 @@
 #include <libconfig.h>
 #include <zmq.h>
 
+#include <dtc.h>
+
 #include "database.h"
-#include "logger/logger.h"
+#include "logger.h"
 #include "messages.h"
 #include "utilities.h"
-#include "include/dtc.h"
 
 
 struct master_info {

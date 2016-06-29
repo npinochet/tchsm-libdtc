@@ -132,7 +132,7 @@ def exec_node(config):
     node = None
     try:
         node = subprocess.Popen(
-            [EXEC_PATH + "/src/node",
+            [EXEC_PATH + "/src/node/node",
              "-c",
              config + ".conf"],
             stderr=subprocess.PIPE,

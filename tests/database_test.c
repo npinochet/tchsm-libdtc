@@ -13,9 +13,11 @@
 
 #include <check.h>
 
-#include "../src/database.h"
-#include "../src/include/dtc.h"
-#include "../src/logger/logger.h"
+#include <dtc.h>
+
+#include "logger.h"
+
+#include "../src/node/database.h"
 
 #define START_MY_TEST(test_name) START_TEST(test_name)\
                                  LOG(LOG_LVL_INFO, "Testing: %s.", #test_name);
