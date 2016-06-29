@@ -383,6 +383,7 @@ TCase* get_test_case(){
     TCase *test_case = tcase_create("messages");
 
     tcase_add_test(test_case, serialize_op_req_store_key_pub_simple);
+    tcase_add_test(test_case, serialize_unserialize_store_key_ack);
 
     tcase_add_test(test_case, serialize_op_req_store_key_pub_wrong_version);
     tcase_add_test(test_case, serialize_unserialize_op_req);
