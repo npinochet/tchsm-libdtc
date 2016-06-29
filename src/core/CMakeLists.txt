@@ -58,6 +58,10 @@ if(CMAKE_THREAD_LIBS_INIT)
     target_link_libraries(dtc "${CMAKE_THREAD_LIBS_INIT}")
 endif()
 
+target_link_libraries(common ${LIBCONFIG_LIBRARIES}
+                             ${LIBUUID_LIBRARIES}
+                             ${ZEROMQ_LIBRARIES})
+
 target_link_libraries(dtc common
                           ${LIBCONFIG_LIBRARIES}
                           ${ZEROMQ_LIBRARIES}
