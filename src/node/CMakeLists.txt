@@ -46,24 +46,24 @@ add_library(node_common STATIC ${NODE_COMMON_FILES})
 target_link_libraries(node_common common)
 set_target_properties(node_common PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-add_executable(node node.c)
+add_executable(tchsm_node node.c)
 
 
 if(THREADS_HAVE_PTHREAD_ARG)
-    target_compile_options(PUBLIC node "-pthread")
+    target_compile_options(PUBLIC tchsm_node "-pthread")
 endif()
 if(CMAKE_THREAD_LIBS_INIT)
-    target_link_libraries(node "${CMAKE_THREAD_LIBS_INIT}")
+    target_link_libraries(tchsm_node "${CMAKE_THREAD_LIBS_INIT}")
 endif()
 
-target_link_libraries(node common
-                           node_common
-                           ${LIBCONFIG_LIBRARIES}
-                           ${ZEROMQ_LIBRARIES}
-                           ${LIBSODIUM_LIBRARIES}
-                           ${JSON-C_LIBRARIES}
-                           ${TCLIB_LIBRARIES}
-                           ${SQLITE3_LIBRARIES}
-                           ${LIBUUID_LIBRARIES})
+target_link_libraries(tchsm_node common
+                                 node_common
+                                 ${LIBCONFIG_LIBRARIES}
+                                 ${ZEROMQ_LIBRARIES}
+                                 ${LIBSODIUM_LIBRARIES}
+                                 ${JSON-C_LIBRARIES}
+                                 ${TCLIB_LIBRARIES}
+                                 ${SQLITE3_LIBRARIES}
+                                 ${LIBUUID_LIBRARIES})
 
-install(TARGETS node DESTINATION bin)
+install(TARGETS tchsm_node DESTINATION bin)
