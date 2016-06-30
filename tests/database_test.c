@@ -2,7 +2,6 @@
 
 #include <assert.h>
 #include <dirent.h>
-#include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>

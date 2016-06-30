@@ -50,7 +50,7 @@ add_executable(tchsm_node node.c)
 
 
 if(THREADS_HAVE_PTHREAD_ARG)
-    target_compile_options(PUBLIC tchsm_node "-pthread")
+    target_compile_options(tchsm_node PUBLIC "-pthread")
 endif()
 if(CMAKE_THREAD_LIBS_INIT)
     target_link_libraries(tchsm_node "${CMAKE_THREAD_LIBS_INIT}")

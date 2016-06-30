@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 2.8.8)
 project(libdtc)
 
 set(CMAKE_C_FLAGS_DEBUG " ${CMAKE_C_FLAGS_DEBUG} -Wall")

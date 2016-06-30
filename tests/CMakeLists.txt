@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
+find_package(Threads REQUIRED)
 
 find_package(TCLib REQUIRED)
 include_directories(${TCLIB_INCLUDE_DIRS})
@@ -24,6 +25,13 @@ set(tests
 foreach(test ${tests})
     add_executable(${test} ${test}.c)
     target_link_libraries(${test} ${CHECK_LIBRARIES} dtc node_common m ${REALTIME_LIBRARIES})
+
+    if(THREADS_HAVE_PTHREAD_ARG)
+        target_compile_options(${test} PUBLIC "-pthread")
+    endif()
+    if(CMAKE_THREAD_LIBS_INIT)
+        target_link_libraries(${test} "${CMAKE_THREAD_LIBS_INIT}")
+    endif()
 
     add_test(NAME ${test} COMMAND ${test})
 
