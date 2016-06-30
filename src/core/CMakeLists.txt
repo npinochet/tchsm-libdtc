@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 2.8)
-
 find_package(Threads REQUIRED)
 
 include(FindLibConfig)
@@ -49,28 +47,39 @@ set(DTC_FILES
 
 add_library(common STATIC ${COMMON_FILES})
 set_target_properties(common PROPERTIES POSITION_INDEPENDENT_CODE ON)
-add_library(dtc SHARED ${DTC_FILES})
-
-if(THREADS_HAVE_PTHREAD_ARG)
-    target_compile_options(PUBLIC dtc "-pthread")
-endif()
-if(CMAKE_THREAD_LIBS_INIT)
-    target_link_libraries(dtc "${CMAKE_THREAD_LIBS_INIT}")
-endif()
+add_library(dtc_obj OBJECT ${DTC_FILES})
+set_target_properties(dtc_obj PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_include_directories(dtc_obj PUBLIC include)
 
 target_link_libraries(common ${LIBCONFIG_LIBRARIES}
                              ${LIBUUID_LIBRARIES}
                              ${ZEROMQ_LIBRARIES})
 
-target_link_libraries(dtc common
-                          ${JSON-C_LIBRARIES}
-                          ${LIBCONFIG_LIBRARIES}
-                          ${LIBSODIUM_LIBRARIES}
-                          ${SQLITE3_LIBRARIES}
-                          ${TCLIB_LIBRARIES}
-                          ${ZEROMQ_LIBRARIES})
+add_library(dtc SHARED $<TARGET_OBJECTS:dtc_obj>)
+add_library(dtc_static STATIC $<TARGET_OBJECTS:dtc_obj>)
+set_target_properties(dtc_static PROPERTIES OUTPUT_NAME dtc)
+if(THREADS_HAVE_PTHREAD_ARG)
+    target_compile_options(dtc PUBLIC "-pthread")
+    target_compile_options(dtc_static PUBLIC "-pthread")
+endif()
+if(${CMAKE_THREAD_LIBS_INIT})
+    target_link_libraries(dtc "${CMAKE_THREAD_LIBS_INIT}")
+    target_link_libraries(dtc_static "${CMAKE_THREAD_LIBS_INIT}")
+endif()
+
+set(dtc_dependencies ${JSON-C_LIBRARIES}
+                     ${LIBCONFIG_LIBRARIES}
+                     ${LIBSODIUM_LIBRARIES}
+                     ${SQLITE3_LIBRARIES}
+                     ${TCLIB_LIBRARIES}
+                     ${ZEROMQ_LIBRARIES})
+
+target_link_libraries(dtc common ${dtc_dependencies})
+target_link_libraries(dtc_static common ${dtc_dependencies})
 
 target_include_directories(common PUBLIC include ../include)
 target_include_directories(dtc PUBLIC ../include)
+target_include_directories(dtc_static PUBLIC ../include)
 
 install(TARGETS dtc DESTINATION lib)
+install(TARGETS dtc_static DESTINATION lib)
