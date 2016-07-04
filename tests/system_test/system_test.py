@@ -74,7 +74,7 @@ class TestSuite(object):
         dummy_file = create_dummy_file()
 
         environ[
-            "PYKCS11LIB"] = "/home/danielaviv/Documentos/Daniel/tchsm-libdtc/build/src/cryptoki/libpkcs11.so"
+            "PYKCS11LIB"] = join(EXEC_PATH, "src/cryptoki/libpkcs11.so")
 
         master_args = [
             "python3",
@@ -567,6 +567,8 @@ def test_insuff_threshold(master_args, master_name):
     close_master(master)
 
     if master_ret == DTC_ERR_TIMED_OUT:
+        return 0, ""
+    elif master_ret == 1: # The pkcs11 returns 1 on timeout
         return 0, ""
     elif master_ret == 0:
         return 1, "FAILURE: The master should not be able to sign."
