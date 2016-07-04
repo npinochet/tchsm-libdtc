@@ -9,6 +9,10 @@ sudo apt-get install -y libsqlite3-dev
 sudo apt-get install -y uuid-dev
 sudo apt-get install -y libbotan1.10-dev
 
+# System testing
+sudo apt-get install -y python3-dev
+sudo apt-get install -y python3-pip
+
 wget https://download.libsodium.org/libsodium/releases/libsodium-1.0.9.tar.gz
 tar -xzC /tmp -f libsodium-1.0.9.tar.gz
 
