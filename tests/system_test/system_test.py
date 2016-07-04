@@ -40,6 +40,9 @@ TEST_FAIL = 1
 HANDLER_PKCS11 = 0
 HANDLER_DTC = 1
 
+# Keep sync with dtc.h
+DTC_ERR_TIMED_OUT = 11
+
 
 class TestSuite(object):
 
@@ -145,7 +148,7 @@ def exec_node(config):
     if node.returncode is not None:
         return node, node.returncode, "ERROR: Node finished with return code >> " + str(node.returncode)
 
-    timer = Timer(NODE_TIMEOUT, node.terminate)
+    timer = Timer(NODE_TIMEOUT + 2, node.terminate)
     timer.start()
 
     node_stderr = node.stderr
@@ -168,7 +171,7 @@ def exec_node(config):
         timer.cancel()
         return node, 0, ""
     else:
-        return node, 1, "FAILURE: Node timeout"
+        return node, -1, "FAILURE: Node didn't exit on time"
 
 
 def close_node(node_proc):
@@ -215,7 +218,7 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
     except OSError:
         return None, 1, "ERROR: Exec could not be accessed >> " + master_name
 
-    timer = Timer(MASTER_TIMEOUT, master.terminate)
+    timer = Timer(MASTER_TIMEOUT + 2, master.terminate)
     if master is not None:
         timer.start()
 
@@ -230,7 +233,7 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
         return master, master.returncode, ""
     else:
         debug_output(stdout_data, stderr_data)
-        return master, 1, "FAILURE: Master timeout"
+        return master, -1, "FAILURE: Master didn't exit on time"
 
 
 def close_master(master):
@@ -563,7 +566,7 @@ def test_insuff_threshold(master_args, master_name):
     close_nodes([node_proc1, node_proc2])
     close_master(master)
 
-    if master_ret != 0:
+    if master_ret == DTC_ERR_TIMED_OUT:
         return 0, ""
     else:
         return 1, "FAILURE: The master should not be able to sign."
