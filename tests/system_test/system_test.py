@@ -568,8 +568,10 @@ def test_insuff_threshold(master_args, master_name):
 
     if master_ret == DTC_ERR_TIMED_OUT:
         return 0, ""
-    else:
+    elif master_ret == 0:
         return 1, "FAILURE: The master should not be able to sign."
+    else:
+        return 1, "FAILURE: %s" % master_mess
 
 
 def test_three_nodes_two_open(master_args, master_name):
