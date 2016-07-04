@@ -22,7 +22,7 @@ int main(int argc, char **argv)
 
     printf("Init ret: %d:%s\n", ret_val, dtc_get_error_msg(ret_val));
     if(ret_val != DTC_ERR_NONE)
-        return 1;
+        return ret_val;
 
     int number_of_nodes = atoi(argv[2]);
     int threshold = (int)floor(number_of_nodes/2.0) + 1;
@@ -33,7 +33,7 @@ int main(int argc, char **argv)
     printf("Generate: %d:%s\n", ret_val, dtc_get_error_msg(ret_val));
     if(ret_val != DTC_ERR_NONE) {
         printf("Destroy: %d\n", dtc_destroy(ctx));
-        return 1;
+        return ret_val;
     }
 
     bytes_t *msg = tc_init_bytes((void *)char_msg, strlen(char_msg));
