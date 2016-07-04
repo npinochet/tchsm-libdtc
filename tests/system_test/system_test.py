@@ -734,7 +734,7 @@ def test_two_masters_one_nodes(master_args, master_name):
         close_node(node_proc1)
         return 1, node_mess1
 
-    fixed_args, master_name = fix_dtc_args(master_args, master_name, 1)
+    fixed_args, master_name = fix_dtc_args(master_args, master_name, 1, index=1)
     master, master_ret, master_mess = exec_master(
         fixed_args, master_name, "cryptoki1.conf")
     close_master(master)
@@ -743,7 +743,7 @@ def test_two_masters_one_nodes(master_args, master_name):
         close_node(node_proc1)
         return master_ret, master_mess
 
-    fixed_args, master_name = fix_dtc_args(master_args, master_name, 1)
+    fixed_args, master_name = fix_dtc_args(master_args, master_name, 1, index=2)
     master, master_ret, master_mess = exec_master(
         fixed_args, master_name, "cryptoki2.conf")
 
