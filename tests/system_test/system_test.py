@@ -30,7 +30,7 @@ CONFIG_CREATOR_PATH = ""
 NODE_RDY = "Both sockets bound, node ready to talk with the Master."
 
 NODE_TIMEOUT = 5
-MASTER_TIMEOUT = 25
+MASTER_TIMEOUT = 5
 
 DEBUG = False
 
@@ -136,6 +136,8 @@ def exec_node(config):
 
     node = None
     try:
+        if DEBUG:
+            print("    DEBUG::NODE_CALL: %s" % ' '.join([NODE_PATH, '-c', config + ".conf"]))
         node = subprocess.Popen(
             [NODE_PATH,
              "-c",
@@ -148,7 +150,7 @@ def exec_node(config):
     if node.returncode is not None:
         return node, node.returncode, "ERROR: Node finished with return code >> " + str(node.returncode)
 
-    timer = Timer(NODE_TIMEOUT + 2, node.terminate)
+    timer = Timer(NODE_TIMEOUT * 3, node.terminate)
     timer.start()
 
     node_stderr = node.stderr
@@ -211,6 +213,8 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
         return None, 1, "ERROR: TCHSM_CONFIG env. var. could not be set."
 
     try:
+        if DEBUG:
+            print("    DEBUG::MASTER_CALL: %s" % ' '.join(master_args))
         master = subprocess.Popen(
             master_args,
             stderr=subprocess.PIPE,
@@ -218,7 +222,7 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
     except OSError:
         return None, 1, "ERROR: Exec could not be accessed >> " + master_name
 
-    timer = Timer(MASTER_TIMEOUT + 2, master.terminate)
+    timer = Timer(MASTER_TIMEOUT * 3, master.terminate)
     if master is not None:
         timer.start()
 
@@ -562,7 +566,8 @@ def test_insuff_threshold(master_args, master_name):
     close_node(node_proc3)
 
     master, master_ret, master_mess = exec_master(
-        *fix_dtc_args(master_args, master_name, 3, 3))
+            *fix_dtc_args(master_args, master_name, 3, 3,
+                          key_handler='keyhandler2'))
     close_nodes([node_proc1, node_proc2])
     close_master(master)
 
@@ -896,12 +901,8 @@ def pretty_print(index, name, result, mess, runtime, verbosity):
         sys.stdout.write("    " + str(mess) + "\n")
 
 
-def fix_dtc_args(
-        master_args,
-        master_name,
-        nb_of_nodes,
-        threshold=None,
-        index=None):
+def fix_dtc_args(master_args, master_name, nb_of_nodes, threshold=None,
+                 index=None, key_handler=None):
     """
     Method that is used to fix the master arguments in the case of dtc
 
@@ -910,6 +911,8 @@ def fix_dtc_args(
     :param nb_of_nodes: Total number of nodes
     :param threshold: Connection threshold
     :param index: Index of the master
+    :param key_handler: Handler of the key to be used by dtc, threshold must be
+           specified in order to use this.
     :return: It returns an aray with the fixed arguments and the master name
     """
     fixed_master_args = list(master_args)
@@ -918,6 +921,8 @@ def fix_dtc_args(
         fixed_master_args.append(str(nb_of_nodes))
         if threshold is not None:
             fixed_master_args.append(str(threshold))
+            if key_handler is not None:
+                fixed_master_args.append(key_handler)
 
         if index is not None:
             conf_path = master_args[1]

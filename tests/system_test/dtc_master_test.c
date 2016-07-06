@@ -7,6 +7,8 @@
 
 #include <include/dtc.h>
 
+char *KEY_HANDLER = "default_handler";
+
 int main(int argc, char **argv)
 {
     int ret_val = 0;
@@ -15,7 +17,7 @@ int main(int argc, char **argv)
     char *char_msg = "My msg";
     bytes_t *signature;
 
-    OPEN_LOG();
+    OPEN_LOG(NULL, LOG_CONS | LOG_PERROR, LOG_LOCAL0);
     LOG(LOG_LVL_NOTI, "Logger started for %s", argv[0]);
 
     dtc_ctx_t *ctx = dtc_init(argv[1], &ret_val);
@@ -26,8 +28,11 @@ int main(int argc, char **argv)
 
     int number_of_nodes = atoi(argv[2]);
     int threshold = (int)floor(number_of_nodes/2.0) + 1;
-    if(argc > 3)
+    if(argc > 3) {
         threshold = atoi(argv[3]);
+        if(argc > 4)
+            KEY_HANDLER = argv[4];
+    }
 
     ret_val = dtc_generate_key_shares(ctx, "hola_id", 512, threshold, number_of_nodes, NULL, &info);
     printf("Generate: %d:%s\n", ret_val, dtc_get_error_msg(ret_val));
@@ -60,5 +65,5 @@ int main(int argc, char **argv)
     printf("Destroy: %d\n", dtc_destroy(ctx));
 
 
-    return ret_val != DTC_ERR_NONE;
+    return ret_val;
 }
