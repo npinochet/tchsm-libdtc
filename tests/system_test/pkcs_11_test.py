@@ -93,13 +93,20 @@ def sign_and_verify(session, content, private_key, public_exponent, modulus):
     :param content: Content of the file in binary
     :param private_key: Private key in the session
     """
+
     signature = bytes(session.sign(private_key, content,
                                    mecha=Mechanism(CKM['CKM_SHA256_RSA_PKCS_PSS'], None)))
+    with open('signature', 'wb') as f:
+        f.write(signature)
 
     new_hash = SHA256.new()
     new_hash.update(content)
 
     public_key = RSA.construct((modulus, public_exponent))
+
+    with open('pkey.pem', 'wb') as f:
+        f.write(public_key.exportKey())
+
     verifier = PKCS1_PSS.new(public_key)
     check_verify = verifier.verify(new_hash, signature)
 
