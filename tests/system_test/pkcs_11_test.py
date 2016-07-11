@@ -8,6 +8,7 @@ import Crypto.PublicKey.RSA as RSA
 from Crypto.Hash import SHA256
 from Crypto.Signature import PKCS1_PSS
 from PyKCS11 import *
+from subprocess import Popen, PIPE
 
 """
 Replicates the PKCS11 test, which is a basic signing process test.
@@ -87,29 +88,50 @@ def get_key(session):
     return public_key, private_key
 
 
-def sign_and_verify(session, content, private_key, public_exponent, modulus):
+def sign_and_verify(session, content_filename, private_key, public_exponent, modulus):
     """
     Verifies that the signing process is OK
     :param content: Content of the file in binary
     :param private_key: Private key in the session
     """
+    file = open(content_filename, "rb") # with blah
+    content = file.read()
 
     signature = bytes(session.sign(private_key, content,
                                    mecha=Mechanism(CKM['CKM_SHA256_RSA_PKCS_PSS'], None)))
-    with open('signature', 'wb') as f:
+    
+    signature_file_name = 'signature'
+    with open(signature_file_name, 'wb') as f:
         f.write(signature)
-
-    new_hash = SHA256.new()
-    new_hash.update(content)
 
     public_key = RSA.construct((modulus, public_exponent))
 
-    with open('pkey.pem', 'wb') as f:
+    public_key_file_name = 'pkey.pem'
+    with open(public_key_file_name, 'wb') as f:
         f.write(public_key.exportKey())
+    
+    command_list = ['openssl',
+    				'dgst',
+    				'-sha256',
+    				'-sigopt',
+    				'rsa_padding_mode:pss',
+    				'-verify',
+    				public_key_file_name, #'<publickey.pem>',
+    				'-signature',
+    				signature_file_name, #'<binary_signature_file>',
+    				content_filename ]#'<original_file>'
+    
+    process = Popen(command_list, stdout=PIPE, stderr=PIPE)
+    stdout, stderr = process.communicate()
+    check_verify = (process.returncode == 0)
 
-    verifier = PKCS1_PSS.new(public_key)
-    check_verify = verifier.verify(new_hash, signature)
+    #new_hash = SHA256.new()
+    #new_hash.update(content)
 
+
+    #verifier = PKCS1_PSS.new(public_key)
+    #check_verify = verifier.verify(new_hash, signature)
+    #check_verify = False
     if not check_verify:
         finalize(session)
         sys.stderr.write("ERROR: Signature doesn't verify.\n")
@@ -198,13 +220,10 @@ def main(argv=None):
         signed=False)
 
     if args.filename != "":
-        file = open(args.filename, "rb")
-        content = file.read()
-
         for _ in range(0, args.sign_loops):
             sign_and_verify(
                 session,
-                content,
+                args.filename,
                 private_key,
                 public_exponent,
                 modulus)
