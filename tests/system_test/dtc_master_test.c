@@ -34,7 +34,7 @@ int main(int argc, char **argv)
             KEY_HANDLER = argv[4];
     }
 
-    ret_val = dtc_generate_key_shares(ctx, "hola_id", 512, threshold, number_of_nodes, NULL, &info);
+    ret_val = dtc_generate_key_shares(ctx, KEY_HANDLER, 512, threshold, number_of_nodes, NULL, &info);
     printf("Generate: %d:%s\n", ret_val, dtc_get_error_msg(ret_val));
     if(ret_val != DTC_ERR_NONE) {
         printf("Destroy: %d\n", dtc_destroy(ctx));
@@ -44,7 +44,7 @@ int main(int argc, char **argv)
     bytes_t *msg = tc_init_bytes((void *)char_msg, strlen(char_msg));
     bytes_t *prep_msg = tc_prepare_document(msg, TC_SHA256, info);
 
-    ret_val = dtc_sign(ctx, info, "hola_id", prep_msg, &signature);
+    ret_val = dtc_sign(ctx, info, KEY_HANDLER, prep_msg, &signature);
     printf("Sign: %d: %s\n", ret_val, dtc_get_error_msg(ret_val));
 
     if(ret_val == DTC_ERR_NONE) {
@@ -60,7 +60,7 @@ int main(int argc, char **argv)
     tc_clear_bytes(prep_msg);
     free(msg);
 
-    dtc_delete_key_shares(ctx, "hola_id");
+    dtc_delete_key_shares(ctx, KEY_HANDLER);
 
     printf("Destroy: %d\n", dtc_destroy(ctx));
 
