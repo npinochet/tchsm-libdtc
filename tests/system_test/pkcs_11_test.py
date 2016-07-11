@@ -5,8 +5,6 @@ import argparse
 from os import environ
 
 import Crypto.PublicKey.RSA as RSA
-from Crypto.Hash import SHA256
-from Crypto.Signature import PKCS1_PSS
 from PyKCS11 import *
 from subprocess import Popen, PIPE
 
@@ -94,8 +92,10 @@ def sign_and_verify(session, content_filename, private_key, public_exponent, mod
     :param content: Content of the file in binary
     :param private_key: Private key in the session
     """
-    file = open(content_filename, "rb") # with blah
-    content = file.read()
+    #file = open(content_filename, "rb") # with blah
+    #content = file.read()
+    with open(content_filename, 'rb') as f:
+    	content = f.read()
 
     signature = bytes(session.sign(private_key, content,
                                    mecha=Mechanism(CKM['CKM_SHA256_RSA_PKCS_PSS'], None)))
@@ -116,23 +116,15 @@ def sign_and_verify(session, content_filename, private_key, public_exponent, mod
     				'-sigopt',
     				'rsa_padding_mode:pss',
     				'-verify',
-    				public_key_file_name, #'<publickey.pem>',
+    				public_key_file_name,
     				'-signature',
-    				signature_file_name, #'<binary_signature_file>',
-    				content_filename ]#'<original_file>'
+    				signature_file_name,
+    				content_filename ]
     
-    process = Popen(command_list, stdout=PIPE, stderr=PIPE)
-    stdout, stderr = process.communicate()
-    check_verify = (process.returncode == 0)
+    openssl_process = Popen(command_list, stdout=PIPE, stderr=PIPE)
+    stdout, stderr = openssl_process.communicate()
 
-    #new_hash = SHA256.new()
-    #new_hash.update(content)
-
-
-    #verifier = PKCS1_PSS.new(public_key)
-    #check_verify = verifier.verify(new_hash, signature)
-    #check_verify = False
-    if not check_verify:
+    if openssl_process.returncode != 0:
         finalize(session)
         sys.stderr.write("ERROR: Signature doesn't verify.\n")
         exit(1)
