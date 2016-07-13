@@ -14,6 +14,8 @@ typedef struct database_conn database_t;
  *
  * @param path Location of the file with the database or path where to
  *      store the databse if it does not exits.
+ * @param create_db_tables Flag that indicates whether the db tables should be
+ *      created in this call of the function.
  *
  * @return A connection to the database to be used in the next methods,
  *      to release the connection and free the memory the user must call
