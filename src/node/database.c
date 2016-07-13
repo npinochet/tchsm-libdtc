@@ -136,7 +136,7 @@ static int prepare_bind_stmt(sqlite3 *db, const char *query, sqlite3_stmt **out,
 
 
 // API
-database_t *db_init_connection(const char *path){
+database_t *db_init_connection(const char *path, int create_db_tables){
     int rc;
     char *err;
     database_t *ret = (database_t *) malloc(sizeof(database_t));
@@ -159,7 +159,9 @@ database_t *db_init_connection(const char *path){
         db_close_and_free_connection(ret);
         return NULL;
     }
-    rc = create_tables(ret);
+    if(create_db_tables){
+        rc = create_tables(ret);
+    }
     if(rc != DTC_ERR_NONE) {
         db_close_and_free_connection(ret);
         return NULL;

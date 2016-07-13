@@ -137,7 +137,7 @@ static void print_usage(int exit_code)
 static void update_database(struct configuration *conf)
 {
     unsigned i;
-    database_t *db_conn = db_init_connection(conf->database);
+    database_t *db_conn = db_init_connection(conf->database, 1);
     EXIT_ON_FALSE(db_conn, "Error trying to connect to the database.");
 
     for(i = 0; i < conf->cant_masters; i++) {
@@ -627,7 +627,7 @@ static void *worker_thr(void *thread_data)
         LOG_EXIT("Unable to connect socket: %s", zmq_strerror(errno));
     }
 
-    db_conn = db_init_connection(thr_data->database_path);
+    db_conn = db_init_connection(thr_data->database_path, 0);
     EXIT_ON_FALSE(db_conn, "Unable to init db connection at:%s",
                   thr_data->database_path);
 
@@ -879,7 +879,7 @@ static int node_loop(struct communication_objects *communication_objs,
     int rc = 0;
     void *out_sock;
 
-    database_t *db_conn = db_init_connection(database_path);
+    database_t *db_conn = db_init_connection(database_path, 0);
     EXIT_ON_FALSE(db_conn, "Error trying to connect to the DB.");
 
     //TODO Check if synchronization is necessary to wait that the
@@ -1052,7 +1052,7 @@ static void zap_handler(void *zap_data_)
     char *aux_char;
     struct zap_handler_data *zap_data = (struct zap_handler_data *) zap_data_;
     void *sock = zap_data->socket;
-    database_t *db_conn = db_init_connection(zap_data->database);
+    database_t *db_conn = db_init_connection(zap_data->database, 0);
     EXIT_ON_FALSE(db_conn, "Error trying to connect to the DB.");
     LOG(LOG_LVL_INFO, "Starting ZAP thread.");
 

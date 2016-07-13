@@ -19,7 +19,7 @@ typedef struct database_conn database_t;
  *      to release the connection and free the memory the user must call
  *      db_close_and_free_connection. On error NULL is returned.
  */
-database_t *db_init_connection(const char *path);
+database_t *db_init_connection(const char *path, int create_db_tables);
 
 /**
  * Check if the key is a public key of an authorized master or not.
