@@ -89,11 +89,9 @@ def get_key(session):
 def sign_and_verify(session, content_filename, private_key, public_exponent, modulus):
     """
     Verifies that the signing process is OK
-    :param content: Content of the file in binary
+    :param content_filename: Name of the file containing the binary data
     :param private_key: Private key in the session
     """
-    #file = open(content_filename, "rb") # with blah
-    #content = file.read()
     with open(content_filename, 'rb') as f:
     	content = f.read()
 
