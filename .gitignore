@@ -1,0 +1,5 @@
+build/
+*.tar.gz
+*.tar.gz.1
+*.zip
+*.zip.1
