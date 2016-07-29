@@ -13,7 +13,6 @@ install:
     - make
     - make system_test
     - sudo python3 -m pip install -r ../tests/system_test/requirements.txt
-    - pip freeze
 
 script:
     - make check
