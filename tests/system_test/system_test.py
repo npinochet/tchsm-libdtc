@@ -483,7 +483,7 @@ def test_three_nodes_one_down(master_args, master_name):
         return 1, node_mess2
 
     node_proc3, node_ret3, node_mess3 = exec_node("node3")
-    if node_ret2 == 1:
+    if node_ret3 == 1:
         close_nodes([node_proc1, node_proc2, node_proc3])
         return 1, node_mess3
 
