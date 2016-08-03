@@ -13,9 +13,5 @@ install:
     - make
     - make system_test
     - sudo python3 -m pip install -r ../tests/system_test/requirements.txt
-before_script:
-    - echo $PYTHONPATH
-    - export PYTHONPATH=$PYTHONPATH:/usr/lib/python3/dist-packages:/usr/local/lib/python3.4/dist-packages
-    - echo $PYTHONPATH
 script:
     - make check
