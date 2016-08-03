@@ -10,6 +10,7 @@ sudo apt-get install -y uuid-dev
 sudo apt-get install -y libbotan1.10-dev
 
 # System testing
+sudo apt-get install -y python3
 sudo apt-get install -y python3-dev
 sudo apt-get install -y python3-pip
 
