@@ -227,7 +227,7 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
     #if master is not None:
     #    timer.start()
 
-    stdout_data, stderr_data = master.communicate(timeout=MASTER_TIMEOUT * 3)
+    stdout_data, stderr_data = master.communicate(timeout=(MASTER_TIMEOUT * 3))
 
     if master.returncode >= 0:
         debug_output(stdout_data, stderr_data)
