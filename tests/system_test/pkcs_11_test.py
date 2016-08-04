@@ -6,7 +6,7 @@ from os import environ
 import sys
 
 import Crypto.PublicKey.RSA as RSA
-from PyKCS11 import *
+import PyKCS11
 from subprocess import Popen, PIPE
 
 """
@@ -45,28 +45,28 @@ def create_new_keys(session):
     :return: Both public and private keys
     """
     public_template = [
-        (CKA['CKA_CLASS'], CKO['CKO_PUBLIC_KEY']),
-        (CKA['CKA_TOKEN'], True),
-        (CKA['CKA_PRIVATE'], False),
-        (CKA['CKA_MODULUS_BITS'], 0x0400),
-        (CKA['CKA_PUBLIC_EXPONENT'], (0x01, 0x00, 0x01)),
-        (CKA['CKA_ENCRYPT'], True),
-        (CKA['CKA_VERIFY'], True),
-        (CKA['CKA_VERIFY_RECOVER'], True),
-        (CKA['CKA_WRAP'], True),
-        (CKA['CKA_LABEL'], "My Public Key"),
-        (CKA['CKA_ID'], (KEY_ID,))
+        (PyKCS11.CKA['CKA_CLASS'], PyKCS11.PyKCS11.CKO['CKO_PUBLIC_KEY']),
+        (PyKCS11.CKA['CKA_TOKEN'], True),
+        (PyKCS11.CKA['CKA_PRIVATE'], False),
+        (PyKCS11.CKA['CKA_MODULUS_BITS'], 0x0400),
+        (PyKCS11.CKA['CKA_PUBLIC_EXPONENT'], (0x01, 0x00, 0x01)),
+        (PyKCS11.CKA['CKA_ENCRYPT'], True),
+        (PyKCS11.CKA['CKA_VERIFY'], True),
+        (PyKCS11.CKA['CKA_VERIFY_RECOVER'], True),
+        (PyKCS11.CKA['CKA_WRAP'], True),
+        (PyKCS11.CKA['CKA_LABEL'], "My Public Key"),
+        (PyKCS11.CKA['CKA_ID'], (KEY_ID,))
     ]
 
     private_template = [
-        (CKA['CKA_CLASS'], CKO['CKO_PRIVATE_KEY']),
-        (CKA['CKA_TOKEN'], True),
-        (CKA['CKA_PRIVATE'], True),
-        (CKA['CKA_DECRYPT'], True),
-        (CKA['CKA_SIGN'], True),
-        (CKA['CKA_SIGN_RECOVER'], True),
-        (CKA['CKA_UNWRAP'], True),
-        (CKA['CKA_ID'], (KEY_ID,))
+        (PyKCS11.CKA['CKA_CLASS'], PyKCS11.CKO['CKO_PRIVATE_KEY']),
+        (PyKCS11.CKA['CKA_TOKEN'], True),
+        (PyKCS11.CKA['CKA_PRIVATE'], True),
+        (PyKCS11.CKA['CKA_DECRYPT'], True),
+        (PyKCS11.CKA['CKA_SIGN'], True),
+        (PyKCS11.CKA['CKA_SIGN_RECOVER'], True),
+        (PyKCS11.CKA['CKA_UNWRAP'], True),
+        (PyKCS11.CKA['CKA_ID'], (KEY_ID,))
     ]
 
     (public_key, private_key) = session.generateKeyPair(
@@ -80,9 +80,9 @@ def get_key(session):
     :return: Both public and private keys
     """
     private_key = session.findObjects(
-        [(CKA['CKA_CLASS'], CKO['CKO_PRIVATE_KEY']), (CKA['CKA_ID'], (KEY_ID,))])[0]
+        [(CKA['CKA_CLASS'], PyKCS11.CKO['CKO_PRIVATE_KEY']), (PyKCS11.CKA['CKA_ID'], (KEY_ID,))])[0]
     public_key = session.findObjects(
-        [(CKA['CKA_CLASS'], CKO['CKO_PUBLIC_KEY']), (CKA['CKA_ID'], (KEY_ID,))])[0]
+        [(CKA['CKA_CLASS'], PyKCS11.CKO['CKO_PUBLIC_KEY']), (PyKCS11.CKA['CKA_ID'], (KEY_ID,))])[0]
 
     return public_key, private_key
 
@@ -97,8 +97,8 @@ def sign_and_verify(session, content_filename, private_key, public_exponent, mod
     	content = f.read()
 
     signature = bytes(session.sign(private_key, content,
-                                   mecha=Mechanism(CKM['CKM_SHA256_RSA_PKCS_PSS'], None)))
-    
+                                   mecha=PyKCS11.Mechanism(PyKCS11.CKM['CKM_SHA256_RSA_PKCS_PSS'], None)))
+
     signature_file_name = 'signature'
     with open(signature_file_name, 'wb') as f:
         f.write(signature)
@@ -189,7 +189,7 @@ def main(argv=None):
 
     session = pkcs11.openSession(
         first_slot,
-        CKF['CKF_SERIAL_SESSION'] | CKF['CKF_RW_SESSION'])
+        PyKCS11.CKF['CKF_SERIAL_SESSION'] | PyKCS11.CKF['CKF_RW_SESSION'])
     session.login(args.pin)
 
     if args.create_key:
@@ -198,9 +198,9 @@ def main(argv=None):
         (public_key, private_key) = get_key(session)
 
     public_exponent_as_byte_list = session.getAttributeValue(
-        public_key, [CKA['CKA_PUBLIC_EXPONENT']])[0]
+        public_key, [PyKCS11.CKA['CKA_PUBLIC_EXPONENT']])[0]
     modulus_as_byte_list = session.getAttributeValue(
-        public_key, [CKA['CKA_MODULUS']])[0]
+        public_key, [PyKCS11.CKA['CKA_MODULUS']])[0]
 
     public_exponent = int.from_bytes(
         public_exponent_as_byte_list,
