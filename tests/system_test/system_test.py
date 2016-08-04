@@ -223,14 +223,13 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
         print("ERROR: Exec could not be accessed >> " + master_name)
         return None, 1, "ERROR: Exec could not be accessed >> " + master_name
 
-    timer = Timer(MASTER_TIMEOUT * 3, master.terminate)
-    if master is not None:
-        timer.start()
+    #timer = Timer(MASTER_TIMEOUT * 3, master.terminate)
+    #if master is not None:
+    #    timer.start()
 
-    stdout_data, stderr_data = master.communicate()
+    stdout_data, stderr_data = master.communicate(timeout=MASTER_TIMEOUT * 3)
 
-    if timer.is_alive():
-        timer.cancel()
+    if master.returncode >= 0:
         debug_output(stdout_data, stderr_data)
 
         if master.returncode != 0:
