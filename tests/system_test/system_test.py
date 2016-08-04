@@ -77,7 +77,7 @@ class TestSuite(object):
             "PYKCS11LIB"] = join(EXEC_PATH, "src/cryptoki/libpkcs11.so")
 
         master_args = [
-            "python",
+            "python3",
             join(EXEC_PATH, "..", "tests/system_test/pkcs_11_test.py"),
             "-c",
             "-f",
