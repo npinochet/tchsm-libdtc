@@ -138,6 +138,7 @@ def finalize(session):
 
 
 def main(argv=None):
+    print("PKCS 11 test")
     parser = argparse.ArgumentParser(description="System Testing")
     parser.add_argument("-c",
                         "--create_key",
