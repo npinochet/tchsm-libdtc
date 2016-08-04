@@ -9,6 +9,12 @@
 
 char *KEY_HANDLER = "default_handler";
 
+/** Args:
+ * 1: path to the config file
+ * 2: number of nodes
+ * [3]: threshold
+ * [4]: key handler
+ */
 int main(int argc, char **argv)
 {
     int ret_val = 0;
