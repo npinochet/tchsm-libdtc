@@ -466,6 +466,7 @@ def test_master_twice(master_args, master_name):
 
 
 def test_three_nodes_one_down(master_args, master_name):
+    print("\ttest three nodes")
     node_info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126 -t " + \
                 str(MASTER_TIMEOUT)
     status, output = subprocess.getstatusoutput(
@@ -487,10 +488,12 @@ def test_three_nodes_one_down(master_args, master_name):
     if node_ret3 == 1:
         close_nodes([node_proc1, node_proc2, node_proc3])
         return 1, node_mess3
+    print("\tTHREE NODES RUNNING")
 
     master, master_ret, master_mess = exec_master(
         *fix_dtc_args(master_args, master_name, 3))
     close_master(master)
+    print("\tMASTER RETURNED %s" % master_ret)
 
     if master_ret != 0:
         print("Failed at three_nodes one down:%s %s" % (master_ret, master_mess))
