@@ -220,6 +220,7 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE)
     except OSError:
+        print("ERROR: Exec could not be accessed >> " + master_name)
         return None, 1, "ERROR: Exec could not be accessed >> " + master_name
 
     timer = Timer(MASTER_TIMEOUT * 3, master.terminate)
