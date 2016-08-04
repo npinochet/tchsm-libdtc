@@ -10,6 +10,7 @@ compiler:
 
 before_install:
     - ./.install_dependencies.sh
+    - pip install -r ../tests/system_test/requirements.txt
 
 install:
     - mkdir build
@@ -18,7 +19,6 @@ install:
     - make dtc
     - make
     - make system_test
-    - pip install -r ../tests/system_test/requirements.txt
 
 script:
     - make check
