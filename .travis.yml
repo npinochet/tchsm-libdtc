@@ -10,7 +10,7 @@ compiler:
 
 before_install:
     - ./.install_dependencies.sh
-    - pip install -r ../tests/system_test/requirements.txt
+    - pip install -r tests/system_test/requirements.txt
 
 install:
     - mkdir build
