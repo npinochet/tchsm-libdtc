@@ -493,6 +493,7 @@ def test_three_nodes_one_down(master_args, master_name):
     close_master(master)
 
     if master_ret != 0:
+        print("Failed at three_nodes one down:%s %s" % (master_ret, master_mess))
         close_nodes([node_proc1, node_proc2, node_proc3])
         return master_ret, master_mess
 
