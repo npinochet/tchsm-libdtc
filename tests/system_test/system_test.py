@@ -236,6 +236,8 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
             return master, master.returncode, "FAILURE: Master return code: " + str(master.returncode)
         return master, master.returncode, ""
     else:
+        print(stdout_data)
+        print(stderr_data)
         debug_output(stdout_data, stderr_data)
         return master, -1, "FAILURE: Master didn't exit on time"
 
