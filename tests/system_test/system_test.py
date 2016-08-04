@@ -207,6 +207,7 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
     :param cryptoki_conf: Value of the TCHSM_CONFIG env. variable
     :return: Returns the master process, the return code and a return message
     """
+    global MASTER_TIMEOUT
     if isfile(cryptoki_conf):
         environ["TCHSM_CONFIG"] = abspath(cryptoki_conf)
     else:
