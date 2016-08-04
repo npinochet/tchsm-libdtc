@@ -3,6 +3,7 @@
 
 import argparse
 from os import environ
+import sys
 
 import Crypto.PublicKey.RSA as RSA
 from PyKCS11 import *
