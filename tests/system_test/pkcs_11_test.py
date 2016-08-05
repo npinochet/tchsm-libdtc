@@ -44,6 +44,7 @@ def create_new_keys(session):
     Creates new keys
     :return: Both public and private keys
     """
+    sys.exit(0)
     public_template = [
         (PyKCS11.CKA['CKA_CLASS'], PyKCS11.PyKCS11.CKO['CKO_PUBLIC_KEY']),
         (PyKCS11.CKA['CKA_TOKEN'], True),
@@ -191,7 +192,6 @@ def main(argv=None):
         first_slot,
         PyKCS11.CKF['CKF_SERIAL_SESSION'] | PyKCS11.CKF['CKF_RW_SESSION'])
     session.login(args.pin)
-    sys.exit(0)
 
     if args.create_key:
         (public_key, private_key) = create_new_keys(session)
