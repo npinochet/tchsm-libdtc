@@ -45,7 +45,7 @@ def create_new_keys(session):
     :return: Both public and private keys
     """
     public_template = [
-        (PyKCS11.CKA['CKA_CLASS'], PyKCS11.PyKCS11.CKO['CKO_PUBLIC_KEY']),
+        (PyKCS11.CKA['CKA_CLASS'], PyKCS11.CKO['CKO_PUBLIC_KEY']),
         (PyKCS11.CKA['CKA_TOKEN'], True),
         (PyKCS11.CKA['CKA_PRIVATE'], False),
         (PyKCS11.CKA['CKA_MODULUS_BITS'], 0x0400),
@@ -69,12 +69,8 @@ def create_new_keys(session):
         (PyKCS11.CKA['CKA_ID'], (KEY_ID,))
     ]
 
-    try:
-        (public_key, private_key) = session.generateKeyPair(
-            public_template, private_template)
-    except Exception as e:
-        print(e)
-        sys.exit(1)
+    (public_key, private_key) = session.generateKeyPair(
+        public_template, private_template)
     return public_key, private_key
 
 
