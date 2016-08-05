@@ -9,7 +9,7 @@ sudo apt-get install -y libsqlite3-dev
 sudo apt-get install -y uuid-dev
 sudo apt-get install -y libbotan1.10-dev
 
-sudo apt-get install -y libssl-dev
+sudo apt-get install -y libssl-dev python-dev python3-dev
 wget ftp://sourceware.org/pub/libffi/libffi-3.2.1.tar.gz
 tar -xzC /tmp -f libffi-3.2.1.tar.gz && rm libffi-3.2.1.tar.gz
 cd /tmp/libffi-3.2.1 && ./configure && make && make install
