@@ -190,6 +190,7 @@ def main(argv=None):
     session = pkcs11.openSession(
         first_slot,
         PyKCS11.CKF['CKF_SERIAL_SESSION'] | PyKCS11.CKF['CKF_RW_SESSION'])
+    sys.exit(0)
     session.login(args.pin)
 
     if args.create_key:
