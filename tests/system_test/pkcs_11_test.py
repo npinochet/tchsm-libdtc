@@ -69,9 +69,12 @@ def create_new_keys(session):
         (PyKCS11.CKA['CKA_ID'], (KEY_ID,))
     ]
 
-    sys.exit(0)
-    (public_key, private_key) = session.generateKeyPair(
-        public_template, private_template)
+    try:
+        (public_key, private_key) = session.generateKeyPair(
+            public_template, private_template)
+    except Exception as e:
+        print(e)
+        sys.exit(1)
     return public_key, private_key
 
 
