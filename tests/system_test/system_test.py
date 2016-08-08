@@ -727,7 +727,7 @@ def test_cryptoki_wout_key():
 
     master_args = [join(
         EXEC_PATH,
-        "tests/system_test/pkcs_11_test"),
+        "tests/system_test/pkcs_11_test.py"),
         "-f",
         dummy_file,
         "-p",
