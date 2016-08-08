@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+import array
+import codecs
 from os import environ
 import sys
 
@@ -202,14 +204,10 @@ def main(argv=None):
     modulus_as_byte_list = session.getAttributeValue(
         public_key, [PyKCS11.CKA['CKA_MODULUS']])[0]
 
-    public_exponent = int.from_bytes(
-        public_exponent_as_byte_list,
-        byteorder='big',
-        signed=False)
-    modulus = int.from_bytes(
-        modulus_as_byte_list,
-        byteorder='big',
-        signed=False)
+    public_exponent = int(codecs.encode(
+            array.array('B', public_exponent_as_byte_list), 'hex'), 16)
+    modulus = int(codecs.encode(
+            array.array('B', modulus_as_byte_list), 'hex'), 16)
 
     if args.filename != "":
         for _ in range(0, args.sign_loops):
