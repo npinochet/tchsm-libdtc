@@ -25,120 +25,168 @@ DEFAULT_PIN = "1234"
 DEFAULT_AMOUNT = 1
 KEY_ID = 0x22
 
+class PKCS11Test:
+    def __init__(self, pin, tchsm_config = None, pykcs11lib = None, lib = None):
+        if(tchsm_config is not None):
+            environ["TCHSM_CONFIG"] = tchsm_config
+        if(pykcs11lib is not None):
+            environ["PYKCS11LIB"] = pykcs11lib
 
-def initialize(lib):
-    """
-    Initializes the PKCS11 library
-    :return: The successfully loaded PKCS11 library
-    """
-    pkcs11 = PyKCS11.PyKCS11Lib()
-    try:
-        pkcs11.load(lib)
-    except PyKCS11Error:
-        sys.stderr.write("ERROR: The library could not be loaded\n")
-        sys.exit(1)
+        self.pkcs11 = self.initialize(lib)
+        first_slot = self.pkcs11.getSlotList()[0]
 
-    return pkcs11
+        self.session = self.pkcs11.openSession(first_slot,
+            PyKCS11.CKF['CKF_SERIAL_SESSION'] | PyKCS11.CKF['CKF_RW_SESSION'])
+        self.session.login(pin)
 
+    def initialize(self, lib):
+        """
+        Initializes the PKCS11 library
+        """
+        pkcs11 = PyKCS11.PyKCS11Lib()
+        try:
+            pkcs11.load(lib)
+        except PyKCS11Error:
+            sys.stderr.write("ERROR: The library could not be loaded\n")
+            sys.exit(1)
 
-def create_new_keys(session):
-    """
-    Creates new keys
-    :return: Both public and private keys
-    """
-    public_template = [
-        (PyKCS11.CKA['CKA_CLASS'], PyKCS11.CKO['CKO_PUBLIC_KEY']),
-        (PyKCS11.CKA['CKA_TOKEN'], True),
-        (PyKCS11.CKA['CKA_PRIVATE'], False),
-        (PyKCS11.CKA['CKA_MODULUS_BITS'], 0x0400),
-        (PyKCS11.CKA['CKA_PUBLIC_EXPONENT'], (0x01, 0x00, 0x01)),
-        (PyKCS11.CKA['CKA_ENCRYPT'], True),
-        (PyKCS11.CKA['CKA_VERIFY'], True),
-        (PyKCS11.CKA['CKA_VERIFY_RECOVER'], True),
-        (PyKCS11.CKA['CKA_WRAP'], True),
-        (PyKCS11.CKA['CKA_LABEL'], "My Public Key"),
-        (PyKCS11.CKA['CKA_ID'], (KEY_ID,))
-    ]
+        return pkcs11
 
-    private_template = [
-        (PyKCS11.CKA['CKA_CLASS'], PyKCS11.CKO['CKO_PRIVATE_KEY']),
-        (PyKCS11.CKA['CKA_TOKEN'], True),
-        (PyKCS11.CKA['CKA_PRIVATE'], True),
-        (PyKCS11.CKA['CKA_DECRYPT'], True),
-        (PyKCS11.CKA['CKA_SIGN'], True),
-        (PyKCS11.CKA['CKA_SIGN_RECOVER'], True),
-        (PyKCS11.CKA['CKA_UNWRAP'], True),
-        (PyKCS11.CKA['CKA_ID'], (KEY_ID,))
-    ]
+    def create_new_keys(self):
+        """
+        Creates new keys
+        :return: Both public and private keys
+        """
+        public_template = [
+            (PyKCS11.CKA['CKA_CLASS'], PyKCS11.CKO['CKO_PUBLIC_KEY']),
+            (PyKCS11.CKA['CKA_TOKEN'], True),
+            (PyKCS11.CKA['CKA_PRIVATE'], False),
+            (PyKCS11.CKA['CKA_MODULUS_BITS'], 0x0400),
+            (PyKCS11.CKA['CKA_PUBLIC_EXPONENT'], (0x01, 0x00, 0x01)),
+            (PyKCS11.CKA['CKA_ENCRYPT'], True),
+            (PyKCS11.CKA['CKA_VERIFY'], True),
+            (PyKCS11.CKA['CKA_VERIFY_RECOVER'], True),
+            (PyKCS11.CKA['CKA_WRAP'], True),
+            (PyKCS11.CKA['CKA_LABEL'], "My Public Key"),
+            (PyKCS11.CKA['CKA_ID'], (KEY_ID,))
+        ]
 
-    (public_key, private_key) = session.generateKeyPair(
-        public_template, private_template)
-    return public_key, private_key
+        private_template = [
+            (PyKCS11.CKA['CKA_CLASS'], PyKCS11.CKO['CKO_PRIVATE_KEY']),
+            (PyKCS11.CKA['CKA_TOKEN'], True),
+            (PyKCS11.CKA['CKA_PRIVATE'], True),
+            (PyKCS11.CKA['CKA_DECRYPT'], True),
+            (PyKCS11.CKA['CKA_SIGN'], True),
+            (PyKCS11.CKA['CKA_SIGN_RECOVER'], True),
+            (PyKCS11.CKA['CKA_UNWRAP'], True),
+            (PyKCS11.CKA['CKA_ID'], (KEY_ID,))
+        ]
 
-
-def get_key(session):
-    """
-    Get previously created keys
-    :return: Both public and private keys
-    """
-    private_key = session.findObjects(
-        [(CKA['CKA_CLASS'], PyKCS11.CKO['CKO_PRIVATE_KEY']), (PyKCS11.CKA['CKA_ID'], (KEY_ID,))])[0]
-    public_key = session.findObjects(
-        [(CKA['CKA_CLASS'], PyKCS11.CKO['CKO_PUBLIC_KEY']), (PyKCS11.CKA['CKA_ID'], (KEY_ID,))])[0]
-
-    return public_key, private_key
+        (public_key, private_key) = self.session.generateKeyPair(
+            public_template, private_template)
+        return public_key, private_key
 
 
-def sign_and_verify(session, content_filename, private_key, public_exponent, modulus):
-    """
-    Verifies that the signing process is OK
-    :param content_filename: Name of the file containing the binary data
-    :param private_key: Private key in the session
-    """
-    with open(content_filename, 'rb') as f:
-    	content = f.read()
+    def get_key(self):
+        """
+        Get previously created keys
+        :return: Both public and private keys
+        """
+        private_key = self.session.findObjects(
+            [(CKA['CKA_CLASS'], PyKCS11.CKO['CKO_PRIVATE_KEY']), (PyKCS11.CKA['CKA_ID'], (KEY_ID,))])[0]
+        public_key = self.session.findObjects(
+            [(CKA['CKA_CLASS'], PyKCS11.CKO['CKO_PUBLIC_KEY']), (PyKCS11.CKA['CKA_ID'], (KEY_ID,))])[0]
 
-    signature = bytes(session.sign(private_key, content,
-                                   mecha=PyKCS11.Mechanism(PyKCS11.CKM['CKM_SHA256_RSA_PKCS_PSS'], None)))
+        return public_key, private_key
 
-    signature_file_name = 'signature'
-    with open(signature_file_name, 'wb') as f:
-        f.write(signature)
+    def sign_and_verify(self, content_filename, private_key, public_exponent, modulus):
+        """
+        Verifies that the signing process is OK
+        :param content: Content of the file in binary
+        :param private_key: Private key in the session
+        :param public_exponent: Public exponent associated with the private_key
+        :param modulus: modulus associated with the private_key
+        """
+        with open(content_filename, 'rb') as f:
+            content = f.read()
 
-    public_key = RSA.construct((modulus, public_exponent))
+        signature = bytes(self.session.sign(private_key, content,
+                                       mecha=PyKCS11.Mechanism(PyKCS11.CKM['CKM_SHA256_RSA_PKCS_PSS'], None)))
 
-    public_key_file_name = 'pkey.pem'
-    with open(public_key_file_name, 'wb') as f:
-        f.write(public_key.exportKey())
-    
-    command_list = ['openssl',
-    				'dgst',
-    				'-sha256',
-    				'-sigopt',
-    				'rsa_padding_mode:pss',
-    				'-verify',
-    				public_key_file_name,
-    				'-signature',
-    				signature_file_name,
-    				content_filename ]
-    
-    openssl_process = Popen(command_list, stdout=PIPE, stderr=PIPE)
-    stdout, stderr = openssl_process.communicate()
+        signature_file_name = 'signature'
+        with open(signature_file_name, 'wb') as f:
+            f.write(signature)
 
-    if openssl_process.returncode != 0:
-        finalize(session)
-        sys.stderr.write("ERROR: Signature doesn't verify.\n")
-        exit(1)
+        public_key = RSA.construct((long(modulus), long(public_exponent)))
+
+        public_key_file_name = 'pkey.pem'
+        with open(public_key_file_name, 'wb') as f:
+            f.write(public_key.exportKey())
+
+        command_list = ['openssl',
+                        'dgst',
+                        '-sha256',
+                        '-sigopt',
+                        'rsa_padding_mode:pss',
+                        '-verify',
+                        public_key_file_name,
+                        '-signature',
+                        signature_file_name,
+                        content_filename ]
+
+        openssl_process = Popen(command_list, stdout=PIPE, stderr=PIPE)
+        stdout, stderr = openssl_process.communicate()
+
+        if openssl_process.returncode != 0:
+            self.finalize()
+            sys.stderr.write("ERROR: Signature doesn't verify.\n")
+            exit(1)
 
 
-def finalize(session):
-    """
-    Logouts and closes a session
-    :param session: Session to be closed
-    """
-    session.logout()
-    session.closeSession()
+    def finalize(self):
+        """
+        Logouts and closes the session
+        """
+        self.session.logout()
+        self.session.closeSession()
 
+    def run(self, filename, create_key, sign_loops):
+        if environ.get("TCHSM_CONFIG") is None:
+            sys.stderr.write("ERROR: TCHSM_CONFIG is wrongly set.\n")
+            sys.exit(1)
+        if environ.get("PYKCS11LIB") is None:
+            sys.stderr.write("ERROR: PYKCS11LIB is wrongly set.\n")
+            sys.exit(1)
+
+        if create_key:
+            (public_key, private_key) = self.create_new_keys()
+        else:
+            (public_key, private_key) = self.get_key()
+
+        print("Got the key")
+
+        public_exponent_as_byte_list = self.session.getAttributeValue(
+            public_key, [PyKCS11.CKA['CKA_PUBLIC_EXPONENT']])[0]
+        modulus_as_byte_list = self.session.getAttributeValue(
+            public_key, [PyKCS11.CKA['CKA_MODULUS']])[0]
+
+        public_exponent = int(codecs.encode(
+                array.array('B', public_exponent_as_byte_list), 'hex'), 16)
+        modulus = int(codecs.encode(
+                array.array('B', modulus_as_byte_list), 'hex'), 16)
+
+        if filename != "":
+            for i in range(0, sign_loops):
+                print("Going to sign %d" % i)
+                self.sign_and_verify(
+                    filename,
+                    private_key,
+                    public_exponent,
+                    modulus)
+                print("Signed %d" % i)
+
+        self.finalize()
+        return 0
 
 def main(argv=None):
     print("PKCS 11 test")
@@ -173,53 +221,15 @@ def main(argv=None):
                         type=str)
     args = parser.parse_args()
 
+    tchsm_config = None
+    pykcs11lib = None
+
     if args.tchsm_config is not None:
-        environ["TCHSM_CONFIG"] = args.tchsm_config
+        tchsm_config = args.tchsm_config
     if args.pykcs11lib is not None:
-        environ["PYKCS11LIB"] = args.pykcs11lib
-
-    if environ.get("TCHSM_CONFIG") is None:
-        sys.stderr.write("ERROR: TCHSM_CONFIG is wrongly set.\n")
-        sys.exit(1)
-    if environ.get("PYKCS11LIB") is None:
-        sys.stderr.write("ERROR: PYKCS11LIB is wrongly set.\n")
-        sys.exit(1)
-
-    lib = None
-    pkcs11 = initialize(lib)
-    first_slot = pkcs11.getSlotList()[0]
-
-    session = pkcs11.openSession(
-        first_slot,
-        PyKCS11.CKF['CKF_SERIAL_SESSION'] | PyKCS11.CKF['CKF_RW_SESSION'])
-    session.login(args.pin)
-
-    if args.create_key:
-        (public_key, private_key) = create_new_keys(session)
-    else:
-        (public_key, private_key) = get_key(session)
-
-    public_exponent_as_byte_list = session.getAttributeValue(
-        public_key, [PyKCS11.CKA['CKA_PUBLIC_EXPONENT']])[0]
-    modulus_as_byte_list = session.getAttributeValue(
-        public_key, [PyKCS11.CKA['CKA_MODULUS']])[0]
-
-    public_exponent = int(codecs.encode(
-            array.array('B', public_exponent_as_byte_list), 'hex'), 16)
-    modulus = int(codecs.encode(
-            array.array('B', modulus_as_byte_list), 'hex'), 16)
-
-    if args.filename != "":
-        for _ in range(0, args.sign_loops):
-            sign_and_verify(
-                session,
-                args.filename,
-                private_key,
-                public_exponent,
-                modulus)
-
-    finalize(session)
-    return 0
+        pykcs11lib = args.pykcs11lib
+    return PKCS11Test(pin=args.pin, tchsm_config=tchsm_config, pykcs11lib=pykcs11lib).run(create_key = args.create_key,
+     filename = args.filename, sign_loops=args.sign_loops)
 
 
 if __name__ == "__main__":

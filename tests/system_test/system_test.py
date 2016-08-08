@@ -11,6 +11,8 @@ from tempfile import mkdtemp
 from threading import Timer
 from time import time
 
+from pkcs_11_test import PKCS11Test
+
 try:
     from subprocess import getstatusoutput as getstatusoutput
 except ImportError:
@@ -82,8 +84,7 @@ class TestSuite(object):
             "PYKCS11LIB"] = join(EXEC_PATH, "src/cryptoki/libpkcs11.so")
 
         master_args = [
-            "python",
-            join(EXEC_PATH, "..", "tests/system_test/pkcs_11_test.py"),
+            "pkcs11",
             "-c",
             "-f",
             dummy_file,
@@ -202,10 +203,64 @@ def close_nodes(nodes):
     for node in nodes:
         close_node(node)
 
-
 def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
     """
     Executes a master linked with a specific arguments
+
+    :param master_args: Arguments of the process to be run, including the script itself
+    :param master_name: Name of the master, for logging purposes
+    :param cryptoki_conf: Value of the TCHSM_CONFIG env. variable
+    :return: Returns the master process, the return code and a return message
+    """
+    if master_args[0] == "pkcs11":
+        exec_master_pkcs11(master_args, master_name, cryptoki_conf)
+    else:
+        exec_master_dtc(master_args, master_name, cryptoki_conf)
+
+def exec_master_pkcs11(master_args, master_name, cryptoki_conf="cryptoki.conf"):
+    """
+    Executes a pkcs11 master linked with a specific arguments
+
+    :param master_args: Arguments of the process to be run, including the script itself
+    :param master_name: Name of the master, for logging purposes
+    :param cryptoki_conf: Value of the TCHSM_CONFIG env. variable
+    :return: Returns the master process, the return code and a return message
+    """
+    global MASTER_TIMEOUT
+    if isfile(cryptoki_conf):
+        environ["TCHSM_CONFIG"] = abspath(cryptoki_conf)
+    else:
+        return None, 1, "ERROR: TCHSM_CONFIG env. var. could not be set."
+    
+    if DEBUG:
+        print("    DEBUG::MASTER_CALL: %s" % ' '.join(master_args))
+    
+    master = subprocess.Popen(master_args,stderr=subprocess.PIPE,stdout=subprocess.PIPE)
+    filename = master_args[3]
+    master = PKCS11Test(pin=1234)
+    master_return_code = master.run(create_key=true, sign_loops=1, filename = filename)
+
+    timer = Timer(MASTER_TIMEOUT * 3, master.terminate)
+    if master is not None:
+        timer.start()
+
+    stdout_data, stderr_data = master.communicate()
+
+    if master_return_code >= 0:
+        timer.cancel()
+
+        if master.returncode != 0:
+            return master, master.returncode, "FAILURE: Master return code: " + str(master.returncode)
+        return master, master.returncode, ""
+    else:
+        print(stdout_data)
+        print(stderr_data)
+        debug_output(stdout_data, stderr_data)
+        return master, -1, "FAILURE: Master didn't exit on time"
+
+def exec_master_dtc(master_args, master_name, cryptoki_conf="cryptoki.conf"):
+    """
+    Executes a dtc master linked with a specific arguments
 
     :param master_args: Arguments of the process to be run, including the script itself
     :param master_name: Name of the master, for logging purposes
