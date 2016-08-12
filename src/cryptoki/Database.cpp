@@ -49,6 +49,10 @@ Database::Database(std::string path) {
     init(path);
 }
 
+Database::Database(){
+    db_ = nullptr;
+}
+
 Database::Database(Database &&db) {
     std::swap(db_, db.db_);
 }
@@ -158,7 +162,8 @@ void Database::get_max_handle(sqlite3 *db_) {
 void Database::init(std::string path) {
     int rc;
     rc = sqlite3_open_v2(path.c_str(), &db_, SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
-
+    
+    
     if (rc != SQLITE_OK) {
         sqlite3_close(db_);
         throw TcbError("Database::init", "Couldn't open database", CKR_GENERAL_ERROR);

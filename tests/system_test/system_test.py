@@ -87,6 +87,7 @@ class TestSuite(object):
 
         environ[
             "PYKCS11LIB"] = join(EXEC_PATH, "src/cryptoki/libpkcs11.so")
+        print ("PYKCS11LIB path: " + join(EXEC_PATH, "src/cryptoki/libpkcs11.so"))
 
         master_args = [
             "pkcs11"]
@@ -233,7 +234,7 @@ def exec_master_pkcs11(master_args, master_name, cryptoki_conf="cryptoki.conf"):
         return None, 1, "ERROR: TCHSM_CONFIG env. var. could not be set."
     
     if DEBUG:
-        print("    DEBUG::MASTER_CALL: %s" % ' '.join("pcks11"))
+        print("    DEBUG::MASTER_CALL: %s" % str(master_args))
     
     filename = create_dummy_file()
     pkcs11_test = PKCS11Test(pin="1234")
@@ -243,15 +244,23 @@ def exec_master_pkcs11(master_args, master_name, cryptoki_conf="cryptoki.conf"):
     master = Thread(target=pkcs11_test_wrapper, kwargs=args)
     
     master.start()
+    print ("master started")
+    
     master.join(3 * MASTER_TIMEOUT)
+    print ("master joined")
+    
     if master.isAlive():
         return master, -1, "FAILURE: Master didn't exit on time"
     else:
-        result = q.get()
-        if isinstance(result, PKCS11TestException):
-            return None, 1, "FAILURE: Master return code: " + str(result)
+        if not q.empty():
+            result = q.get()
+            if isinstance(result, PKCS11TestException):
+                return None, 1, "FAILURE: Master return code: " + str(result)
+            else:
+                return None, result, ""
         else:
-            return None, result, ""
+            print ("q was empty")
+            return None, 1, "FAILURE: q was empty"
         
 
 def pkcs11_test_wrapper(pkcs11_test, create_key, sign_loops, filename, queue):
@@ -482,7 +491,6 @@ def test_master_n_nodes(master_args, master_name, nb_of_nodes):
 
 
     master_args, master_name = fix_dtc_args(master_args, master_name, nb_of_nodes)
-    print(exec_master(master_args, master_name))
     master, master_ret, master_mess = exec_master(master_args, master_name)
 
     close_nodes(open_nodes)
@@ -1076,6 +1084,7 @@ def main(argv=None):
 
     global EXEC_PATH
     EXEC_PATH = abspath(args.build_path)
+    print ("exec path: "+EXEC_PATH)
 
     global DEBUG
     DEBUG = args.debug

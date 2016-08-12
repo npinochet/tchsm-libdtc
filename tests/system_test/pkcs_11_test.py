@@ -35,6 +35,7 @@ class PKCS11Test:
         if(pykcs11lib is not None):
             environ["PYKCS11LIB"] = pykcs11lib
 
+        print (environ.get("PYKCS11LIB"))        
         self.pkcs11 = self.initialize(lib)
         first_slot = self.pkcs11.getSlotList()[0]
 
