@@ -8,10 +8,16 @@ import sys
 from os import chdir, environ
 from os.path import join, exists, split, abspath, isdir, isfile, dirname
 from tempfile import mkdtemp
-from threading import Timer
+from threading import Timer, Thread
 from time import time
 
-from pkcs_11_test import PKCS11Test
+is_py2 = sys.version[0] == '2'
+if is_py2:
+    import Queue as queue
+else:
+    import queue as queue
+
+from pkcs_11_test import PKCS11Test, PKCS11TestException
 
 try:
     from subprocess import getstatusoutput as getstatusoutput
@@ -78,18 +84,12 @@ class TestSuite(object):
 
         :return: Test return code and return message
         """
-        dummy_file = create_dummy_file()
 
         environ[
             "PYKCS11LIB"] = join(EXEC_PATH, "src/cryptoki/libpkcs11.so")
 
         master_args = [
-            "pkcs11",
-            "-c",
-            "-f",
-            dummy_file,
-            "-p",
-            "1234"]
+            "pkcs11"]
 
         ret, mess = self.test_func(master_args, "pkcs_11_test")
 
@@ -213,9 +213,9 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
     :return: Returns the master process, the return code and a return message
     """
     if master_args[0] == "pkcs11":
-        exec_master_pkcs11(master_args, master_name, cryptoki_conf)
+        return exec_master_pkcs11(master_args, master_name, cryptoki_conf)
     else:
-        exec_master_dtc(master_args, master_name, cryptoki_conf)
+        return exec_master_dtc(master_args, master_name, cryptoki_conf)
 
 def exec_master_pkcs11(master_args, master_name, cryptoki_conf="cryptoki.conf"):
     """
@@ -233,30 +233,33 @@ def exec_master_pkcs11(master_args, master_name, cryptoki_conf="cryptoki.conf"):
         return None, 1, "ERROR: TCHSM_CONFIG env. var. could not be set."
     
     if DEBUG:
-        print("    DEBUG::MASTER_CALL: %s" % ' '.join(master_args))
+        print("    DEBUG::MASTER_CALL: %s" % ' '.join("pcks11"))
     
-    master = subprocess.Popen(master_args,stderr=subprocess.PIPE,stdout=subprocess.PIPE)
-    filename = master_args[3]
-    master = PKCS11Test(pin=1234)
-    master_return_code = master.run(create_key=true, sign_loops=1, filename = filename)
+    filename = create_dummy_file()
+    pkcs11_test = PKCS11Test(pin="1234")
+    q = queue.Queue()
 
-    timer = Timer(MASTER_TIMEOUT * 3, master.terminate)
-    if master is not None:
-        timer.start()
-
-    stdout_data, stderr_data = master.communicate()
-
-    if master_return_code >= 0:
-        timer.cancel()
-
-        if master.returncode != 0:
-            return master, master.returncode, "FAILURE: Master return code: " + str(master.returncode)
-        return master, master.returncode, ""
-    else:
-        print(stdout_data)
-        print(stderr_data)
-        debug_output(stdout_data, stderr_data)
+    args = {'pkcs11_test':pkcs11_test, 'create_key':True, 'sign_loops':1, 'filename':filename, 'queue':q}
+    master = Thread(target=pkcs11_test_wrapper, kwargs=args)
+    
+    master.start()
+    master.join(3 * MASTER_TIMEOUT)
+    if master.isAlive():
         return master, -1, "FAILURE: Master didn't exit on time"
+    else:
+        result = q.get()
+        if isinstance(result, PKCS11TestException):
+            return None, 1, "FAILURE: Master return code: " + str(result)
+        else:
+            return None, result, ""
+        
+
+def pkcs11_test_wrapper(pkcs11_test, create_key, sign_loops, filename, queue):
+    try:
+        result_code = pkcs11_test.run(create_key=create_key, sign_loops=sign_loops, filename=filename)
+        queue.put(result_code)
+    except PKCS11TestException as e:
+        queue.put(e)
 
 def exec_master_dtc(master_args, master_name, cryptoki_conf="cryptoki.conf"):
     """
@@ -296,12 +299,12 @@ def exec_master_dtc(master_args, master_name, cryptoki_conf="cryptoki.conf"):
 
         if master.returncode != 0:
             return master, master.returncode, "FAILURE: Master return code: " + str(master.returncode)
-        return master, master.returncode, ""
+        return None, master.returncode, ""
     else:
         print(stdout_data)
         print(stderr_data)
         debug_output(stdout_data, stderr_data)
-        return master, -1, "FAILURE: Master didn't exit on time"
+        return None, -1, "FAILURE: Master didn't exit on time"
 
 
 def close_master(master):
@@ -477,8 +480,10 @@ def test_master_n_nodes(master_args, master_name, nb_of_nodes):
 
         open_nodes.append(node_proc)
 
-    master, master_ret, master_mess = exec_master(
-        *fix_dtc_args(master_args, master_name, nb_of_nodes))
+
+    master_args, master_name = fix_dtc_args(master_args, master_name, nb_of_nodes)
+    print(exec_master(master_args, master_name))
+    master, master_ret, master_mess = exec_master(master_args, master_name)
 
     close_nodes(open_nodes)
     close_master(master)
@@ -997,8 +1002,8 @@ def fix_dtc_args(master_args, master_name, nb_of_nodes, threshold=None,
             fixed_master_args[1] = join(
                 split(conf_path)[0],
                 "master" + str(index) + ".conf")
-
     return fixed_master_args, master_name
+
 
 
 def main(argv=None):

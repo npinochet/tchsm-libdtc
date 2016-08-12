@@ -25,6 +25,9 @@ DEFAULT_PIN = "1234"
 DEFAULT_AMOUNT = 1
 KEY_ID = 0x22
 
+class PKCS11TestException(Exception):
+    pass
+
 class PKCS11Test:
     def __init__(self, pin, tchsm_config = None, pykcs11lib = None, lib = None):
         if(tchsm_config is not None):
@@ -48,7 +51,7 @@ class PKCS11Test:
             pkcs11.load(lib)
         except PyKCS11Error:
             sys.stderr.write("ERROR: The library could not be loaded\n")
-            sys.exit(1)
+            raise PKCS11Exception("ERROR: The library could not be loaded")
 
         return pkcs11
 
@@ -117,7 +120,7 @@ class PKCS11Test:
         with open(signature_file_name, 'wb') as f:
             f.write(signature)
 
-        public_key = RSA.construct((long(modulus), long(public_exponent)))
+        public_key = RSA.construct((modulus, public_exponent))
 
         public_key_file_name = 'pkey.pem'
         with open(public_key_file_name, 'wb') as f:
@@ -140,7 +143,7 @@ class PKCS11Test:
         if openssl_process.returncode != 0:
             self.finalize()
             sys.stderr.write("ERROR: Signature doesn't verify.\n")
-            exit(1)
+            raise PKCS11TestException("ERROR: Signature doesn't verify.")
 
 
     def finalize(self):
@@ -153,10 +156,10 @@ class PKCS11Test:
     def run(self, filename, create_key, sign_loops):
         if environ.get("TCHSM_CONFIG") is None:
             sys.stderr.write("ERROR: TCHSM_CONFIG is wrongly set.\n")
-            sys.exit(1)
+            raise PKCS11TestException("ERROR: TCHSM_CONFIG is wrongly set.")
         if environ.get("PYKCS11LIB") is None:
             sys.stderr.write("ERROR: PYKCS11LIB is wrongly set.\n")
-            sys.exit(1)
+            raise PKCS11TestException("ERROR: PYKCS11LIB is wrongly set.")
 
         if create_key:
             (public_key, private_key) = self.create_new_keys()
