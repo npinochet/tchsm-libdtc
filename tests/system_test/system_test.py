@@ -87,7 +87,6 @@ class TestSuite(object):
 
         environ[
             "PYKCS11LIB"] = join(EXEC_PATH, "src/cryptoki/libpkcs11.so")
-        print ("PYKCS11LIB path: " + join(EXEC_PATH, "src/cryptoki/libpkcs11.so"))
 
         master_args = [
             "pkcs11"]
@@ -204,7 +203,7 @@ def close_nodes(nodes):
     for node in nodes:
         close_node(node)
 
-def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
+def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf", run_in_other_process=False):
     """
     Executes a master linked with a specific arguments
 
@@ -214,11 +213,11 @@ def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf"):
     :return: Returns the master process, the return code and a return message
     """
     if master_args[0] == "pkcs11":
-        return exec_master_pkcs11(master_args, master_name, cryptoki_conf)
+        return exec_master_pkcs11(master_args, master_name, cryptoki_conf, run_in_other_process)
     else:
-        return exec_master_dtc(master_args, master_name, cryptoki_conf)
+        return exec_master_dtc(master_args, master_name, cryptoki_conf, run_in_other_process)
 
-def exec_master_pkcs11(master_args, master_name, cryptoki_conf="cryptoki.conf"):
+def exec_master_pkcs11(master_args, master_name, cryptoki_conf="cryptoki.conf", run_in_other_process=False):
     """
     Executes a pkcs11 master linked with a specific arguments
 
@@ -227,11 +226,52 @@ def exec_master_pkcs11(master_args, master_name, cryptoki_conf="cryptoki.conf"):
     :param cryptoki_conf: Value of the TCHSM_CONFIG env. variable
     :return: Returns the master process, the return code and a return message
     """
+
     global MASTER_TIMEOUT
     if isfile(cryptoki_conf):
         environ["TCHSM_CONFIG"] = abspath(cryptoki_conf)
     else:
         return None, 1, "ERROR: TCHSM_CONFIG env. var. could not be set."
+
+    if run_in_other_process:
+        dummy_file = create_dummy_file()
+        master_args = [
+            "python3",
+            join(EXEC_PATH, "..", "tests/system_test/pkcs_11_test.py"),
+            "-c",
+            "-f",
+            dummy_file,
+            "-p",
+            "1234"]
+        try:
+            if DEBUG:
+                print("    DEBUG::MASTER_CALL: %s" % ' '.join(master_args))
+            master = subprocess.Popen(
+                master_args,
+                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE)
+        except OSError:
+            print("ERROR: Exec could not be accessed >> " + master_name)
+            return None, 1, "ERROR: Exec could not be accessed >> " + master_name
+
+        timer = Timer(MASTER_TIMEOUT * 3, master.terminate)
+        if master is not None:
+            timer.start()
+
+        stdout_data, stderr_data = master.communicate()
+
+        if master.returncode >= 0:
+            timer.cancel()
+            debug_output(stdout_data, stderr_data)
+
+            if master.returncode != 0:
+                return master, master.returncode, "FAILURE: Master return code: " + str(master.returncode)
+            return None, master.returncode, ""
+        else:
+            print(stdout_data)
+            print(stderr_data)
+            debug_output(stdout_data, stderr_data)
+            return None, -1, "FAILURE: Master didn't exit on time"
     
     if DEBUG:
         print("    DEBUG::MASTER_CALL: %s" % str(master_args))
@@ -244,10 +284,7 @@ def exec_master_pkcs11(master_args, master_name, cryptoki_conf="cryptoki.conf"):
     master = Thread(target=pkcs11_test_wrapper, kwargs=args)
     
     master.start()
-    print ("master started")
-    
     master.join(3 * MASTER_TIMEOUT)
-    print ("master joined")
     
     if master.isAlive():
         return master, -1, "FAILURE: Master didn't exit on time"
@@ -270,7 +307,7 @@ def pkcs11_test_wrapper(pkcs11_test, create_key, sign_loops, filename, queue):
     except PKCS11TestException as e:
         queue.put(e)
 
-def exec_master_dtc(master_args, master_name, cryptoki_conf="cryptoki.conf"):
+def exec_master_dtc(master_args, master_name, cryptoki_conf="cryptoki.conf", run_in_other_process=False):
     """
     Executes a dtc master linked with a specific arguments
 
@@ -577,9 +614,12 @@ def test_three_nodes_one_down(master_args, master_name):
         return master_ret, master_mess
 
     close_node(node_proc3)
-
-    master, master_ret, master_mess = exec_master(
-        *fix_dtc_args(master_args, master_name, 3))
+    try:
+        master, master_ret, master_mess = exec_master(
+            *fix_dtc_args(master_args, master_name, 3))    
+    except PKCS11TestException as e:
+        master_ret = 1
+    
     close_nodes([node_proc1, node_proc2])
     close_master(master)
     if master_ret != 0:
@@ -602,7 +642,7 @@ def test_insuff_threshold_bordercase(master_args, master_name):
         return 1, node_mess
 
     master, master_ret, master_mess = exec_master(
-        *fix_dtc_args(master_args, master_name, 1, 0))
+        *fix_dtc_args(master_args, master_name, 1, 0), run_in_other_process = True)
     close_node(node_proc)
     close_master(master)
 
@@ -646,9 +686,13 @@ def test_insuff_threshold(master_args, master_name):
 
     close_node(node_proc3)
 
-    master, master_ret, master_mess = exec_master(
+    try:
+        master, master_ret, master_mess = exec_master(
             *fix_dtc_args(master_args, master_name, 3, 3,
-                          key_handler='keyhandler2'))
+                          key_handler='keyhandler2'))    
+    except PKCS11TestException as e:
+        master_ret = 1
+    
     close_nodes([node_proc1, node_proc2])
     close_master(master)
 
@@ -681,10 +725,14 @@ def test_three_nodes_two_open(master_args, master_name):
         close_nodes([node_proc1, node_proc2])
         return 1, node_mess2
 
-    master, master_ret, master_mess = exec_master(
-        *fix_dtc_args(master_args, master_name, 3))
+    try:
+        master, master_ret, master_mess = exec_master(
+            *fix_dtc_args(master_args, master_name, 3))    
+    except PKCS11TestException as e:
+        master = None
+        master_ret = 1
+
     close_nodes([node_proc1, node_proc2])
-    close_master(master)
     if master_ret != 0:
         return 0, ""
     else:
@@ -941,18 +989,30 @@ def test_two_masters_thres2_nodes3(master_args, master_name):
 
     fixed_args, master_name = fix_dtc_args(
         master_args, master_name, 3, index=1)
-    master1, master_ret1, master_mess1 = exec_master(
-        fixed_args, master_name, "cryptoki1.conf")
-    close_master(master1)
+
+    try:
+        master1, master_ret1, master_mess1 = exec_master(
+        	fixed_args, master_name, "cryptoki1.conf")  
+    except PKCS11TestException as e:
+        master_ret1 = 1
+        master1 = None
+
+    close_master(master1)  
 
     if master_ret1 == 0:
         close_nodes([node_proc1, node_proc2])
         return 1, "FAILURE: The test should fail, as it should not generate keys."
 
+
     fixed_args, master_name = fix_dtc_args(
         master_args, master_name, 3, index=2)
-    master2, master_ret2, master_mess2 = exec_master(
-        fixed_args, master_name, "cryptoki2.conf")
+    
+    try:
+        master2, master_ret2, master_mess2 = exec_master(
+        	fixed_args, master_name, "cryptoki2.conf")    
+    except PKCS11TestException as e:
+        master_ret2 = 1
+        master2 = None
 
     close_nodes([node_proc1, node_proc2])
     close_master(master2)

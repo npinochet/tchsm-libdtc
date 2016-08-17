@@ -34,14 +34,17 @@ class PKCS11Test:
             environ["TCHSM_CONFIG"] = tchsm_config
         if(pykcs11lib is not None):
             environ["PYKCS11LIB"] = pykcs11lib
-
-        print (environ.get("PYKCS11LIB"))        
+                 
         self.pkcs11 = self.initialize(lib)
-        first_slot = self.pkcs11.getSlotList()[0]
+        try:
+            first_slot = self.pkcs11.getSlotList()[0]
 
-        self.session = self.pkcs11.openSession(first_slot,
-            PyKCS11.CKF['CKF_SERIAL_SESSION'] | PyKCS11.CKF['CKF_RW_SESSION'])
-        self.session.login(pin)
+            self.session = self.pkcs11.openSession(first_slot,
+                PyKCS11.CKF['CKF_SERIAL_SESSION'] | PyKCS11.CKF['CKF_RW_SESSION'])
+            self.session.login(pin)
+        except PyKCS11.PyKCS11Error as e:
+            raise PKCS11TestException("ERROR: Get slot list failed")
+        
 
     def initialize(self, lib):
         """
@@ -181,13 +184,11 @@ class PKCS11Test:
 
         if filename != "":
             for i in range(0, sign_loops):
-                print("Going to sign %d" % i)
                 self.sign_and_verify(
                     filename,
                     private_key,
                     public_exponent,
                     modulus)
-                print("Signed %d" % i)
 
         self.finalize()
         return 0
