@@ -89,7 +89,8 @@ class TestSuite(object):
             "PYKCS11LIB"] = join(EXEC_PATH, "src/cryptoki/libpkcs11.so")
 
         master_args = [
-            "pkcs11"]
+            "pkcs11",
+            "-c"]
 
         ret, mess = self.test_func(master_args, "pkcs_11_test")
 
@@ -156,7 +157,7 @@ def exec_node(config):
     if node.returncode is not None:
         return node, node.returncode, "ERROR: Node finished with return code >> " + str(node.returncode)
 
-    timer = Timer(NODE_TIMEOUT * 3, node.terminate)
+    timer = Timer(NODE_TIMEOUT * 3, terminate_subprocess, [node])
     timer.start()
 
     node_stderr = node.stderr
@@ -233,6 +234,7 @@ def exec_master_pkcs11(master_args, master_name, cryptoki_conf="cryptoki.conf", 
     else:
         return None, 1, "ERROR: TCHSM_CONFIG env. var. could not be set."
 
+    # special case for the bordercase threshold test
     if run_in_other_process:
         dummy_file = create_dummy_file()
         master_args = [
@@ -254,7 +256,7 @@ def exec_master_pkcs11(master_args, master_name, cryptoki_conf="cryptoki.conf", 
             print("ERROR: Exec could not be accessed >> " + master_name)
             return None, 1, "ERROR: Exec could not be accessed >> " + master_name
 
-        timer = Timer(MASTER_TIMEOUT * 3, master.terminate)
+        timer = Timer(MASTER_TIMEOUT * 3, terminate_subprocess, [master])
         if master is not None:
             timer.start()
 
@@ -279,7 +281,11 @@ def exec_master_pkcs11(master_args, master_name, cryptoki_conf="cryptoki.conf", 
     filename = create_dummy_file()
     pkcs11_test = PKCS11Test(pin="1234")
     q = queue.Queue()
-
+    
+    create_key = False
+    if len(master_args) > 1 and master_args[1] == "-c":
+    	create_key = True
+    print("create key: %s" % create_key)
     args = {'pkcs11_test':pkcs11_test, 'create_key':True, 'sign_loops':1, 'filename':filename, 'queue':q}
     master = Thread(target=pkcs11_test_wrapper, kwargs=args)
     
@@ -333,7 +339,7 @@ def exec_master_dtc(master_args, master_name, cryptoki_conf="cryptoki.conf", run
         print("ERROR: Exec could not be accessed >> " + master_name)
         return None, 1, "ERROR: Exec could not be accessed >> " + master_name
 
-    timer = Timer(MASTER_TIMEOUT * 3, master.terminate)
+    timer = Timer(MASTER_TIMEOUT * 3, terminate_subprocess, [master])
     if master is not None:
         timer.start()
 
@@ -362,6 +368,7 @@ def close_master(master):
     if master is not None:
         master.stdout.close()
         master.stderr.close()
+        master.terminate()
 
 
 def create_dummy_file():
@@ -811,6 +818,9 @@ def test_cryptoki_wout_key():
     status, output = getstatusoutput(
         "python " + CONFIG_CREATOR_PATH + config_data)
 
+    environ[
+            "PYKCS11LIB"] = join(EXEC_PATH, "src/cryptoki/libpkcs11.so")
+
     if status != 0:
         return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
@@ -824,14 +834,10 @@ def test_cryptoki_wout_key():
         close_nodes([node_proc1, node_proc2])
         return 1, node_mess2
 
-    dummy_file = create_dummy_file()
-    master_args = [join(
-        EXEC_PATH,
-        "tests/system_test/pkcs_11_test.py"),
-        "-cf",
-        dummy_file,
-        "-p",
-        "1234"]
+    master_args = [
+            "pkcs11",
+            "-c"]
+
     master_name = "pkcs_11_test"
     master, master_ret, master_mess = exec_master(
         *fix_dtc_args(master_args, master_name, 2))
@@ -841,13 +847,9 @@ def test_cryptoki_wout_key():
         close_nodes([node_proc1, node_proc2])
         return master_ret, master_mess
 
-    master_args = [join(
-        EXEC_PATH,
-        "tests/system_test/pkcs_11_test.py"),
-        "-f",
-        dummy_file,
-        "-p",
-        "1234"]
+    master_args = [
+            "pkcs11"]
+
     master_name = "pkcs_11_test"
     master, master_ret, master_mess = exec_master(
         *fix_dtc_args(master_args, master_name, 2))
@@ -1072,6 +1074,9 @@ def fix_dtc_args(master_args, master_name, nb_of_nodes, threshold=None,
                 "master" + str(index) + ".conf")
     return fixed_master_args, master_name
 
+def terminate_subprocess(subprocess):
+	if subprocess.poll() is None:
+		subprocess.terminate()
 
 
 def main(argv=None):
