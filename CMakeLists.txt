@@ -8,15 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${libdtc_SOURCE_DIR}/cmake)
 
-set(CMAKE_CTEST_COMMAND ctest -V)
-
-add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})
-add_custom_target(system_test)
-#TODO if?
-enable_testing()
-
 add_subdirectory(src)
-add_subdirectory(tests EXCLUDE_FROM_ALL)
 
 # make uninstall logic
 configure_file(
@@ -26,3 +18,14 @@ configure_file(
 add_custom_target(
     uninstall COMMAND ${CMAKE_COMMAND}
                       -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
+
+if(BUILD_TESTING)
+    set(CMAKE_CTEST_COMMAND ctest -V)
+
+    add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})
+    add_custom_target(system_test)
+    enable_testing(true)
+
+    add_subdirectory(tests EXCLUDE_FROM_ALL)
+endif(BUILD_TESTING)
+
