@@ -8,7 +8,7 @@ before_install:
 install:
     - mkdir build
     - cd build
-    - cmake ..
+    - cmake -DBUILD_TESTING=ON ..
     - make dtc
     - make
     - make system_test
