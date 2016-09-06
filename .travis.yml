@@ -17,5 +17,3 @@ install:
 
 script:
     - make check
-    - pwd
-    - python3 ../tests/system_test/system_test.py --debug -v -r 'DTC TWO MASTERS' .
