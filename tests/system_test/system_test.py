@@ -368,7 +368,8 @@ def close_master(master):
     if master is not None:
         master.stdout.close()
         master.stderr.close()
-        master.terminate()
+        if not master.poll():
+            master.terminate()
 
 
 def create_dummy_file():
