@@ -42,8 +42,8 @@ CONFIG_CREATOR_PATH = ""
 
 NODE_RDY = "Both sockets bound, node ready to talk with the Master."
 
-NODE_TIMEOUT = 30
-MASTER_TIMEOUT = 30
+NODE_TIMEOUT = 10
+MASTER_TIMEOUT = 10
 
 DEBUG = False
 
