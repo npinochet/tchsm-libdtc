@@ -19,6 +19,5 @@ install:
     - sudo python3 -m pip install -r ../tests/system_test/requirements.txt
 
 script:
-<<<<<<< HEAD
     - make check
     - sudo python3 ../tests/system_test/system_test.py --debug -v -r 'PKCS11 TWO MASTERS' .
