@@ -14,12 +14,14 @@ typedef struct database_conn database_t;
  *
  * @param path Location of the file with the database or path where to
  *      store the databse if it does not exits.
+ * @param create_db_tables Flag that indicates whether the db tables should be
+ *      created in this call of the function.
  *
  * @return A connection to the database to be used in the next methods,
  *      to release the connection and free the memory the user must call
  *      db_close_and_free_connection. On error NULL is returned.
  */
-database_t *db_init_connection(const char *path);
+database_t *db_init_connection(const char *path, int create_db_tables);
 
 /**
  * Check if the key is a public key of an authorized master or not.

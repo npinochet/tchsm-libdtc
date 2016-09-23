@@ -35,7 +35,7 @@ class Database
     
 public:
     Database(std::string path);
-    Database() = default;
+    Database();
     virtual ~Database();
     Database(Database const &) = delete;
     Database(Database &&);    

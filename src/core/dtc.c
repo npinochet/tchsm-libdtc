@@ -886,7 +886,8 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
     prev = 0;
     while(uht_next(store_key_data.users_delivered, &prev, NULL, &val))
         if(val != 0)
-            ret = DTC_ERR_INVALID_VAL;
+            // A node didn't get the key.
+            ret = DTC_ERR_TIMED_OUT;
 
     uht_free(store_key_data.users_delivered);
 

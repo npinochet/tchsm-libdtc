@@ -7,6 +7,14 @@
 
 #include <include/dtc.h>
 
+char *KEY_HANDLER = "default_handler";
+
+/** Args:
+ * 1: path to the config file
+ * 2: number of nodes
+ * [3]: threshold
+ * [4]: key handler
+ */
 int main(int argc, char **argv)
 {
     int ret_val = 0;
@@ -15,31 +23,34 @@ int main(int argc, char **argv)
     char *char_msg = "My msg";
     bytes_t *signature;
 
-    OPEN_LOG();
+    OPEN_LOG(NULL, LOG_CONS | LOG_PERROR, LOG_LOCAL0);
     LOG(LOG_LVL_NOTI, "Logger started for %s", argv[0]);
 
     dtc_ctx_t *ctx = dtc_init(argv[1], &ret_val);
 
     printf("Init ret: %d:%s\n", ret_val, dtc_get_error_msg(ret_val));
     if(ret_val != DTC_ERR_NONE)
-        return 1;
+        return ret_val;
 
     int number_of_nodes = atoi(argv[2]);
     int threshold = (int)floor(number_of_nodes/2.0) + 1;
-    if(argc > 3)
+    if(argc > 3) {
         threshold = atoi(argv[3]);
+        if(argc > 4)
+            KEY_HANDLER = argv[4];
+    }
 
-    ret_val = dtc_generate_key_shares(ctx, "hola_id", 512, threshold, number_of_nodes, NULL, &info);
+    ret_val = dtc_generate_key_shares(ctx, KEY_HANDLER, 512, threshold, number_of_nodes, NULL, &info);
     printf("Generate: %d:%s\n", ret_val, dtc_get_error_msg(ret_val));
     if(ret_val != DTC_ERR_NONE) {
         printf("Destroy: %d\n", dtc_destroy(ctx));
-        return 1;
+        return ret_val;
     }
 
     bytes_t *msg = tc_init_bytes((void *)char_msg, strlen(char_msg));
     bytes_t *prep_msg = tc_prepare_document(msg, TC_SHA256, info);
 
-    ret_val = dtc_sign(ctx, info, "hola_id", prep_msg, &signature);
+    ret_val = dtc_sign(ctx, info, KEY_HANDLER, prep_msg, &signature);
     printf("Sign: %d: %s\n", ret_val, dtc_get_error_msg(ret_val));
 
     if(ret_val == DTC_ERR_NONE) {
@@ -55,10 +66,10 @@ int main(int argc, char **argv)
     tc_clear_bytes(prep_msg);
     free(msg);
 
-    dtc_delete_key_shares(ctx, "hola_id");
+    dtc_delete_key_shares(ctx, KEY_HANDLER);
 
     printf("Destroy: %d\n", dtc_destroy(ctx));
 
 
-    return ret_val != DTC_ERR_NONE;
+    return ret_val;
 }
