@@ -170,8 +170,6 @@ class PKCS11Test:
         else:
             (public_key, private_key) = self.get_key()
 
-        print("Got the key")
-
         public_exponent_as_byte_list = self.session.getAttributeValue(
             public_key, [PyKCS11.CKA['CKA_PUBLIC_EXPONENT']])[0]
         modulus_as_byte_list = self.session.getAttributeValue(
@@ -194,7 +192,6 @@ class PKCS11Test:
         return 0
 
 def main(argv=None):
-    print("PKCS 11 test")
     parser = argparse.ArgumentParser(description="System Testing")
     parser.add_argument("-c",
                         "--create_key",
