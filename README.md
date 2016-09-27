@@ -10,6 +10,23 @@ The project intend to be an alternative to a HSM and to other availables softwar
 
 This project is in its early development stage, be aware of this as security issues and bugs are likely to be there.
 
+### Requirements
+
+botan, json-c, libconfig, libuuid, libsodium, sqlite3, tchsm-libtc, zeromq
+
+### Installing
+
+Once the requirements are met you can install the software by following the next steps.
+
+```shell
+git clone https://github.com/niclabs/tchsm-libdtc.git
+cd tchsm-libdtc
+mkdir build
+cd build
+cmake ..
+make install
+```
+
 ## Development
 
 
