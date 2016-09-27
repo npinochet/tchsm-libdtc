@@ -10,6 +10,8 @@ The project intend to be an alternative to a HSM and to other availables softwar
 
 This project is in its early development stage, be aware of this as security issues and bugs are likely to be there.
 
+We do provide a few [Dockerfiles](https://github.com/niclabs/docker/tree/master/tchsm) you can use directly or see how the software is installed.
+
 ### Requirements
 
 botan, json-c, libconfig, libuuid, libsodium, sqlite3, tchsm-libtc, zeromq
