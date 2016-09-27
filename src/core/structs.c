@@ -195,10 +195,10 @@ void free_buffer(Buffer_t *buf)
 
 KHASH_MAP_INIT_STR(u_table, uint16_t)
 
-typedef struct uint16_hash_table {
+struct uint16_hash_table {
     khash_t(u_table) *h_t;
     pthread_mutex_t get_mutex;
-} Uint16_Hash_t;
+};
 
 Uint16_Hash_t *uht_init_hashtable()
 {
@@ -316,10 +316,10 @@ void uht_free(Uint16_Hash_t *table)
 
 KHASH_MAP_INIT_STR(h_table, void *)
 
-typedef struct hash_table{
+struct hash_table{
     khash_t(h_table) *h_t;
     pthread_mutex_t get_mutex;
-} Hash_t;
+};
 
 Hash_t *ht_init_hashtable()
 {
