@@ -840,7 +840,7 @@ void Session::signFinal(CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen) {
     // encoded signature is a byte vector, so data size == vector.size().
     *pulSignatureLen = encoded_signature.size();
 
-    CK_BYTE_PTR data = static_cast<CK_BYTE_PTR> (encoded_signature.data());
+    CK_BYTE_PTR data = static_cast<CK_BYTE_PTR> (&encoded_signature[0]);
     std::copy(data, data + *pulSignatureLen, pSignature);
 
     keyMetainfo_.reset();
