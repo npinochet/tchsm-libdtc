@@ -833,11 +833,15 @@ void Session::signFinal(CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen) {
         throw TcbError("Session::sign", err_msg + dtc_get_error_msg(sign_err), CKR_GENERAL_ERROR);
     }
 
-    *pulSignatureLen = signature->data_len;
+    Botan::BigInt s(static_cast<Botan::byte *>(signature->data),
+                    signature->data_len);
+    auto encoded_signature = Botan::BigInt::encode_1363(s, n.bytes());
 
-    CK_BYTE_PTR data = (CK_BYTE_PTR) signature->data;
-    uint32_t dataLen = signature->data_len;
-    std::copy(data, data + dataLen, pSignature);
+    // encoded signature is a byte vector, so data size == vector.size().
+    *pulSignatureLen = encoded_signature.size();
+
+    CK_BYTE_PTR data = static_cast<CK_BYTE_PTR> (encoded_signature.data());
+    std::copy(data, data + *pulSignatureLen, pSignature);
 
     keyMetainfo_.reset();
     padder_.reset();
