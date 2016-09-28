@@ -14,7 +14,7 @@ We do provide a few [Dockerfiles](https://github.com/niclabs/docker/tree/master/
 
 ### Requirements
 
-botan, json-c, libconfig, libuuid, libsodium, sqlite3, tchsm-libtc, zeromq
+*botan, json-c, libconfig, libuuid, libsodium, sqlite3, tchsm-libtc, zeromq*
 
 ### Installing
 
@@ -31,10 +31,11 @@ make install
 
 ## Development
 
-
 The development is being done mainly by engineers and interns at [NIC Research Labs Chile](http://niclabs.cl), suggestion, improvements and/or questions are appreciatted.
 
 ### Requirements
+
+Beside install requirements, you will need: *check* to run unit testing, *openssl* and *python3* with some libraries listed at ./test/system_test/requirements.txt to run System Test.
 
 ### Testing
 
