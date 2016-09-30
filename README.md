@@ -51,6 +51,8 @@ $ tchsm_node -c <path_to_the_nodei.conf>
 
 The library however is not being run directly, so in order to make its configuration file reachable for it you need to set the TCHSM_CONFIG environment variable to the path of the cryptoki.conf file just generated.
 
+We also provide an easy to deploy [demo](https://github.com/niclabs/docker/tree/master/tchsm/demo/ubuntulatest-knot) using docker containers, you can use it as template.
+
 ## Supported mechanisms
 
 Currently we do support the following PKCS#11 mechanisms:
