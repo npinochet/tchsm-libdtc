@@ -74,7 +74,7 @@ The development is being done mainly by engineers and interns at [NIC Research L
 
 ### Requirements
 
-Beside install requirements, you will need: *check* to run unit testing, *openssl* and *python3* with some libraries listed at ./test/system_test/requirements.txt to run System Test.
+Beside install requirements, you will need: *check* to run unit testing and *openssl* and *python3* with some libraries listed at ./test/system_test/requirements.txt to run System Test.
 
 ### Testing
 
