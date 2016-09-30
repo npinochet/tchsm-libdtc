@@ -4,7 +4,7 @@ The Distributed Threshold Cryptography library is mainly a PKCS#11 distributed i
 
 It contains two APIs, the PKCS#11 standard and our own API described at [dtc.h](https://github.com/niclabs/tchsm-libdtc/blob/master/src/include/dtc.h). Also includes a node implementation, a daemon the library connect to in order to perform the cryptographic operations.
 
-The project intend to be an alternative to a HSM and to other availables software alternatives as SoftHSM, the main idea behind is to provide security by using Threshold Cryptography. This allows to store the private key as many different key shares, distributed among nodes (possibly) at different locations, reducing the risk of key compromise, both physically and digitally.
+The project intends to be an alternative to a HSM and to other availables software alternatives as SoftHSM, the main idea behind is to provide security by using Threshold Cryptography. This allows to store the private key as many different key shares, distributed among nodes (possibly) at different locations, reducing the risk of key compromise, both physically and digitally.
 
 ## Install
 
@@ -39,7 +39,7 @@ python scripts/create_config.py <addr-node-1>:<p1_node-1>:<p2_node-1> .. <addr-n
 This will generate n + 2 configuration files, we'll use n + 1 of them. First all the nodei.conf files are the nodes configuration and cryptoki.conf is the library configuration file.
 Inside the cryptoki.conf file there is a path to the database to be used by the library, change it as you need. (you can also set the ```-cdb``` flag in the script to set the variable.
 
-There is a built in help in the script, python scrupt/create_config.py --help will print it in the stderr.
+There is a built in help in the script, python scripts/create_config.py --help will print it to the stderr.
 
 ## Running
 
