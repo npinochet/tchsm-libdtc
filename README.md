@@ -2,7 +2,7 @@
 
 The Distributed Threshold Cryptography library is mainly a PKCS#11 distributed implementation using the [threshold library](https://github.com/niclabs/tchsm-libtc), both libraries conform the Threshold Cryptography HSM project.
 
-It contains two APIs, the PKCS#11 standard and our own API described at [dtc.h](https://github.com/niclabs/tchsm-libdtc/blob/master/src/include/dtc.h). Also includes a node implementation, a daemond the library connect to in order to perform the cryptographic operations.
+It contains two APIs, the PKCS#11 standard and our own API described at [dtc.h](https://github.com/niclabs/tchsm-libdtc/blob/master/src/include/dtc.h). Also includes a node implementation, a daemon the library connect to in order to perform the cryptographic operations.
 
 The project intend to be an alternative to a HSM and to other availables software alternatives as SoftHSM, the main idea behind is to provide security by using Threshold Cryptography. This allows to store the private key as many different key shares, distributed among nodes (possibly) at different locations, reducing the risk of key compromise, both physically and digitally.
 
@@ -43,7 +43,7 @@ There is a built in help in the script, python scrupt/create_config.py --help wi
 
 ## Running
 
-Once you have installed the library and got the configuratino files you need to run the nodes and the libray. To run the node:
+Once you have installed the library and got the configuration files you need to run the nodes and the libray. To run the node:
 
 ```shell
 $ tchsm_node -c <path_to_the_nodei.conf>
