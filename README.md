@@ -28,6 +28,43 @@ cd build
 cmake ..
 make install
 ```
+## Configuration
+
+To perform authenticated and encrypted communication between the library and the nodes an offline configuration process must be done to configure the communication keys. We do provide a python script to generate the keys and the files with the configuration for the library and the nodes. In order to generate the files you just need to define the address and two ports available to use by the node:
+
+```shell
+python scripts/create_config.py <addr-node-1>:<p1_node-1>:<p2_node-1> .. <addr-node-n>:<p1_node-n>:<p2_node-n>
+```
+
+This will generate n + 2 configuration files, we'll use n + 1 of them. First all the nodei.conf files are the nodes configuration and cryptoki.conf is the library configuration file.
+Inside the cryptoki.conf file there is a path to the database to be used by the library, change it as you need. (you can also set the ```-cdb``` flag in the script to set the variable.
+
+There is a built in help in the script, python scrupt/create_config.py --help will print it in the stderr.
+
+## Running
+
+Once you have installed the library and got the configuratino files you need to run the nodes and the libray. To run the node:
+
+```shell
+$ tchsm_node -c <path_to_the_nodei.conf>
+```
+
+The library however is not being run directly, so in order to make its configuration file reachable for it you need to set the TCHSM_CONFIG environment variable to the path of the cryptoki.conf file just generated.
+
+## Supported mechanisms
+
+Currently we do support the following PKCS#11 mechanisms:
+
+* CKM_RSA_PKCS
+* CKM_MD5_RSA_PKCS
+* CKM_SHA1_RSA_PKCS
+* CKM_SHA1_RSA_PKCS_PSS
+* CKM_SHA256_RSA_PKCS
+* CKM_SHA256_RSA_PKCS_PSS
+* CKM_SHA384_RSA_PKCS
+* CKM_SHA384_RSA_PKCS_PSS
+* CKM_SHA512_RSA_PKCS
+* CKM_SHA512_RSA_PKCS_PSS
 
 ## Development
 
