@@ -36,7 +36,7 @@ To perform authenticated and encrypted communication between the library and the
 python scripts/create_config.py <addr-node-1>:<p1_node-1>:<p2_node-1> .. <addr-node-n>:<p1_node-n>:<p2_node-n>
 ```
 
-This will generate n + 2 configuration files, we'll use n + 1 of them. First all the nodei.conf files are the nodes configuration and cryptoki.conf is the library configuration file.
+This will generate n + 2 configuration files, we'll use n + 1 of them. First all the nodei.conf files are the node configuration and cryptoki.conf is the library configuration file.
 Inside the cryptoki.conf file there is a path to the database to be used by the library, change it as you need. (you can also set the ```-cdb``` flag in the script to set the variable.
 
 There is a built in help in the script, python scripts/create_config.py --help will print it to the stderr.
@@ -49,7 +49,7 @@ Once you have installed the library and got the configuration files you need to 
 $ tchsm_node -c <path_to_the_nodei.conf>
 ```
 
-The library however is not being run directly, so in order to make its configuration file reachable for it you need to set the TCHSM_CONFIG environment variable to the path of the cryptoki.conf file just generated.
+The library however is not being run directly, so in order to make its configuration file reachable to it you need to set the TCHSM_CONFIG environment variable to the path of the cryptoki.conf file just generated.
 
 We also provide an easy to deploy [demo](https://github.com/niclabs/docker/tree/master/tchsm/demo/ubuntulatest-knot) using docker containers, you can use it as template.
 
