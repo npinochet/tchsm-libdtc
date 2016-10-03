@@ -2,6 +2,7 @@
 // https://www.sqlite.org/unlock_notify.html
 // The SQLite's license states that this code belongs to the public domain.
 
+#if (SQLITE3_HAVE_UNLOCK_NOTIFY)
 /*
  * A pointer to an instance of this structure is passed as the user-context
  * pointer when registering for an unlock-notify callback.
@@ -27,7 +28,6 @@ static void unlock_notify_cb(void **apArg, int nArg){
     }
 }
 
-#if (SQLITE_VERSION_NUMBER >= 3006012)
 /*
  * This function assumes that an SQLite API call (either sqlite3_prepare_v2() or
  * sqlite3_step()) has just returned SQLITE_LOCKED. The argument is the
@@ -87,7 +87,7 @@ static int wait_for_unlock_notify(sqlite3 *db){
  */
 int sqlite3_blocking_step(sqlite3_stmt *pStmt){
     int rc;
-#if (SQLITE_VERSION_NUMBER >= 3006012)
+#if (SQLITE3_HAVE_UNLOCK_NOTIFY)
     while(SQLITE_LOCKED == (rc = sqlite3_step(pStmt))){
         rc = wait_for_unlock_notify(sqlite3_db_handle(pStmt));
         if(rc != SQLITE_OK)
@@ -118,7 +118,7 @@ int sqlite3_blocking_prepare_v2(
     const char **pz)          /* OUT: End of parsed string */
 {
     int rc;
-#if (SQLITE_VERSION_NUMBER >= 3006012)
+#if (SQLITE3_HAVE_UNLOCK_NOTIFY)
     while(SQLITE_LOCKED == (rc = sqlite3_prepare_v2(
                                         db, zSql, nSql, ppStmt, pz))){
         rc = wait_for_unlock_notify(db);
