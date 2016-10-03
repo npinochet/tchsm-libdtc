@@ -27,6 +27,7 @@ static void unlock_notify_cb(void **apArg, int nArg){
     }
 }
 
+#if (SQLITE_VERSION_NUMBER >= 3006012)
 /*
  * This function assumes that an SQLite API call (either sqlite3_prepare_v2() or
  * sqlite3_step()) has just returned SQLITE_LOCKED. The argument is the
@@ -72,6 +73,7 @@ static int wait_for_unlock_notify(sqlite3 *db){
     pthread_mutex_destroy(&un.mutex);
     return rc;
 }
+#endif
 
 /*
  * This function is a wrapper around the SQLite function sqlite3_step().
@@ -85,12 +87,16 @@ static int wait_for_unlock_notify(sqlite3 *db){
  */
 int sqlite3_blocking_step(sqlite3_stmt *pStmt){
     int rc;
+#if (SQLITE_VERSION_NUMBER >= 3006012)
     while(SQLITE_LOCKED == (rc = sqlite3_step(pStmt))){
         rc = wait_for_unlock_notify(sqlite3_db_handle(pStmt));
         if(rc != SQLITE_OK)
             break;
         sqlite3_reset(pStmt);
     }
+#else
+    rc = sqlite3_step(pStmt);
+#endif
     return rc;
 }
 
@@ -112,12 +118,16 @@ int sqlite3_blocking_prepare_v2(
     const char **pz)          /* OUT: End of parsed string */
 {
     int rc;
+#if (SQLITE_VERSION_NUMBER >= 3006012)
     while(SQLITE_LOCKED == (rc = sqlite3_prepare_v2(
                                         db, zSql, nSql, ppStmt, pz))){
         rc = wait_for_unlock_notify(db);
         if(rc != SQLITE_OK)
             break;
     }
+# else
+    rc = sqlite3_prepare_v2(db, zSql, nSql, ppStmt, pz);
+#endif
     return rc;
 }
 
