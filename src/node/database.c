@@ -147,7 +147,11 @@ database_t *db_init_connection(const char *path, int create_db_tables){
             NULL);
     if(rc != SQLITE_OK) {
         LOG(LOG_LVL_CRIT, "Unable to open the database:%s",
+#if (SQLITE_VERSION_NUMBER >= 3007015)
             sqlite3_errstr(rc));
+#else
+            sqlite3_errmsg(&ret->ppDb);
+#endif
         sqlite3_close(ret->ppDb);
         free(ret);
         return NULL;

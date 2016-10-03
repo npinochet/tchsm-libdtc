@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
+include (CheckFunctionExists)
 
 find_package(Threads REQUIRED)
 
@@ -45,6 +46,16 @@ set(NODE_COMMON_FILES
 add_library(node_common STATIC ${NODE_COMMON_FILES})
 target_link_libraries(node_common common)
 set_target_properties(node_common PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+set(CMAKE_REQUIRED_LIBRARIES ${SQLITE3_LIBRARIES})
+check_function_exists("sqlite3_unlock_notify" SQLITE3_HAVE_UNLOCK_NOTIFY)
+set(CMAKE_REQUIRED_LIBRARIES)
+if(NOT SQLITE3_HAVE_UNLOCK_NOTIFY)
+    message(STATUS "SQLITE3 Not compiled using SQLITE_ENABLE_UNLOCK_NOTIFY")
+else()
+    target_compile_definitions(node_common PUBLIC SQLITE3_HAVE_UNLOCK_NOTIFY=1)
+endif()
+
 
 add_executable(tchsm_node node.c)
 
