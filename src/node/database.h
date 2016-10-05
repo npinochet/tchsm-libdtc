@@ -9,7 +9,7 @@ typedef struct database_conn database_t;
 
 /**
  * Initialize a connection with the database in path.
- * Do not use the connection from different threads, make one connectino
+ * Do not use the connection from different threads, make one connection
  * per thread.
  *
  * @param path Location of the file with the database or path where to
