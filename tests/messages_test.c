@@ -38,6 +38,30 @@ START_TEST(serialize_op_req_store_key_pub_wrong_version) {
 }
 END_TEST
 
+START_TEST(serialize_unserialize_op_req_corrupted) {
+    char *output;
+    size_t ret;
+    struct op_req operation_request;
+    struct op_req *unserialized_op_req;
+    union command_args com_args;
+
+    com_args.store_key_pub.instance_id = TEST_INSTANCE_ID;
+    com_args.store_key_pub.key_id = TEST_KEY_ID;
+    operation_request.version = 1;
+    operation_request.op = OP_STORE_KEY_PUB;
+    operation_request.args = &com_args;
+
+    ret = serialize_op_req(&operation_request, &output);
+    output[strlen(output)/2] = '\0';
+    unserialized_op_req = unserialize_op_req(output, ret);
+
+    ck_assert(unserialized_op_req == NULL);
+    free(output);
+    delete_op_req(unserialized_op_req);
+
+}
+END_TEST
+
 START_TEST(serialize_unserialize_op_req) {
     char *output;
     size_t ret;
@@ -63,6 +87,32 @@ START_TEST(serialize_unserialize_op_req) {
 
     ck_assert_str_eq(unserialized_op_req->args->store_key_pub.key_id,
                      com_args.store_key_pub.key_id);
+
+    free(output);
+    delete_op_req(unserialized_op_req);
+
+}
+END_TEST
+
+START_TEST(serialize_unserialize_delete_key_share_pub_corrupted) {
+    char *output;
+    size_t ret;
+    struct op_req operation_request;
+    struct op_req *unserialized_op_req;
+    union command_args com_args;
+
+    com_args.delete_key_share_pub.key_id = TEST_KEY_ID;
+    operation_request.version = 1;
+    operation_request.op = OP_DELETE_KEY_SHARE_PUB;
+    operation_request.args = &com_args;
+
+    ret = serialize_op_req(&operation_request, &output);
+    ck_assert(ret > 0);
+    output[strlen(output)/2] = '\0';
+
+    unserialized_op_req = unserialize_op_req(output, ret);
+
+    ck_assert(unserialized_op_req == NULL);
 
     free(output);
     delete_op_req(unserialized_op_req);
@@ -96,6 +146,31 @@ START_TEST(serialize_unserialize_delete_key_share_pub) {
     free(output);
     delete_op_req(unserialized_op_req);
 
+}
+END_TEST
+
+START_TEST(serialize_unserialize_delete_key_share_req_corrupted) {
+    char *output;
+    size_t ret;
+    struct op_req operation_request;
+    struct op_req *unserialized_op_req;
+    union command_args com_args;
+
+    com_args.delete_key_share_req.deleted = 3;
+    com_args.delete_key_share_req.key_id = "key_id";
+    operation_request.version = 1;
+    operation_request.op = OP_DELETE_KEY_SHARE_REQ;
+    operation_request.args = &com_args;
+
+    ret = serialize_op_req(&operation_request, &output);
+    ck_assert(ret > 0);
+    output[strlen(output)/2] = '\0';
+    unserialized_op_req = unserialize_op_req(output, ret);
+
+    ck_assert(unserialized_op_req == NULL);
+
+    free(output);
+    delete_op_req(unserialized_op_req);
 }
 END_TEST
 
@@ -160,6 +235,35 @@ START_TEST(serialize_unserialize_store_key_ack) {
 }
 END_TEST
 
+START_TEST(serialize_unserialize_sign_pub_corrupted) {
+    char *output;
+    size_t ret;
+    struct op_req operation_request;
+    struct op_req *unserialized_op_req;
+    union command_args com_args;
+
+    com_args.sign_pub.signing_id = "signing_id";
+    com_args.sign_pub.key_id = "key_id";
+    com_args.sign_pub.message = (uint8_t *) "me\0ssage";
+    com_args.sign_pub.msg_len = 8;
+
+    operation_request.version = 1;
+    operation_request.op = OP_SIGN_PUB;
+    operation_request.args = &com_args;
+
+    ret = serialize_op_req(&operation_request, &output);
+    ck_assert(ret > 0);
+    output[strlen(output)/2] = '\0';
+
+    unserialized_op_req = unserialize_op_req(output, ret);
+
+    ck_assert(unserialized_op_req == NULL);
+
+    free(output);
+    delete_op_req(unserialized_op_req);
+}
+END_TEST
+
 START_TEST(serialize_unserialize_sign_pub) {
     char *output;
     size_t ret;
@@ -197,6 +301,58 @@ START_TEST(serialize_unserialize_sign_pub) {
 
     free(output);
     delete_op_req(unserialized_op_req);
+}
+END_TEST
+
+START_TEST(serialize_unserialize_sign_req_corrupted) {
+    char *output;
+    size_t ret;
+    struct op_req operation_request;
+    struct op_req *unserialized_op_req;
+    union command_args com_args;
+    const char *got_serialized_ss;
+
+    // Any signature share serialized.
+    const char *serialized_ss =
+            "AAEAAQAAAEAeWX/lZTXD6a90gwgVkatm4JLdVaKubn/hNuqknpdpVEjSlRWBadv1Md"
+            "RZgFGACEFkF2qLomJm+4uZJ1q1I9/AAAAAIG8PfhTzPBMCuPaQB9R09LpWlQk5ENzZ"
+            "Lf8GXT9PpboLAAAAf7P1XBhE6oWQ5dp4JEm+wxHfL+1b+q245K59tvcHbin5VDMbPU"
+            "yFYIZX3Bj/k5LhPtPJOwXLhVLNJuDsRhfrwX21DR53u9vxk1ZidxPde0hdhTpJBhJX"
+            "LPgJbZHwUMafr+O0vDNSPPyxyZV/BAbGLs7rW93r6aW/bBzeNOnMqaU=";
+    const signature_share_t *sig =
+                            tc_deserialize_signature_share(serialized_ss);
+    ck_assert_ptr_ne(NULL, (void *)sig);
+
+    com_args.sign_req.status_code = 3;
+    com_args.sign_req.signing_id = "signing_id";
+    com_args.sign_req.signature = sig;
+
+    operation_request.version = 1;
+    operation_request.op = OP_SIGN_REQ;
+    operation_request.args = &com_args;
+
+    ret = serialize_op_req(&operation_request, &output);
+    ck_assert(ret > 0);
+
+    unserialized_op_req = unserialize_op_req(output, ret);
+
+    ck_assert(unserialized_op_req->version == operation_request.version);
+    ck_assert(unserialized_op_req->op == operation_request.op);
+
+    ck_assert_int_eq(unserialized_op_req->args->sign_req.status_code,
+                     com_args.sign_req.status_code);
+    ck_assert_str_eq(unserialized_op_req->args->sign_req.signing_id,
+                     com_args.sign_req.signing_id);
+
+    got_serialized_ss = tc_serialize_signature_share(
+                            unserialized_op_req->args->sign_req.signature);
+    ck_assert_str_eq(got_serialized_ss, serialized_ss);
+
+    free((void *)got_serialized_ss);
+    tc_clear_signature_share((signature_share_t *) sig);
+    free(output);
+    delete_op_req(unserialized_op_req);
+
 }
 END_TEST
 
@@ -383,14 +539,21 @@ TCase* get_test_case(){
     TCase *test_case = tcase_create("messages");
 
     tcase_add_test(test_case, serialize_op_req_store_key_pub_simple);
-
     tcase_add_test(test_case, serialize_op_req_store_key_pub_wrong_version);
+
+    tcase_add_test(test_case, serialize_unserialize_op_req_corrupted);
     tcase_add_test(test_case, serialize_unserialize_op_req);
 
+    tcase_add_test(test_case, serialize_unserialize_delete_key_share_pub_corrupted);
     tcase_add_test(test_case, serialize_unserialize_delete_key_share_pub);
+
+    tcase_add_test(test_case, serialize_unserialize_delete_key_share_req_corrupted);
     tcase_add_test(test_case, serialize_unserialize_delete_key_share_req);
 
+    tcase_add_test(test_case, serialize_unserialize_sign_pub_corrupted);
     tcase_add_test(test_case, serialize_unserialize_sign_pub);
+
+    tcase_add_test(test_case, serialize_unserialize_sign_req_corrupted);
     tcase_add_test(test_case, serialize_unserialize_sign_req);
 
     tcase_add_test(test_case, serialize_unserialized_sign);
@@ -416,3 +579,4 @@ int main()
 
     return (number_failed == 0) ? 0 :1;
 }
+
