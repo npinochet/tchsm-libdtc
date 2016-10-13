@@ -780,6 +780,7 @@ int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
                             uint16_t threshold, uint16_t cant_nodes, bytes_t * public_exponent,
                             key_metainfo_t **info)
 {
+    assert(cant_nodes > 1);
     key_share_t **key_shares = NULL;
     int ret;
 
