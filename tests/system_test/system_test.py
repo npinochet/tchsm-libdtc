@@ -542,11 +542,6 @@ def test_master_n_nodes(master_args, master_name, nb_of_nodes):
     close_master(master)
     return master_ret, master_mess
 
-
-def test_master_one_node(master_args, master_name):
-    return test_master_n_nodes(master_args, master_name, 1)
-
-
 def test_master_two_nodes(master_args, master_name):
     return test_master_n_nodes(master_args, master_name, 2)
 
@@ -859,38 +854,6 @@ def test_cryptoki_wout_key():
     close_master(master)
     return master_ret, master_mess
 
-
-def test_two_masters_one_nodes(master_args, master_name):
-    config_data = " 127.0.0.1:2121:2122 -m 2 -t " + str(MASTER_TIMEOUT)
-    status, output = getstatusoutput(
-        "python3 " + CONFIG_CREATOR_PATH + config_data)
-
-    if status != 0:
-        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
-
-    node_proc1, node_ret1, node_mess1 = exec_node("node1")
-    if node_ret1 == 1:
-        close_node(node_proc1)
-        return 1, node_mess1
-
-    fixed_args, master_name = fix_dtc_args(master_args, master_name, 1, index=1)
-    master, master_ret, master_mess = exec_master(
-        fixed_args, master_name, "cryptoki1.conf")
-    close_master(master)
-
-    if master_ret != 0:
-        close_node(node_proc1)
-        return master_ret, master_mess
-
-    fixed_args, master_name = fix_dtc_args(master_args, master_name, 1, index=2)
-    master, master_ret, master_mess = exec_master(
-        fixed_args, master_name, "cryptoki2.conf")
-
-    close_node(node_proc1)
-    close_master(master)
-    return master_ret, master_mess
-
-
 def test_two_masters_two_nodes(master_args, master_name):
     config_data = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 -m 2 -t " + \
                   str(MASTER_TIMEOUT)
@@ -1168,12 +1131,6 @@ def main(argv=None):
 
     tests.append(
         TestSuite(
-            "DTC ONE NODE",
-            test_master_one_node,
-            handler=HANDLER_DTC,
-            expected_value=1))
-    tests.append(
-        TestSuite(
             "DTC TWO NODES",
             test_master_two_nodes,
             handler=HANDLER_DTC))
@@ -1190,17 +1147,12 @@ def main(argv=None):
                            test_insuff_threshold_bordercase, handler=HANDLER_DTC))
     tests.append(TestSuite("DTC INSUFFICIENT THRESHOLD",
                            test_insuff_threshold, handler=HANDLER_DTC))
-    tests.append(TestSuite("DTC TWO MASTERS ONE NODE",
-                           test_two_masters_one_nodes, handler=HANDLER_DTC, expected_value=TEST_FAIL))
     tests.append(TestSuite("DTC TWO MASTERS TWO NODE",
                            test_two_masters_two_nodes, handler=HANDLER_DTC))
     tests.append(TestSuite("DTC MASTERS SIMULTANEOUS",
                            test_two_masters_simultaneous, handler=HANDLER_DTC))
     tests.append(TestSuite("DTC MASTERS:2 THRES:2 NODES:3",
                            test_two_masters_thres2_nodes3, handler=HANDLER_DTC))
-
-    tests.append(TestSuite("PKCS11 ONE NODE",
-                           test_master_one_node, handler=HANDLER_PKCS11, expected_value=TEST_FAIL))
     tests.append(TestSuite("PKCS11 TWO NODES",
                            test_master_two_nodes, handler=HANDLER_PKCS11))
     tests.append(TestSuite("PKCS11 RUN TWICE",
@@ -1213,8 +1165,6 @@ def main(argv=None):
                            test_insuff_threshold_bordercase, handler=HANDLER_PKCS11))
     tests.append(TestSuite("PKCS11 INSUFFICIENT THRESHOLD",
                            test_insuff_threshold, handler=HANDLER_PKCS11))
-    tests.append(TestSuite("PKCS11 TWO MASTERS ONE NODE",
-                           test_two_masters_one_nodes, handler=HANDLER_PKCS11, expected_value=TEST_FAIL))
     tests.append(TestSuite("PKCS11 TWO MASTERS TWO NODE",
                            test_two_masters_two_nodes, handler=HANDLER_PKCS11))
     tests.append(TestSuite("PKCS11 MASTERS SIMULTANEOUS",
