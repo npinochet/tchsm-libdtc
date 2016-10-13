@@ -333,25 +333,15 @@ START_TEST(serialize_unserialize_sign_req_corrupted) {
 
     ret = serialize_op_req(&operation_request, &output);
     ck_assert(ret > 0);
+    output[ strlen(output) / 2] = '\0';
 
     unserialized_op_req = unserialize_op_req(output, ret);
 
-    ck_assert(unserialized_op_req->version == operation_request.version);
-    ck_assert(unserialized_op_req->op == operation_request.op);
+    ck_assert(unserialized_op_req == NULL);
 
-    ck_assert_int_eq(unserialized_op_req->args->sign_req.status_code,
-                     com_args.sign_req.status_code);
-    ck_assert_str_eq(unserialized_op_req->args->sign_req.signing_id,
-                     com_args.sign_req.signing_id);
 
-    got_serialized_ss = tc_serialize_signature_share(
-                            unserialized_op_req->args->sign_req.signature);
-    ck_assert_str_eq(got_serialized_ss, serialized_ss);
-
-    free((void *)got_serialized_ss);
     tc_clear_signature_share((signature_share_t *) sig);
     free(output);
-    delete_op_req(unserialized_op_req);
 
 }
 END_TEST
