@@ -775,9 +775,6 @@ void *router_socket_handler(void *data_)
     return NULL;
 }
 
-/*
-* cant_nodes must be greater than 1.
-*/
 int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
                             uint16_t threshold, uint16_t cant_nodes, bytes_t * public_exponent,
                             key_metainfo_t **info)

@@ -90,7 +90,7 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err);
  *      it's unique within a context.
  * @param bit_size //TODO
  * @param threshold //TODO
- * @param cant_nodes //TODO
+ * @param cant_nodes must be greater than one
  * @param info //TODO
  *
  * @return -1 if key_id is already used. //TODO
