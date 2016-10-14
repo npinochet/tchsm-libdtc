@@ -204,6 +204,33 @@ START_TEST(serialize_unserialize_delete_key_share_req) {
 }
 END_TEST
 
+START_TEST(serialize_unserialize_store_key_ack_corrupted) {
+    char *key_id = "14OUASDH";
+    char *output;
+    size_t ret;
+    struct op_req operation_request;
+    struct op_req *unserialized_op_req;
+    union command_args com_args;
+
+    com_args.store_key_ack.status = 4;
+    com_args.store_key_ack.key_id = key_id;
+
+    operation_request.op = OP_STORE_KEY_ACK;
+    operation_request.args = &com_args;
+    operation_request.version = 1;
+
+    ret = serialize_op_req(&operation_request, &output);
+    ck_assert(ret > 0);
+    output[strlen(output) / 2] = '\0';
+
+    unserialized_op_req = unserialize_op_req(output, ret);
+
+    ck_assert(unserialized_op_req == NULL);
+
+    free(output);
+}
+END_TEST
+
 START_TEST(serialize_unserialize_store_key_ack) {
     char *key_id = "14OUASDH";
     char *output;
@@ -217,6 +244,7 @@ START_TEST(serialize_unserialize_store_key_ack) {
 
     operation_request.op = OP_STORE_KEY_ACK;
     operation_request.args = &com_args;
+    operation_request.version = 1;
 
     ret = serialize_op_req(&operation_request, &output);
     ck_assert(ret > 0);
@@ -310,7 +338,6 @@ START_TEST(serialize_unserialize_sign_req_corrupted) {
     struct op_req operation_request;
     struct op_req *unserialized_op_req;
     union command_args com_args;
-    const char *got_serialized_ss;
 
     // Any signature share serialized.
     const char *serialized_ss =
@@ -533,6 +560,9 @@ TCase* get_test_case(){
 
     tcase_add_test(test_case, serialize_unserialize_op_req_corrupted);
     tcase_add_test(test_case, serialize_unserialize_op_req);
+
+    tcase_add_test(test_case, serialize_unserialize_store_key_ack_corrupted);
+    tcase_add_test(test_case, serialize_unserialize_store_key_ack);
 
     tcase_add_test(test_case, serialize_unserialize_delete_key_share_pub_corrupted);
     tcase_add_test(test_case, serialize_unserialize_delete_key_share_pub);
