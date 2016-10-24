@@ -18,7 +18,7 @@ install:
     - make
     - make system_test
     - sudo apt-get install -y python-pip
-    - sudo python -m pip install -r ../tests/system_test/requirements.txt
+    - python -m pip install -r ../tests/system_test/requirements.txt
 
 script:
     - make check
