@@ -20,4 +20,4 @@ install:
 
 script:
     - make check
-    - python tests/system_test/system_test.py build/
+    - python ../tests/system_test/system_test.py .
