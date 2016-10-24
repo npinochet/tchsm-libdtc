@@ -2,6 +2,7 @@ language: python
 sudo: required
 dist: trusty
 python:
+    - "3.2"
     - "3.5"
 
 compiler:
