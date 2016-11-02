@@ -24,11 +24,12 @@ Mutex::Mutex() : isLocked_(false) {
 
 Mutex::~Mutex() {
     if (isLocked_) {
-        CK_RV rv = unlockMutex_(mutex_); 
+        CK_RV rv = unlockMutex_(mutex_);
         if (rv != CKR_OK) {
             throw TcbError("Mutex::~Mutex", "Could not destroy mutex!", rv);
         }
     }
+    destroyMutex_(mutex_);
 }
 
 void Mutex::lock() {
