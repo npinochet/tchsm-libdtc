@@ -1,6 +1,8 @@
 #define _POSIX_C_SOURCE 200809L
+#include <fcntl.h>
 #include <getopt.h>
 #include <inttypes.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,10 +53,21 @@ struct configuration {
     const char *private_key;
 };
 
+struct worker_data {
+    void *ctx;
+    pthread_t *pids;
+    uint16_t num_workers;
+    const char *incoming_inproc_address;
+    const char *outgoing_inproc_address;
+    const char *database_path;
+};
+
 struct communication_objects {
     void *ctx;
     void *sub_socket;
     void *router_socket;
+    void *zap_thread;
+    struct worker_data *workers;
 
     // Outgoing msgs
     char *outgoing_inproc_address;
@@ -65,13 +78,6 @@ struct communication_objects {
     void *incoming_socket;
 };
 
-struct worker_data {
-    void *ctx;
-    const char *incoming_inproc_address;
-    const char *outgoing_inproc_address;
-    const char *database_path;
-};
-
 struct zap_handler_data {
     // Inproc socket.
     void *socket;
@@ -79,6 +85,11 @@ struct zap_handler_data {
     // Path to the database file.
     const char *database;
 };
+
+// ptr to the ctx to be used by the signal handler.
+static int CLEANUP_PIPE;
+
+const int LINGER_PERIOD = 100;
 
 /* Utils */
 
@@ -115,7 +126,7 @@ static struct communication_objects *init_node(const struct configuration *conf)
 static struct communication_objects *create_and_bind_sockets(
         const struct configuration *conf);
 static int node_loop(struct communication_objects *communication_objs,
-                     const char * database_path);
+                     const char * database_path, int close_fds);
 static int set_server_socket_security(void *socket,
                                       const char *server_secret_key);
 static void zap_handler (void *handler);
@@ -153,6 +164,7 @@ static void update_database(struct configuration *conf)
 int main(int argc, char **argv)
 {
     int ret_val = 0;
+    unsigned i;
 
     // Default configuration.
     static struct configuration configuration =
@@ -172,6 +184,14 @@ int main(int argc, char **argv)
 
     update_database(&configuration);
 
+    int fds[2];
+    if(pipe(fds))
+        PERROR_RET(1, "pipe CLEANUP_PIPE");
+    if(fcntl(fds[0], F_SETFL, fcntl(fds[0], F_GETFL) | O_NONBLOCK) < 0)
+        PERROR_RET(1, "fcntl  F_SETFL");
+    CLEANUP_PIPE = fds[1];
+
+
     struct communication_objects *communication_objs =
             init_node(&configuration);
     if(!communication_objs)
@@ -179,7 +199,29 @@ int main(int argc, char **argv)
 
     LOG(LOG_LVL_NOTI, "Node started: %s", argv[0]);
 
-    return node_loop(communication_objs, configuration.database);
+    ret_val = node_loop(communication_objs, configuration.database, fds[0]);
+
+    zmq_ctx_destroy(communication_objs->ctx);
+    zmq_threadclose(communication_objs->zap_thread);
+    for(i = 0; i < communication_objs->workers->num_workers; i++) {
+        pthread_join(communication_objs->workers->pids[i], NULL);
+    }
+    free(communication_objs->workers->pids);
+    free(communication_objs->workers);
+    free(communication_objs);
+
+
+    free((void *)configuration.public_key);
+    free((void *)configuration.private_key);
+    free((void *)configuration.interface);
+    free((void *)configuration.database);
+    for(i = 0; i < configuration.cant_masters; i++) {
+        free((void *)configuration.masters[i].id);
+        free((void *)configuration.masters[i].public_key);
+    }
+    free((void *)configuration.masters);
+
+    return ret_val;
 }
 
 /**
@@ -620,6 +662,10 @@ static void *worker_thr(void *thread_data)
     if(!incoming_socket || !outgoing_socket) {
         LOG_EXIT("Unable to create sockets");
     }
+    if(zmq_setsockopt(incoming_socket, ZMQ_LINGER, &LINGER_PERIOD, sizeof(int)))
+        LOG_EXIT("LINGER FAILED");
+    if(zmq_setsockopt(outgoing_socket, ZMQ_LINGER, &LINGER_PERIOD, sizeof(int)))
+        LOG_EXIT("LINGER FAILED");
 
     rc = zmq_connect(incoming_socket, thr_data->incoming_inproc_address);
     rc += zmq_connect(outgoing_socket, thr_data->outgoing_inproc_address);
@@ -642,6 +688,10 @@ static void *worker_thr(void *thread_data)
 
         auth_master_id = s_recv(incoming_socket);
         if(auth_master_id == NULL) {
+            if(errno == ETERM) {
+                LOG(LOG_LVL_INFO, "Closing working thread");
+                break;
+            }
             LOG(LOG_LVL_ERRO, "User id is null: %s", zmq_strerror(errno));
             continue;
         }
@@ -670,30 +720,72 @@ static void *worker_thr(void *thread_data)
         if(rc)
             LOG(LOG_LVL_ERRO, "Error closing the msg:%s", zmq_strerror(errno));
     }
+    zmq_close(incoming_socket);
+    zmq_close(outgoing_socket);
+    db_close_and_free_connection(db_conn);
     return NULL;
 }
 
-static void create_workers(int num_workers, const char * database_path,
-                           void *zmq_ctx, const char *incoming_inproc_address,
-                           const char *outgoing_inproc_address)
+static struct worker_data *create_workers(int num_workers,
+                                          const char * database_path,
+                                          void *zmq_ctx,
+                                          const char *incoming_inproc_address,
+                                          const char *outgoing_inproc_address)
 {
     unsigned i;
     int ret;
-    pthread_t pid;
 
     struct worker_data *worker_data =
         (struct worker_data *) malloc(sizeof(struct worker_data));
+    worker_data->pids = malloc(num_workers * sizeof(pthread_t));
+    worker_data->num_workers = num_workers;
 
     worker_data->incoming_inproc_address = incoming_inproc_address;
     worker_data->outgoing_inproc_address = outgoing_inproc_address;
     worker_data->database_path = database_path;
     worker_data->ctx = zmq_ctx;
     for(i = 0; i < num_workers; i++) {
-        ret = pthread_create(&pid, NULL, worker_thr, worker_data);
+        ret = pthread_create(&(worker_data->pids[i]), NULL, worker_thr,
+                             worker_data);
         if(ret != 0) {
             LOG_EXIT("Failed creating a worker thread");
         }
     }
+    return worker_data;
+}
+
+static void signal_handler(int sign)
+{
+    if(sign == SIGINT) {
+        char *close_msg = "Got a SIGINT signal, going to exit.\n";
+        LOG(LOG_LVL_INFO, "Closing the node");
+        int rc = write(CLEANUP_PIPE, close_msg, strlen(close_msg) + 1);
+        close(CLEANUP_PIPE);
+        if(rc == -1) {
+            PERROR_AND_EXIT_ON_FALSE(0, "Clean up failed", "write");
+            exit(1);
+        }
+    }
+    else {
+        LOG_EXIT("Got unexpected signal");
+    }
+}
+
+static void set_signals()
+{
+    sigset_t set;
+    struct sigaction action;
+
+    sigemptyset(&set);
+    sigaddset(&set, SIGINT);
+
+    memset(&action, '\0', sizeof(struct sigaction));
+    action.sa_handler = signal_handler;
+    action.sa_mask = set;
+    action.sa_flags = SA_NODEFER;
+
+    if(sigaction(SIGINT, &action, NULL))
+        LOG_EXIT("Error, sigaction failed %s", strerror(errno));
 }
 
 static struct communication_objects *init_node(
@@ -707,19 +799,17 @@ static struct communication_objects *init_node(
     comm_objs = create_and_bind_sockets(configuration);
 
 
-    create_workers(num_workers,
-                   configuration->database,
-                   comm_objs->ctx,
-                   comm_objs->incoming_inproc_address,
-                   comm_objs->outgoing_inproc_address);
-    //create_classifier_thread(comm_objs->ctx, comm_objs->router_socket,
-    //                         comm_objs->classifier_socket_address,
-    //                         configuration);
+    comm_objs->workers = create_workers(num_workers,
+                                        configuration->database,
+                                        comm_objs->ctx,
+                                        comm_objs->incoming_inproc_address,
+                                        comm_objs->outgoing_inproc_address);
 
+    set_signals();
     return comm_objs;
 }
 
-static void start_zap_security(void *zmq_ctx, const char *database)
+static void *start_zap_security(void *zmq_ctx, const char *database)
 {
     int ret_value;
     struct zap_handler_data *zap_data =
@@ -727,12 +817,14 @@ static void start_zap_security(void *zmq_ctx, const char *database)
     EXIT_ON_FALSE(zap_data, "malloc failed for zap_handler_data.");
 
     zap_data->database = database;
-    zap_data->socket = zmq_socket (zmq_ctx, ZMQ_REP);
+    zap_data->socket = zmq_socket(zmq_ctx, ZMQ_REP);
+    if(zmq_setsockopt(zap_data->socket, ZMQ_LINGER, &LINGER_PERIOD, sizeof(int)))
+        LOG_EXIT("LINGER FAILED");
     EXIT_ON_FALSE(zap_data->socket, "ZAP_HANDLER socket error.");
 
-    ret_value = zmq_bind (zap_data->socket, "inproc://zeromq.zap.01");
+    ret_value = zmq_bind(zap_data->socket, "inproc://zeromq.zap.01");
     EXIT_ON_FALSE(ret_value == 0, "ZAP_HANDLER bind error.");
-    zmq_threadstart (&zap_handler, zap_data);
+    return zmq_threadstart(&zap_handler, zap_data);
 }
 /**
  * TODO
@@ -755,7 +847,7 @@ static struct communication_objects *create_and_bind_sockets(
     ret_val->ctx = zmq_ctx_new();
     EXIT_ON_FALSE(ret_val->ctx, "Context initialization error.");
 
-    start_zap_security(ret_val->ctx, conf->database);
+    ret_val->zap_thread = start_zap_security(ret_val->ctx, conf->database);
 
     // Create sockets.
     ret_val->incoming_socket = zmq_socket(ret_val->ctx, ZMQ_PUSH);
@@ -763,6 +855,14 @@ static struct communication_objects *create_and_bind_sockets(
     ret_val->sub_socket = zmq_socket(ret_val->ctx, ZMQ_SUB);
     ret_val->router_socket = zmq_socket(ret_val->ctx, ZMQ_ROUTER);
     sub_socket = ret_val->sub_socket;
+    if(zmq_setsockopt(ret_val->incoming_socket, ZMQ_LINGER, &LINGER_PERIOD, sizeof(int)))
+        LOG_EXIT("LINGER FAILED");
+    if(zmq_setsockopt(ret_val->outgoing_socket, ZMQ_LINGER, &LINGER_PERIOD, sizeof(int)))
+        LOG_EXIT("LINGER FAILED");
+    if(zmq_setsockopt(ret_val->sub_socket, ZMQ_LINGER, &LINGER_PERIOD, sizeof(int)))
+        LOG_EXIT("LINGER FAILED");
+    if(zmq_setsockopt(ret_val->router_socket, ZMQ_LINGER, &LINGER_PERIOD, sizeof(int)))
+        LOG_EXIT("LINGER FAILED");
     router_socket = ret_val->router_socket;
 
     if(!ret_val->incoming_socket || !ret_val->outgoing_socket ||
@@ -869,11 +969,11 @@ static int set_server_socket_security(void *socket,
 }
 
 static int node_loop(struct communication_objects *communication_objs,
-                     const char *database_path)
+                     const char *database_path, int close_fds)
 {
     zmq_msg_t rcvd_msg_, out_msg_;
     zmq_msg_t *rcvd_msg = &rcvd_msg_, *out_msg = &out_msg_;
-    const unsigned poll_items = 3;
+    const unsigned poll_items = 4;
     const char *auth_user_id;
     char *instance_id, *identity;
     int rc = 0;
@@ -886,22 +986,37 @@ static int node_loop(struct communication_objects *communication_objs,
     // classifier thread is connected.
     //rc = zmq_msg_init(msg);
     //classifier_main_thread_socket;
+    long poll_timeout = -1;
 
-    zmq_pollitem_t items[poll_items];
-    int poll_timeout = -1;
+    /* zmq_pollitem_t items[poll_items]; */
+    /* items[0].socket = communication_objs->sub_socket; */
+    /* items[1].socket = communication_objs->router_socket; */
+    /* items[2].socket = communication_objs->outgoing_socket; */
+    /* items[0].events = items[1].events = items[2].events = ZMQ_POLLIN; */
 
-    items[0].socket = communication_objs->sub_socket;
-    items[1].socket = communication_objs->router_socket;
-    items[2].socket = communication_objs->outgoing_socket;
-    items[0].events = items[1].events = items[2].events = ZMQ_POLLIN;
+    zmq_pollitem_t items [] =
+            { {communication_objs->sub_socket, 0, ZMQ_POLLIN | ZMQ_POLLOUT | ZMQ_POLLERR, 0}
+            , {communication_objs->router_socket, 0, ZMQ_POLLIN, 0}
+            , {communication_objs->outgoing_socket, 0, ZMQ_POLLIN, 0}
+            , {NULL, close_fds, ZMQ_POLLIN, 0}
+            };
 
     while(1) {
         rc = zmq_poll(items, poll_items, poll_timeout);
-        if(rc == 0) //TODO implement clean exit
-            break;
 
-        if(rc < 0) {
+        if(rc <= 0) {
+            if(errno == EINTR)
+                continue;
             LOG(LOG_LVL_CRIT, "Poll failed:%s", zmq_strerror(errno));
+            break;
+        }
+
+        // Exit
+        if(items[3].revents) {
+            char close_msg[100];
+            read(close_fds, close_msg, 99);
+            close_msg[99] = '\0';
+            LOG(LOG_LVL_INFO, "%s", close_msg);
             break;
         }
 
@@ -1038,6 +1153,13 @@ static int node_loop(struct communication_objects *communication_objs,
         free(instance_id);
 
     }
+    close(close_fds);
+    zmq_close(communication_objs->sub_socket);
+    zmq_close(communication_objs->router_socket);
+    zmq_close(communication_objs->outgoing_socket);
+    zmq_close(communication_objs->incoming_socket);
+    db_close_and_free_connection(db_conn);
+    LOG(LOG_LVL_INFO, "Closing the node_loop...");
 
     return 0;
 }
@@ -1059,11 +1181,16 @@ static void zap_handler(void *zap_data_)
     //  Process ZAP requests forever
     while (1) {
         char *version = s_recv(sock);
+        if(version == NULL) {
+            break;
+        }
         char *sequence = s_recv(sock);
         char *domain = s_recv(sock);
         char *address = s_recv(sock);
         char *identity = s_recv(sock);
         char *mechanism = s_recv(sock);
+
+
         zmq_recv(sock, client_key, 32, 0);
 
         char client_key_text [42];
@@ -1128,4 +1255,6 @@ static void zap_handler(void *zap_data_)
     }
     zmq_close(sock);
     db_close_and_free_connection(db_conn);
+    free(zap_data_);
+    LOG(LOG_LVL_INFO, "Closing zap thread");
 }
