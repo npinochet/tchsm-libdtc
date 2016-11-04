@@ -1064,6 +1064,7 @@ static int node_loop(struct communication_objects *communication_objs,
             if(rc == -1) {
                 LOG(LOG_LVL_ERRO, "Error Receiving msg:%s", zmq_strerror(errno));
                 zmq_msg_close(rcvd_msg);
+                free(identity);
                 continue;
             }
 
@@ -1093,6 +1094,7 @@ static int node_loop(struct communication_objects *communication_objs,
                 free(instance_id);
                 continue;
             }
+            free(identity);
         }
 
         else if(items[2].revents) { // Probably else is enough.
