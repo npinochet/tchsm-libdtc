@@ -126,15 +126,18 @@ def erase_dump():
     return 0
 
 
-def exec_node(config):
+def exec_node(config, execute_with=None):
     """
     Executes a node linked with a specific configuration file
 
     :param config: Path of the configuration file
+    :param execute_with: To run under valgrind, or another program, specify the
+        path to its executable and optionally some flags to it as a string list.
     :return: Returns the node process, the return code and a return message
     """
     NODE_BUILD_PATH = "src/node/tchsm_node"
     NODE_PATH = join(EXEC_PATH, NODE_BUILD_PATH)
+
     if not isdir(EXEC_PATH):
         return None, 1, "ERROR: Path doesn't exists >> " + EXEC_PATH
 
@@ -145,12 +148,12 @@ def exec_node(config):
     try:
         if DEBUG:
             print("    DEBUG::NODE_CALL: %s" % ' '.join([NODE_PATH, '-c', config + ".conf"]))
-        node = subprocess.Popen(
-            [NODE_PATH,
-             "-c",
-             config + ".conf"],
-            stderr=subprocess.PIPE,
-            stdout=subprocess.PIPE)
+        args = [NODE_PATH, "-c", config + ".conf"]
+        if execute_with is not None:
+            args = execute_with + args
+        node = subprocess.Popen(args,
+                                stderr=subprocess.PIPE,
+                                stdout=subprocess.PIPE)
     except OSError:
         return node, 1, "ERROR: Exec could not be accessed >> " + EXEC_PATH + NODE_BUILD_PATH
 
@@ -204,7 +207,8 @@ def close_nodes(nodes):
     for node in nodes:
         close_node(node)
 
-def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf", run_in_other_process=False):
+def exec_master(master_args, master_name, cryptoki_conf="cryptoki.conf",
+                run_in_other_process=False, ):
     """
     Executes a master linked with a specific arguments
 
@@ -238,7 +242,7 @@ def exec_master_pkcs11(master_args, master_name, cryptoki_conf="cryptoki.conf", 
     if run_in_other_process:
         dummy_file = create_dummy_file()
         master_args = [
-            "python3",
+            "python",
             join(EXEC_PATH, "..", "tests/system_test/pkcs_11_test.py"),
             "-c",
             "-f",
@@ -270,28 +274,25 @@ def exec_master_pkcs11(master_args, master_name, cryptoki_conf="cryptoki.conf", 
                 return master, master.returncode, "FAILURE: Master return code: " + str(master.returncode)
             return None, master.returncode, ""
         else:
-            print(stdout_data)
-            print(stderr_data)
             debug_output(stdout_data, stderr_data)
             return None, -1, "FAILURE: Master didn't exit on time"
-    
+
     if DEBUG:
         print("    DEBUG::MASTER_CALL: %s" % str(master_args))
-    
+
     filename = create_dummy_file()
     pkcs11_test = PKCS11Test(pin="1234")
     q = queue.Queue()
-    
+
     create_key = False
     if len(master_args) > 1 and master_args[1] == "-c":
     	create_key = True
-    print("create key: %s" % create_key)
     args = {'pkcs11_test':pkcs11_test, 'create_key':True, 'sign_loops':1, 'filename':filename, 'queue':q}
     master = Thread(target=pkcs11_test_wrapper, kwargs=args)
-    
+
     master.start()
     master.join(3 * MASTER_TIMEOUT)
-    
+
     if master.isAlive():
         return master, -1, "FAILURE: Master didn't exit on time"
     else:
@@ -302,9 +303,8 @@ def exec_master_pkcs11(master_args, master_name, cryptoki_conf="cryptoki.conf", 
             else:
                 return None, result, ""
         else:
-            print ("q was empty")
             return None, 1, "FAILURE: q was empty"
-        
+
 
 def pkcs11_test_wrapper(pkcs11_test, create_key, sign_loops, filename, queue):
     try:
@@ -353,8 +353,6 @@ def exec_master_dtc(master_args, master_name, cryptoki_conf="cryptoki.conf", run
             return master, master.returncode, "FAILURE: Master return code: " + str(master.returncode)
         return None, master.returncode, ""
     else:
-        print(stdout_data)
-        print(stderr_data)
         debug_output(stdout_data, stderr_data)
         return None, -1, "FAILURE: Master didn't exit on time"
 
@@ -407,7 +405,7 @@ def debug_output(stdout, stderr):
 # NODE ONLY TESTS
 def test_one_node():
     status, output = getstatusoutput(
-        "python3 " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
+        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
     if status != 0:
         return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
@@ -418,7 +416,7 @@ def test_one_node():
 
 def test_two_nodes():
     status, output = getstatusoutput(
-        "python3 " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
+        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
     if status != 0:
         return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
@@ -435,7 +433,7 @@ def test_two_nodes():
 
 def test_opening_closing_node():
     status, output = getstatusoutput(
-        "python3 " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
+        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
     if status != 0:
         return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
@@ -453,7 +451,7 @@ def test_opening_closing_node():
 
 def test_open_close_with_node_open():
     status, output = getstatusoutput(
-        "python3 " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
+        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122 127.0.0.1:2123:2124")
     if status != 0:
         return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
@@ -477,7 +475,7 @@ def test_open_close_with_node_open():
 
 def test_stress_open_close():
     status, output = getstatusoutput(
-        "python3 " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
+        "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:2121:2122")
     if status != 0:
         return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
@@ -496,7 +494,7 @@ def test_stress_simultaneous():
 
     for port in range(2121, 2121 + 60, 2):
         status, output = getstatusoutput(
-            "python3 " + CONFIG_CREATOR_PATH + " 127.0.0.1:" + str(port) + ":" + str(port + 1))
+            "python " + CONFIG_CREATOR_PATH + " 127.0.0.1:" + str(port) + ":" + str(port + 1))
         if status != 0:
             return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
 
@@ -582,7 +580,6 @@ def test_master_twice(master_args, master_name):
 
 
 def test_three_nodes_one_down(master_args, master_name):
-    print("\ttest three nodes")
     node_info = " 127.0.0.1:2121:2122 127.0.0.1:2123:2124 127.0.0.1:2125:2126 -t " + \
                 str(MASTER_TIMEOUT)
     status, output = getstatusoutput(
@@ -604,12 +601,10 @@ def test_three_nodes_one_down(master_args, master_name):
     if node_ret3 == 1:
         close_nodes([node_proc1, node_proc2, node_proc3])
         return 1, node_mess3
-    print("\tTHREE NODES RUNNING")
 
     master, master_ret, master_mess = exec_master(
         *fix_dtc_args(master_args, master_name, 3))
     close_master(master)
-    print("\tMASTER RETURNED %s" % master_ret)
 
     if master_ret != 0:
         print("Failed at three_nodes one down:%s %s" % (master_ret, master_mess))
@@ -619,10 +614,10 @@ def test_three_nodes_one_down(master_args, master_name):
     close_node(node_proc3)
     try:
         master, master_ret, master_mess = exec_master(
-            *fix_dtc_args(master_args, master_name, 3))    
+            *fix_dtc_args(master_args, master_name, 3))
     except PKCS11TestException as e:
         master_ret = 1
-    
+
     close_nodes([node_proc1, node_proc2])
     close_master(master)
     if master_ret != 0:
@@ -692,10 +687,10 @@ def test_insuff_threshold(master_args, master_name):
     try:
         master, master_ret, master_mess = exec_master(
             *fix_dtc_args(master_args, master_name, 3, 3,
-                          key_handler='keyhandler2'))    
+                          key_handler='keyhandler2'))
     except PKCS11TestException as e:
         master_ret = 1
-    
+
     close_nodes([node_proc1, node_proc2])
     close_master(master)
 
@@ -730,7 +725,7 @@ def test_three_nodes_two_open(master_args, master_name):
 
     try:
         master, master_ret, master_mess = exec_master(
-            *fix_dtc_args(master_args, master_name, 3))    
+            *fix_dtc_args(master_args, master_name, 3))
     except PKCS11TestException as e:
         master = None
         master_ret = 1
@@ -958,12 +953,12 @@ def test_two_masters_thres2_nodes3(master_args, master_name):
 
     try:
         master1, master_ret1, master_mess1 = exec_master(
-        	fixed_args, master_name, "cryptoki1.conf")  
+                fixed_args, master_name, "cryptoki1.conf")
     except PKCS11TestException as e:
         master_ret1 = 1
         master1 = None
 
-    close_master(master1)  
+    close_master(master1)
 
     if master_ret1 == 0:
         close_nodes([node_proc1, node_proc2])
@@ -972,10 +967,10 @@ def test_two_masters_thres2_nodes3(master_args, master_name):
 
     fixed_args, master_name = fix_dtc_args(
         master_args, master_name, 3, index=2)
-    
+
     try:
         master2, master_ret2, master_mess2 = exec_master(
-        	fixed_args, master_name, "cryptoki2.conf")    
+                fixed_args, master_name, "cryptoki2.conf")
     except PKCS11TestException as e:
         master_ret2 = 1
         master2 = None
@@ -986,6 +981,63 @@ def test_two_masters_thres2_nodes3(master_args, master_name):
         return 0, ""
     else:
         return 1, "FAILURE: The test should fail, as it should not generate keys."
+
+
+# MASTER TESTS
+def test_memcheck(master_args, master_name):
+    global MASTER_TIMEOUT
+    config_creation_string = "python " + CONFIG_CREATOR_PATH
+    port = 2121
+    for i in range(0, 2):
+        config_creation_string += " 127.0.0.1:" + \
+                                  str(port) + ":" + str(port + 1)
+        port += 2
+    config_creation_string += " -t " + str(MASTER_TIMEOUT)
+
+    status, output = getstatusoutput(config_creation_string)
+    if status != 0:
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
+
+    open_nodes = []
+    for i in range(0, 2):
+        node_proc, node_ret, node_mess = exec_node("node" + str(i + 1),
+                                                   [ "valgrind"
+                                                   , "--error-exitcode=1"
+                                                   , "--leak-check=full"
+                                                   , "--show-leak-kinds=all"])
+        if node_ret == 1:
+            close_nodes(open_nodes)
+            return 1, node_mess
+
+        open_nodes.append(node_proc)
+
+    try:
+        m = subprocess.run([ "valgrind"
+                           , "--error-exitcode=1"
+                           , "--leak-check=full"
+                           , "--show-leak-kinds=all"
+                           , join(EXEC_PATH, "tests/system_test/pkcs_11_test")
+                           ],
+                           env={"TCHSM_CONFIG": abspath("cryptoki.conf")},
+                           stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE,
+                           timeout=20)
+    except subprocess.TimeoutExpired:
+        debug_output(m.stdout, m.stderr)
+        close_nodes(open_nodes)
+        return 1, "FAILURE: Timeout Expired"
+
+    for n in open_nodes:
+        n.send_signal(subprocess.signal.SIGINT)
+        try:
+            n.communicate()
+        except subprocess.TimeoutExpired:
+            n.terminate()
+            return 1, "FAILURE: Node didn't exit on time"
+        if n.returncode != 0:
+            return 1, "FAILURE: Memcheck didn't return 0"
+
+    return m.returncode, "Success"
 
 
 def pretty_print(index, name, result, mess, runtime, verbosity):
@@ -1113,10 +1165,11 @@ def main(argv=None):
 
     global EXEC_PATH
     EXEC_PATH = abspath(args.build_path)
-    print ("exec path: "+EXEC_PATH)
 
     global DEBUG
     DEBUG = args.debug
+    if DEBUG:
+        print ("exec path: "+EXEC_PATH)
 
     sys.stdout.write(" --- Testing starting --- \n\n")
 
@@ -1173,6 +1226,7 @@ def main(argv=None):
                            test_two_masters_thres2_nodes3, handler=HANDLER_PKCS11))
     tests.append(TestSuite("PKCS11 SAME DATABASE", test_cryptoki_wout_key))
 
+    tests.append(TestSuite("PKCS11 MEMCHECK", test_memcheck, handler=HANDLER_PKCS11))
     stress_tests = list()
     stress_tests.append(
         TestSuite(
