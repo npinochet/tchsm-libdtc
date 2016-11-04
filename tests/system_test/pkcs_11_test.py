@@ -34,7 +34,7 @@ class PKCS11Test:
             environ["TCHSM_CONFIG"] = tchsm_config
         if(pykcs11lib is not None):
             environ["PYKCS11LIB"] = pykcs11lib
-                 
+
         self.pkcs11 = self.initialize(lib)
         try:
             first_slot = self.pkcs11.getSlotList()[0]
@@ -44,7 +44,7 @@ class PKCS11Test:
             self.session.login(pin)
         except PyKCS11.PyKCS11Error as e:
             raise PKCS11TestException("ERROR: Get slot list failed")
-        
+
 
     def initialize(self, lib):
         """
@@ -53,7 +53,7 @@ class PKCS11Test:
         pkcs11 = PyKCS11.PyKCS11Lib()
         try:
             pkcs11.load(lib)
-        except PyKCS11Error:
+        except PyKCS11.PyKCS11Error:
             sys.stderr.write("ERROR: The library could not be loaded\n")
             raise PKCS11Exception("ERROR: The library could not be loaded")
 
@@ -230,8 +230,15 @@ def main(argv=None):
         tchsm_config = args.tchsm_config
     if args.pykcs11lib is not None:
         pykcs11lib = args.pykcs11lib
-    return PKCS11Test(pin=args.pin, tchsm_config=tchsm_config, pykcs11lib=pykcs11lib).run(create_key = args.create_key,
-     filename = args.filename, sign_loops=args.sign_loops)
+    try:
+        ret = PKCS11Test(pin=args.pin,
+                         tchsm_config=tchsm_config,
+                         pykcs11lib=pykcs11lib).run(create_key=args.create_key,
+                                                    filename=args.filename,
+                                                    sign_loops=args.sign_loops)
+        return ret
+    except PyKCS11.PyKCS11Error as e:
+        return 1
 
 
 if __name__ == "__main__":
