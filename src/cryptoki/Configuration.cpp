@@ -202,6 +202,7 @@ void Configuration::load(std::string configurationPath) {
         }
         nodes_.push_back(aux_node_info);
     }
+    config_destroy(&cfg);
 }
 
 Configuration::~Configuration() {

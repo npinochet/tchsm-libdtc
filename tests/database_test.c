@@ -129,7 +129,6 @@ START_MY_TEST(test_foreign_keys_support) {
 END_TEST
 
 static int check_table_number_callback(void *expected_result, int argc, char **argv, char **azColName){
-   int i;
    char expected_result_char = *((char *)expected_result);
    ck_assert_int_eq(1, argc);
    ck_assert_int_eq(expected_result_char, argv[0][0]);
@@ -176,7 +175,7 @@ START_MY_TEST(test_db_init_connection_without_creating_tables) {
     char *query = "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table';";
     char expected_table_number = '0';
     int rc = sqlite3_exec(ppDb, query, check_table_number_callback, &expected_table_number, NULL);
-    
+
     ck_assert_int_eq(0, rc);
 
     close_and_remove_db(database_file, conn);
