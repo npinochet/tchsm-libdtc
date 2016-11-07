@@ -3,6 +3,9 @@
 
 #include <tc.h>
 
+#define TCHSMLIBDTC_VERSION_MAJOR @TCHSMLibDTC_VERSION_MAJOR@
+#define TCHSMLIBDTC_VERSION_MINOR @TCHSMLibDTC_VERSION_MINOR@
+
 #ifdef __cplusplus
 extern "C" {
 #endif

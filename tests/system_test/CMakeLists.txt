@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 
 find_package(TCLib REQUIRED)
 include_directories(${TCLIB_INCLUDE_DIRS})
+include_directories(${PROJECT_BINARY_DIR})
 include_directories(${libdtc_SOURCE_DIR}/src/)
 include_directories(${libdtc_SOURCE_DIR}/src/cryptoki/cryptoki_compat/)
 
