@@ -29,7 +29,7 @@ endif()
 include(FindTCLib)
 find_package(TCLib REQUIRED)
 include_directories(${TCLIB_INCLUDE_DIRS})
-include_directories("../include")
+include_directories("${PROJECT_BINARY_DIR}/include")
 
 message(STATUS "TCLIB: ${TCLIB_INCLUDE_DIRS}")
 
@@ -77,9 +77,10 @@ set(dtc_dependencies ${JSON-C_LIBRARIES}
 target_link_libraries(dtc common ${dtc_dependencies})
 target_link_libraries(dtc_static common ${dtc_dependencies})
 
-target_include_directories(common PUBLIC include ../include)
-target_include_directories(dtc PUBLIC ../include)
-target_include_directories(dtc_static PUBLIC ../include)
+include_directories(${PROJECT_BINARY_DIR})
+target_include_directories(common PUBLIC include "${PROJECT_BINARY_DIR}/include")
+target_include_directories(dtc PUBLIC "${PROJECT_BINARY_DIR}/include")
+target_include_directories(dtc_static PUBLIC "${PROJECT_BINARY_DIR}/include")
 
 install(TARGETS dtc DESTINATION lib)
 install(TARGETS dtc_static DESTINATION lib)
