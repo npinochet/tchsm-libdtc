@@ -91,12 +91,14 @@ dtc_ctx_t *dtc_init(const char *config_file, int *err);
  *      not be destroyed if the context is.
  * @param key_id Identificator of the key, is a user defined char *, and
  *      it's unique within a context.
- * @param bit_size //TODO
- * @param threshold //TODO
- * @param cant_nodes must be greater than one
- * @param info //TODO
+ * @param bit_size Desired size of the RSA modulus of the generated keys.
+ * @param threshold threshold parameter of the keys. Must be greater than cant_nodes / 2 and
+ *      lesser or equal to cant_nodes.
+ * @param cant_nodes Number of nodes. Must be greater than one.
+ * @param info Pointer to the key_meta_info structure that will contain the public
+        information of the keys (modulus, public exponent, etc). 
  *
- * @return -1 if key_id is already used. //TODO
+ * @return @return DTC_ERR_NONE on success, a proper error code otherwise. -1 if key_id is already used.
  */
 int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
                             uint16_t threshold, uint16_t cant_nodes, bytes_t * public_exponent,
