@@ -1012,7 +1012,7 @@ def test_memcheck(master_args, master_name):
         open_nodes.append(node_proc)
 
     try:
-        m = subprocess.run([ "valgrind"
+        m = subprocess.Popen([ "valgrind"
                            , "--error-exitcode=1"
                            , "--leak-check=full"
                            , "--show-leak-kinds=all"
@@ -1020,8 +1020,8 @@ def test_memcheck(master_args, master_name):
                            ],
                            env={"TCHSM_CONFIG": abspath("cryptoki.conf")},
                            stdout=subprocess.PIPE,
-                           stderr=subprocess.PIPE,
-                           timeout=20)
+                           stderr=subprocess.PIPE)
+        stdout_data, stderr_data = m.communicate(20)
     except subprocess.TimeoutExpired:
         debug_output(m.stdout, m.stderr)
         close_nodes(open_nodes)
