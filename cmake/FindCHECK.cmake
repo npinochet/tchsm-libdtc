@@ -3,20 +3,17 @@
 # CHECK_INCLUDE_DIRS - include directories
 # CHECK_LIBRARIES - library directories
 
-if(CHECK_INCLUDE_DIRS AND CHECK_LIBRARTY)
+if(CHECK_INCLUDE_DIRS AND CHECK_LIBRARY)
     set(CHECK_FOUND TRUE)
 else()
     find_package(PkgConfig)
-    pkg_check_modules(PC_CHECK QUIET check)
+    pkg_check_modules(CHECK QUIET check)
 
     find_path(CHECK_INCLUDE_DIR check.h
-        HINTS ${CMAKE_INSTALL_PREFIX}/include ${PC_CHECK_INCLUDEDIR} ${PC_CHECK_INCLUDE_DIRS} PATH_SUFFIXES check)
+        HINTS ${CMAKE_INSTALL_PREFIX}/include ${CHECK_INCLUDEDIR} ${CHECK_INCLUDE_DIRS} PATH_SUFFIXES check)
 
     find_library(CHECK_LIBRARY NAMES check
-        HINTS ${CMAKE_INSTALL_PREFIX}/lib ${PC_CHECK_LIBDIR} ${PC_CHECK_LIBRARY_DIRS})
-
-    set(CHECK_LIBRARIES ${CHECK_LIBRARY})
-    set(CHECK_INCLUDE_DIRS ${CHECK_INCLUDE_DIR})
+        HINTS ${CMAKE_INSTALL_PREFIX}/lib ${CHECK_LIBDIR} ${CHECK_LIBRARY_DIRS})
 
     include(FindPackageHandleStandardArgs)
 
