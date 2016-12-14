@@ -1037,6 +1037,11 @@ def test_memcheck(master_args, master_name):
         if n.returncode != 0:
             return 1, "FAILURE: Memcheck didn't return 0"
 
+    debug_output(stdout_data, stderr_data)
+
+    if m.returncode is not 0:
+        return m.returncode, "Failed"
+
     return m.returncode, "Success"
 
 
