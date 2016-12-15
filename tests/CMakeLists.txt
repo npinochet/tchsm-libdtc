@@ -24,7 +24,7 @@ set(tests
 
 foreach(test ${tests})
     add_executable(${test} ${test}.c)
-    target_link_libraries(${test} ${CHECK_LIBRARIES} dtc node_common m ${REALTIME_LIBRARIES})
+    target_link_libraries(${test} ${CHECK_LIBRARIES} dtc node_common)
 
     if(THREADS_HAVE_PTHREAD_ARG)
         target_compile_options(${test} PUBLIC "-pthread")

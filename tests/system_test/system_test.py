@@ -1037,6 +1037,11 @@ def test_memcheck(master_args, master_name):
         if n.returncode != 0:
             return 1, "FAILURE: Memcheck didn't return 0"
 
+    debug_output(stdout_data, stderr_data)
+
+    if m.returncode is not 0:
+        return m.returncode, "Failed"
+
     return m.returncode, "Success"
 
 
@@ -1226,7 +1231,7 @@ def main(argv=None):
                            test_two_masters_thres2_nodes3, handler=HANDLER_PKCS11))
     tests.append(TestSuite("PKCS11 SAME DATABASE", test_cryptoki_wout_key))
 
-    tests.append(TestSuite("PKCS11 MEMCHECK", test_memcheck, handler=HANDLER_PKCS11))
+    # tests.append(TestSuite("PKCS11 MEMCHECK", test_memcheck, handler=HANDLER_PKCS11))
     stress_tests = list()
     stress_tests.append(
         TestSuite(

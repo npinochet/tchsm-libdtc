@@ -1,5 +1,10 @@
-language: c
+language: python
+
+python:
+    - "3.5"
+
 sudo: required
+
 dist: trusty
 
 compiler:
@@ -15,8 +20,8 @@ install:
     - make dtc
     - make
     - make system_test
-    - sudo apt-get install -y python3-pip
-    - sudo python3 -m pip install -r ../tests/system_test/requirements.txt
+    - pip install -r ../tests/system_test/requirements.txt
 
 script:
     - make check
+    - python ../tests/system_test/system_test.py .

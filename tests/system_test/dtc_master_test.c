@@ -33,7 +33,7 @@ int main(int argc, char **argv)
         return ret_val;
 
     int number_of_nodes = atoi(argv[2]);
-    int threshold = (int)floor(number_of_nodes/2.0) + 1;
+    int threshold = number_of_nodes / 2 + 1;
     if(argc > 3) {
         threshold = atoi(argv[3]);
         if(argc > 4)

@@ -1,27 +1,24 @@
+# - Try to find the CHECK libraries
+#  Once done this will define
+#
+#  CHECK_FOUND - system has check
+#  CHECK_INCLUDE_DIRS - the check include directory
+#  CHECK_LIBRARIES - check library
 
-# CHECK_FOUND - true if library and headers were found
-# CHECK_INCLUDE_DIRS - include directories
-# CHECK_LIBRARIES - library directories
-
-if(CHECK_INCLUDE_DIRS AND CHECK_LIBRARTY)
-    set(CHECK_FOUND TRUE)
-else()
+IF ( CHECK_INCLUDE_DIR AND CHECK_LIBRARY)
+    SET(CHECK_FOUND TRUE)
+ELSE()
     find_package(PkgConfig)
-    pkg_check_modules(PC_CHECK QUIET check)
+    pkg_check_modules(CHECK QUIET check)
 
     find_path(CHECK_INCLUDE_DIR check.h
-        HINTS ${CMAKE_INSTALL_PREFIX}/include ${PC_CHECK_INCLUDEDIR} ${PC_CHECK_INCLUDE_DIRS} PATH_SUFFIXES check)
+        HINTS ${CMAKE_INSTALL_PREFIX}/include ${CHECK_INCLUDEDIR} ${CHECK_INCLUDE_DIRS} PATH_SUFFIXES check)
 
     find_library(CHECK_LIBRARY NAMES check
-        HINTS ${CMAKE_INSTALL_PREFIX}/lib ${PC_CHECK_LIBDIR} ${PC_CHECK_LIBRARY_DIRS})
-
-    set(CHECK_LIBRARIES ${CHECK_LIBRARY})
-    set(CHECK_INCLUDE_DIRS ${CHECK_INCLUDE_DIR})
+        HINTS ${CMAKE_INSTALL_PREFIX}/lib ${CHECK_LIBDIR} ${CHECK_LIBRARY_DIRS})
 
     include(FindPackageHandleStandardArgs)
+    find_package_handle_standard_args(CHECK "check" CHECK_LIBRARY CHECK_LIBRARIES CHECK_INCLUDE_DIR )
+    MARK_AS_ADVANCED(CHECK_INCLUDE_DIR CHECK_LIBRARIES)
 
-    find_package_handle_standard_args(CHECK DEFAULT_MSG CHECK_LIBRARY CHECK_INCLUDE_DIR)
-
-    mark_as_advanced(CHECK_INCLUDE_DIR CHECK_LIBRARY)
-
-endif()
+ENDIF ()

@@ -683,6 +683,7 @@ void *router_socket_handler(void *data_)
     return NULL;
 }
 
+
 int dtc_generate_key_shares(dtc_ctx_t *ctx, const char *key_id, size_t bit_size,
                             uint16_t threshold, uint16_t cant_nodes, bytes_t * public_exponent,
                             key_metainfo_t **info)
@@ -984,7 +985,7 @@ static int create_connect_sockets(const struct dtc_configuration *conf,
     int events;
     char *protocol = "tcp";
     const int BUFF_SIZE = 200;
-    // This is the max time, in milisecs, between the socket is asked to close
+    // This is the max time, in millisecs, between the socket is asked to close
     // and it does really close, during this time it try to send all the
     // messages queued.
     const int linger = 1500;
