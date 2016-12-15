@@ -1,4 +1,6 @@
-language: c
+language: python
+python:
+    - "3.5"
 sudo: required
 dist: trusty
 
@@ -20,3 +22,4 @@ install:
 
 script:
     - make check
+    - python ../tests/system_test/system_test.py .

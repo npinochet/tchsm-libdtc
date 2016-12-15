@@ -68,6 +68,7 @@ get_slot() {
     check_return_value(rv, "get slot list");
 
     if (slotCount < 1) {
+        free(slotIds);
         fprintf(stderr, "Error; could not find any slots\n");
         exit(1);
     }
@@ -370,7 +371,7 @@ main(int argc, char **argv) {
 
     initialize();
     slot = get_slot();
-    
+
     session = start_session(slot);
     if (pinValue) {
 	login(session, pinValue);
