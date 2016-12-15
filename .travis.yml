@@ -17,7 +17,7 @@ install:
     - make dtc
     - make
     - make system_test
-    - sudo python -m pip install -r ../tests/system_test/requirements.txt
+    - pip install -r ../tests/system_test/requirements.txt
 
 script:
     - make check
