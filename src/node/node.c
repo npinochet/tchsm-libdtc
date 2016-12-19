@@ -44,6 +44,9 @@ struct configuration {
     // Port number to bind the ROUTER socket in.
     uint16_t router_port;
 
+    // Behaviour on multiple connections.
+    multiple_connections_t  multiple_connections;
+
     size_t cant_masters;
 
     struct master_info *masters;
@@ -102,6 +105,27 @@ int str_to_uint16(const char *str, uint16_t *res)
         return 1;
     *res = (uint16_t)result;
     return 0;
+}
+
+void lookup_multiple_connections(const config_setting_t *setting,
+                                 multiple_connections_t *out)
+{
+    const char *val;
+    int rc;
+    multiple_connections_t ret = SAME_IP; // Default
+    rc = lookup_string_conf_element(setting, "multiple_connections", &val);
+    if(rc != DTC_ERR_NONE)
+        *out = ret;
+
+    if(strcmp("SAME_IP", val) == 0)
+        ret = SAME_IP;
+    else if(strcmp("ONE_CONNECTION", val) == 0)
+        ret = ONE_CONNECTION;
+    else
+        LOG(LOG_LVL_WARN, "Not a valid multiple_connections configuration %s",
+                val);
+    free((void *)val);
+    *out = ret;
 }
 
 /* Return a human readable version of the configuration */
@@ -236,7 +260,7 @@ static int read_configuration_file(struct configuration *conf)
 {
     config_t cfg;
     config_setting_t *root, *masters, *node, *element;
-    int cant_masters = 0, rc;
+    int cant_masters = 0;
     unsigned int i = 0;
     int ret = DTC_ERR_CONFIG_FILE;
 
@@ -277,11 +301,13 @@ static int read_configuration_file(struct configuration *conf)
     ret = lookup_string_conf_element(node, "interface", &conf->interface);
     EXIT_ON_FALSE(ret == DTC_ERR_NONE, "Unable to retrieve interface.");
 
-    rc = lookup_uint16_conf_element(node, "router_port", &conf->router_port);
+    ret = lookup_uint16_conf_element(node, "router_port", &conf->router_port);
     EXIT_ON_FALSE(ret == DTC_ERR_NONE, "Unable to retrieve router_port.");
 
-    rc = lookup_uint16_conf_element(node, "sub_port", &conf->sub_port);
+    ret = lookup_uint16_conf_element(node, "sub_port", &conf->sub_port);
     EXIT_ON_FALSE(ret == DTC_ERR_NONE, "Unable to retrieve sub_port.");
+
+    lookup_multiple_connections(node, &conf->multiple_connections);
 
     for(i = 0; i < cant_masters; i++) {
         element = config_setting_get_elem(masters, i);

@@ -7,6 +7,12 @@
 struct database_conn;
 typedef struct database_conn database_t;
 
+typedef enum mult_conn {
+    SAME_IP = -1, // Allows any number of connections, but from the same IP.
+    ONE_CONNECTION = 1 // Allows only one connection.
+} multiple_connections_t;
+
+
 /**
  * Initialize a connection with the database in path.
  * Do not use the connection from different threads, make one connection
@@ -16,12 +22,16 @@ typedef struct database_conn database_t;
  *      store the databse if it does not exits.
  * @param create_db_tables Flag that indicates whether the db tables should be
  *      created in this call of the function.
+ *  @param multiple_conn_behaviour Specify how multiple connections are
+ *      handled, see available options at the ENUM definition with its
+ *      explanations.
  *
  * @return A connection to the database to be used in the next methods,
  *      to release the connection and free the memory the user must call
  *      db_close_and_free_connection. On error NULL is returned.
  */
-database_t *db_init_connection(const char *path, int create_db_tables);
+database_t *db_init_connection(const char *path, int create_db_tables,
+                               multiple_connections_t mult_conn_behaviour);
 
 /**
  * Check if the key is a public key of an authorized master or not.
@@ -41,6 +51,10 @@ int db_is_an_authorized_key(database_t *db, const char *key);
  *  @param db Active database connection.
  *  @param instance_public_key Public key of the instance for the one we will
  *      get a new token.
+ *  @param connection_identifier Id of the connection. Introduced to allow
+ *      multiple connections by instance.
+ *  @param ip endpoint the connection is connected to. Used to restrict
+ *      connections on certain multiple connection behaviours.
  *  @param output The token will be pointed by *output if the execution is
  *      successful. *output will point to dynamic memory, the caller is
  *      responsible for freeing the memory on a successful call.
@@ -49,7 +63,8 @@ int db_is_an_authorized_key(database_t *db, const char *key);
  *      fails or -1 if the instance is not stored in the database.
  */
 int db_get_new_router_token(database_t *db, const char *instance_public_key,
-                            char **output);
+                            const char *connection_identifier,
+                            const char *ip char **output);
 
 /**
  *  Creates a new temporal token for the pub socket of the instance with the
@@ -58,6 +73,10 @@ int db_get_new_router_token(database_t *db, const char *instance_public_key,
  *  @param db Active database connection.
  *  @param instance_public_key Public key of the instance for the one we will
  *      get a new token.
+ *  @param connection_identifier Id of the connection. Introduced to allow
+ *      multiple connections by instance.
+ *  @param ip endpoint the connection is connected to. Used to restrict
+ *      connections on certain multiple connection behaviours.
  *  @param output The token will be pointed by *output if the execution is
  *      successful. *output will point to dynamic memory, the caller is
  *      responsible for freeing the memory on a successful call.
@@ -66,7 +85,8 @@ int db_get_new_router_token(database_t *db, const char *instance_public_key,
  *      fails or -1 if the instance is not stored in the database.
  */
 int db_get_new_pub_token(database_t *db, const char *instance_public_key,
-                         char **output);
+                         const char *connection_identifier,
+                         const char *ip, char **output);
 
 /**
  * Retrieve from the database the current token for the router socket of the

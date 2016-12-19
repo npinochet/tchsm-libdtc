@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include <libconfig.h>
 #include <zmq.h>
@@ -129,6 +131,25 @@ static char* configuration_to_string(const struct dtc_configuration *conf)
     return &buff[0];
 }
 
+
+static char *create_socket_identity(const char *instance_id)
+{
+    int ret_val;
+    size_t buf_size = strlen(instance_id) + (sizeof(pid_t) * 3);
+    pid_t pid = getpid();
+
+    char *identity = (char *) malloc(sizeof(char) * buf_size);
+
+    ret_val = snprintf(identity, buf_size, "%s-%ld", instance_id, (long)pid);
+    if(ret_val >= ret_val) {
+        LOG(LOG_LVL_CRIT, "buf size: %zu not enough to tore %d", buf_size,
+            ret_val);
+        free(identity);
+        identity = NULL;
+    }
+
+    return identity;
+}
 
 static int get_monitor_event(void *monitor, uint16_t *event,
                              uint32_t *event_value, char **address)
@@ -985,6 +1006,7 @@ static int create_connect_sockets(const struct dtc_configuration *conf,
     int events;
     char *protocol = "tcp";
     const int BUFF_SIZE = 200;
+    char *identity;
     // This is the max time, in millisecs, between the socket is asked to close
     // and it does really close, during this time it try to send all the
     // messages queued.
@@ -1035,8 +1057,16 @@ static int create_connect_sockets(const struct dtc_configuration *conf,
                                      conf->public_key);
     if(ret)
         goto err_exit;
+
+    identity = create_socket_identity(ctx->instance_id);
+    if(identity == NULL) {
+        ret = DTC_ERR_INTERN;
+        goto err_exit;
+    }
+
     ret_val = zmq_setsockopt(router_socket, ZMQ_IDENTITY, ctx->instance_id,
                              strlen(ctx->instance_id));
+    free(identity);
     if(ret_val != 0) {
         ret = DTC_ERR_ZMQ_CURVE;
         goto err_exit;
@@ -1140,6 +1170,7 @@ err_exit:
     zmq_ctx_destroy(zmq_ctx);
     return ret;
 }
+
 
 static int set_client_socket_security(void *socket,
                                       const char *client_secret_key,

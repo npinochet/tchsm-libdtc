@@ -18,83 +18,14 @@
 
 struct database_conn {
    sqlite3 *ppDb;
+
+   multiple_connections_t mult_conn_behaviour;
 };
 
 // For testing purpose only DO NOT USE IT.
 void *get_sqlite3_conn(database_t *database_conn)
 {
     return database_conn->ppDb;
-}
-
-int sqlite3_my_blocking_exec(sqlite3 *db, const char *sql_query) {
-    sqlite3_stmt *stmt;
-    int rc, step;
-
-    rc = sqlite3_blocking_prepare_v2(db, sql_query, -1, &stmt, 0);
-    if(rc != SQLITE_OK) {
-        LOG(LOG_LVL_ERRO, "sqlite3_prepare_v2: %s", sqlite3_errmsg(db));
-        return DTC_ERR_DATABASE;
-    }
-
-    step = sqlite3_blocking_step(stmt);
-    rc = sqlite3_finalize(stmt);
-    if (rc != SQLITE_OK)
-        LOG(LOG_LVL_ERRO, "Error finalizing stmt: %s", sqlite3_errmsg(db));
-    if(step == SQLITE_DONE)
-        return DTC_ERR_NONE;
-    LOG(LOG_LVL_ERRO, "Error blocking step: %s", sqlite3_errmsg(db));
-    return DTC_ERR_DATABASE;
-}
-
-static int create_table(sqlite3 *db, const char *table_name,
-                        const char *sql_creation_query) {
-    int rc = sqlite3_my_blocking_exec(db, sql_creation_query);
-
-    if(rc != DTC_ERR_NONE)
-        LOG(LOG_LVL_ERRO, "Table %s couldn't be created:.\n%s", table_name,
-            sql_creation_query);
-    return rc;
-}
-
-int create_tables(database_t *db) {
-    unsigned int i;
-    int rc;
-    // TODO public_key also have to be NOT NULL
-    const char *instance_stmt =
-                    "CREATE TABLE IF NOT EXISTS instance (\n"\
-                    "   instance_id       TEXT PRIMARY KEY,\n"\
-                    "   public_key      TEXT UNIQUE,\n"\
-                    "   router_token    TEXT,\n"\
-                    "   pub_token       TEXT\n"\
-                    ");\n";
-    const char *key_stmt =
-                    "CREATE TABLE IF NOT EXISTS key (\n"
-                    "   key_id          TEXT NOT NULL,\n"
-                    "   instance_id       TEXT NOT NULL,\n"
-                    "   key_share       TEXT NOT NULL,\n"
-                    "   key_metainfo    TEXT NOT NULL,\n"
-                    "   PRIMARY KEY(instance_id, key_id),\n"
-                    "   FOREIGN KEY(instance_id) REFERENCES instance(instance_id) "
-                                                          "ON DELETE CASCADE"
-                    ");\n";
-
-    const char *new_instance_stms =
-                    "CREATE TABLE IF NOT EXISTS new_instance (\n"\
-                    "   instance_id   TEXT PRIMARY KEY,\n"\
-                    "   public_key  TEXT UNIQUE\n"\
-                    ");";
-
-    const char *tables[3][2] = {{"instance", instance_stmt},
-                                {"key", key_stmt},
-                                {"new_instance", new_instance_stms},
-                               };
-
-    for(i = 0; i < 3; i++) {
-        rc = create_table(db->ppDb, tables[i][0], tables[i][1]);
-        if(rc)
-            return rc;
-    }
-    return DTC_ERR_NONE;
 }
 
 // Just works with const char *;
@@ -134,9 +65,108 @@ static int prepare_bind_stmt(sqlite3 *db, const char *query, sqlite3_stmt **out,
     return DTC_ERR_NONE;
 }
 
+int sqlite3_my_blocking_exec(sqlite3 *db, const char *sql_query) {
+    sqlite3_stmt *stmt;
+    int rc, step;
+
+    rc = sqlite3_blocking_prepare_v2(db, sql_query, -1, &stmt, 0);
+    if(rc != SQLITE_OK) {
+        LOG(LOG_LVL_ERRO, "sqlite3_prepare_v2: %s", sqlite3_errmsg(db));
+        return DTC_ERR_DATABASE;
+    }
+
+    step = sqlite3_blocking_step(stmt);
+    rc = sqlite3_finalize(stmt);
+    if (rc != SQLITE_OK)
+        LOG(LOG_LVL_ERRO, "Error finalizing stmt: %s", sqlite3_errmsg(db));
+    if(step == SQLITE_DONE)
+        return DTC_ERR_NONE;
+    LOG(LOG_LVL_ERRO, "Error blocking step: %s", sqlite3_errmsg(db));
+    return DTC_ERR_DATABASE;
+}
+
+int sqlite3_my_blocking_exec_stmt(sqlite3 *db, sqlite3_stmt *stmt) {
+    int rc, step;
+    step = sqlite3_blocking_step(stmt);
+    rc = sqlite3_finalize(stmt);
+    if (rc != SQLITE_OK)
+        LOG(LOG_LVL_ERRO, "Error finalizing stmt: %s", sqlite3_errmsg(db));
+    if(step == SQLITE_DONE)
+        return DTC_ERR_NONE;
+    LOG(LOG_LVL_ERRO, "Error blocking step: %s", sqlite3_errmsg(db));
+    return DTC_ERR_DATABASE;
+
+}
+
+static int create_table(sqlite3 *db, const char *table_name,
+                        const char *sql_creation_query) {
+    int rc = sqlite3_my_blocking_exec(db, sql_creation_query);
+
+    if(rc != DTC_ERR_NONE)
+        LOG(LOG_LVL_ERRO, "Table %s couldn't be created:.\n%s", table_name,
+            sql_creation_query);
+    return rc;
+}
+
+int create_tables(database_t *db) {
+    unsigned int i;
+    int rc;
+    // TODO public_key also have to be NOT NULL
+    const char *instance_stmt =
+                "CREATE TABLE IF NOT EXISTS instance (\n"\
+                "   instance_id         TEXT PRIMARY KEY,\n"\
+                "   public_key          TEXT UNIQUE,\n"\
+                "   ip                  TEXT\n"\
+                ");\n";
+
+    const char *key_stmt =
+                "CREATE TABLE IF NOT EXISTS key (\n"
+                "   key_id          TEXT NOT NULL,\n"
+                "   instance_id       TEXT NOT NULL,\n"
+                "   key_share       TEXT NOT NULL,\n"
+                "   key_metainfo    TEXT NOT NULL,\n"
+                "   PRIMARY KEY(instance_id, key_id),\n"
+                "   FOREIGN KEY(instance_id) REFERENCES instance(instance_id) "
+                "                                            ON DELETE CASCADE"
+                ");\n";
+
+    const char *instance_connection_stmt =
+                "CREATE TABLE IF NOT EXISTS instance_connection(\n"\
+                "   instance_id TEXT NOT NULL,\n"\
+                "   connection_identifier TEXT NOT NULL,\n"\
+                "   router_token TEXT,\n"\
+                "   pub_token TEXT,\n"\
+                "   PRIMARY KEY(instance_id, connection_identifier),\n"\
+                "   FOREIGN KEY(instance_id, REFERENCES instance(instance_id) "\
+                "                                            ON DELETE CASCADE"\
+                ");";
+
+    const char *new_instance_stms =
+                "CREATE TABLE IF NOT EXISTS new_instance (\n"\
+                "   instance_id   TEXT PRIMARY KEY,\n"\
+                "   public_key  TEXT UNIQUE\n"\
+                ");";
+
+    const char *tables[4][2] = {
+            {"instance", instance_stmt},
+            {"key", key_stmt},
+            {"instance_connection", instance_connection_stmt},
+            {"new_instance", new_instance_stms},
+    };
+
+    for(i = 0; i < 4; i++) {
+        rc = create_table(db->ppDb, tables[i][0], tables[i][1]);
+        if(rc)
+            return rc;
+    }
+    return DTC_ERR_NONE;
+}
+
 
 // API
-database_t *db_init_connection(const char *path, int create_db_tables){
+database_t *db_init_connection(const char *path, int create_db_tables,
+                               multiple_connections_t mult_conn_behaviour)
+{
     int rc;
     char *err;
     database_t *ret = (database_t *) malloc(sizeof(database_t));
@@ -171,6 +201,7 @@ database_t *db_init_connection(const char *path, int create_db_tables){
         return NULL;
     }
     sqlite3_busy_timeout(ret->ppDb, 500);
+    ret->mult_conn_behaviour = mult_conn_behaviour;
     return ret;
 }
 
@@ -314,6 +345,54 @@ static int get_instance_id(database_t *db, const char *sql_query,
 
 }
 
+static int get_current_ip(database_t *db, const char *instance_id,
+                          char **output)
+{
+    int rc, step;
+    sqlite3_stmt *stmt = NULL;
+
+    const char *sql_query = "SELECT ip\n"\
+                            "FROM instance\n"\
+                            "WHERE instance_id = ?;";
+
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 1, instance_id);
+    if(rc != DTC_ERR_NONE)
+        return rc;
+    step = sqlite3_blocking_step(stmt);
+    if(step == SQLITE_ROW) {
+        *out = strdip((const char *)sqlite3_column_text(stmt, 0));
+    }
+    else if(step == SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        return -1;
+    }
+    else {
+        LOG(LOG_LVL_ERRO, "sqlite3_step: %s", sqlite3_errmsg(db->ppDb));
+        sqlite3_finalize(stmt);
+        return DTC_ERR_DATABASE;
+    }
+    rc = sqlite3_finalize(stmt);
+    if(rc != SQLITE_OK)
+        LOG(LOG_LVL_ERRO, "sqlite3_finalize %s", sqlite3_errmsg(db->ppDb));
+
+    return DTC_ERR_NONE;
+}
+
+static int update_ip(database_t *db, const char *instance_id, const char *ip)
+{
+    int rc;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql_query = "UPDATE instance\n"\
+                            "SET ip = ?\n"\
+                            "WHERE instance_id = ?";
+
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 1, ip);
+    if(rc != DTC_ERR_NONE)
+        return rc;
+
+    return sqlite3_my_blocking_exec_stmt(db->ppDb, stmt);
+}
+
 int db_get_key(database_t *db, const char *instance_id, const char *key_id,
                char **key_share, char **key_metainfo)
 {
@@ -360,7 +439,7 @@ int db_get_instance_id(database_t *db, const char *public_key, char **output) {
 int db_get_instance_id_from_pub_token(database_t *db, const char *pub_token,
                                     char **output) {
     static const char *sql_query = "SELECT instance_id\n"
-                                   "FROM instance\n"
+                                   "FROM instance_connection\n"
                                    "WHERE pub_token = ?;";
     return get_instance_id(db, sql_query, pub_token, output);
 }
@@ -368,7 +447,7 @@ int db_get_instance_id_from_pub_token(database_t *db, const char *pub_token,
 int db_get_instance_id_from_router_token(database_t *db, const char *router_token,
                                        char **output){
     static const char *sql_query = "SELECT instance_id\n"
-                                   "FROM instance\n"
+                                   "FROM instance_connection\n"
                                    "WHERE router_token = ?;";
     return get_instance_id(db, sql_query, router_token, output);
 }
@@ -399,13 +478,15 @@ int db_is_key_id_available(database_t *db, const char *instance_id,
 }
 
 static int db_get_current_token(database_t *db, const char *instance_id,
+                                const char *connection_identifier,
                                 const char *sql_query, char **output) {
 
     int rc, step;
     sqlite3_stmt *stmt = NULL;
     const char *token;
 
-    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 1, instance_id);
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2, instance_id,
+                           connection_identifier);
     if(rc != DTC_ERR_NONE)
         return rc;
 
@@ -435,25 +516,115 @@ err_exit:
     return DTC_ERR_DATABASE;
 }
 
-int db_get_router_token(database_t *db, const char *instance_id, char **output) {
+int db_get_router_token(database_t *db, const char *instance_id,
+                        const char *conn_identifier, char **output) {
     return db_get_current_token(
-            db, instance_id, "SELECT router_token\n"
-                           "FROM instance\n"
-                           "WHERE instance_id= ?;\n", output);
+            db, instance_id, conn_identifier,
+            "SELECT router_token\n"
+            "FROM instance_connection\n"
+            "WHERE instance_id= ? AND connnection_identifier = ?;\n", output);
 }
 
-int db_get_pub_token(database_t *db, const char *instance_id, char **output) {
+int db_get_pub_token(database_t *db, const char *instance_id,
+                     const char *conn_identifier, char **output) {
     return db_get_current_token(
-            db, instance_id, "SELECT pub_token\n"
-                           "FROM instance\n"
-                           "WHERE instance_id=?;\n", output);
+            db, instance_id, conn_identifier,
+            "SELECT pub_token\n"
+            "FROM instance_connection\n"
+            "WHERE instance_id=? AND connection_identifier = ?;\n", output);
 }
 
 int db_get_new_temp_token(database_t *db, const char *instance_public_key,
-                          const char *sql_query, char **output) {
+                          const char *connection_identifier,
+                          const char *token, const char *ip, char **output) {
     int rc, step, affected_rows;
+    int ret DTC_ERR_NONE;
+    size_t bufer_len;
+    const char *sql_delete, *sql_query;
+    char *instance_id;
+    char *stored_ip;
     char token[37];
     sqlite3_stmt *stmt = NULL;
+
+    const char *sql_template =
+                    "UPDATE instance_connection\n"\
+                    "SET %s = ?\n"\
+                    "WHERE instance_id = ? AND connection_identifier = ?";
+
+    rc = db_get_instance_id(db, instance_public_key, &instance_id);
+    if(rc != DTC_ERR_NONE)
+        return rc;
+
+    if(db->mult_conn_behaviour == ONE_CONNECTION) {
+        // Drop all the connections not matching the identifier
+        sql_delete = "DELETE\n"
+                     "FROM instance_connection\n"
+                     "WHERE instance_id = ? AND connection_identifier != ?;";
+        rc = prepare_bind_stmt(db->ppDb, sql_delete, &stmt, 2,
+                               instance_id, connection_identifier);
+        if(rc != DTC_ERR_NONE) {
+            free(instance_id);
+            return rc;
+        }
+
+        rc = sqlite3_my_blocking_exec_stmt(db->ppDb, stmt);
+        if(rc != DTC_ERR_NONE) {
+            free(instance_id);
+            return rc;
+        }
+    }
+
+    else if(db->mult_conn_behaviour == SAME_IP) {
+        rc = get_current_ip(db, instance_id, &stored_ip);
+        if(rc != DTC_ERR_NONE) {
+            free(instance_id);
+            return rc;
+        }
+
+        // If different IP
+        if(stored_ip != NULL && strcmp(stored_ip, ip) != 0) {
+            sql_delete = "DELETE\n"
+                         "FROM instance_connection\n"
+                         "WHERE instance_id = ?;";
+
+            rc = prepare_bind_stmt(db->ppDb, sql_delete, &stmt, 1,
+                                   instance_id);
+            if(rc != DTC_ERR_NONE) {
+                free(stored_ip);
+                free(instance_id);
+                return rc;
+            }
+
+            rc = sqlite3_my_blocking_exec_stmt(db->ppDb, stmt);
+            if(rc != DTC_ERR_NONE) {
+                free(stored_ip);
+                free(instance_id);
+                return rc;
+            }
+
+            rc = update_ip(db, instance_id, ip)
+            if(rc != DTC_ERR_NONE) {
+                free(stored_ip);
+                free(instance_id);
+                return rc;
+            }
+        }
+        free(stored_ip);
+    }
+    else {
+        free(instance_id);
+        LOG(LOG_LVL_CRIT, "Behaviour not supported");
+        return DTC_ERR_INVALID_VAL;
+    }
+
+    bufer_len = strlen(sql_template) + strlen(token) + 1;
+    sql_query = (char *) malloc(sizeof(char) * bufer_len);
+    rc = snprintf(sql_query, bufer_len, sql_template, token);
+    if(rc >= bufer_len) {
+        free(instance_id);
+        LOG(LOG_LVL_CRIT, "Error writing sql query into buffer.");
+        return DTC_ERR_INTERN;
+    }
 
     rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2,
                            get_uuid_as_char(&token[0]), instance_public_key);
@@ -491,19 +662,20 @@ err_exit:
 }
 
 int db_get_new_router_token(database_t *db, const char *instance_public_key,
-                            char **output) {
-    return db_get_new_temp_token(
-            db, instance_public_key, "UPDATE instance\n"
-                                   "SET router_token = ?\n"
-                                   "WHERE public_key = ?;", output);
+                            const char *connection_identifier,
+                            const char *ip, char **output) {
+    return db_get_new_temp_token(db, instance_public_key, connection_identifier,
+                                 "router_token", ip, output);
+            /* "UPDATE instance\n" */
+                                   /* "SET router_token = ?\n" */
+                                   /* "WHERE public_key = ?;", output); */
 }
 
 int db_get_new_pub_token(database_t *db, const char *instance_public_key,
-                         char **output) {
-    return db_get_new_temp_token(
-            db, instance_public_key, "UPDATE instance\n"
-                                   "SET pub_token = ?\n"
-                                   "WHERE public_key = ?;", output);
+                         const char *connection_identifier,
+                         const char *ip, char **output) {
+    return db_get_new_temp_token(db, instance_public_key, connection_identifier,
+                                 "pub_token", ip, output);
 }
 
 int db_store_key(database_t *db, const char *instance_id, const char *key_id,

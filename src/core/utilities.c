@@ -21,7 +21,7 @@ int lookup_uint16_conf_element(const config_setting_t *setting,
         LOG(LOG_LVL_CRIT, "%s not found in the configuration.", name);
         return DTC_ERR_CONFIG_FILE;
     }
-    if(aux > UINT16_MAX){
+    if(aux > UINT16_MAX) {
         LOG(LOG_LVL_CRIT,
                   "Error getting %s. %lld is too big, should fit in uint16_t.",
                   name, aux);
