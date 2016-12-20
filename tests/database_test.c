@@ -30,6 +30,7 @@ static sqlite3 *get_sqlite3_connection(database_t *database_conn)
 {
     return (sqlite3 *) get_sqlite3_conn(database_conn);
 }
+
 static char *get_filepath(const char *file) {
 
     const char *testing_dir = DT_TCLIB_TEST_DIRECTORY;
@@ -54,21 +55,19 @@ static void close_and_remove_db(char *file, database_t *db) {
 
 // Testing only, do not use it, it allows SQL injection.
 static int insert_instance(sqlite3 *db, const char *instance_key,
-                         const char *instance_id, const char *token) {
+                         const char *instance_id, const char *ip) {
     char *err;
     size_t ret;
     int rc;
     char *sql_template  = "INSERT INTO instance (public_key, instance_id, "
-                                              "router_token, pub_token)\n"
-                          "    VALUES('%s', '%s', '%s', '%s');";
+                                              "ip)\n"
+                          "    VALUES('%s', '%s', '%s');";
     size_t len = strlen(sql_template) +
                  strlen(instance_key) +
                  strlen(instance_id) +
-                 strlen(token) +
-                 strlen(token) + 1; // %s will be replaced, this isn't needed.
+                 strlen(ip);
     char *sql_query = (char *) malloc(sizeof(char) * len);
-    ret = snprintf(sql_query, len, sql_template, instance_key, instance_id, token,
-                   token);
+    ret = snprintf(sql_query, len, sql_template, instance_key, instance_id, ip);
     ck_assert(ret < len);
 
     rc = sqlite3_exec(db, sql_query, NULL, NULL, &err);
@@ -90,7 +89,7 @@ START_MY_TEST(test_create_db) {
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
 
     ck_assert_int_eq(0, access(database_file, F_OK));
@@ -115,7 +114,7 @@ START_MY_TEST(test_foreign_keys_support) {
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
@@ -140,7 +139,7 @@ START_MY_TEST(test_create_tables) {
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     sqlite3 *ppDb = get_sqlite3_connection(conn);
 
     ck_assert(conn != NULL);
@@ -165,7 +164,7 @@ START_MY_TEST(test_db_init_connection_without_creating_tables) {
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 0);
+    database_t *conn = db_init_connection(database_file, 0, ONE_CONNECTION);
     sqlite3 *ppDb = get_sqlite3_connection(conn);
 
     ck_assert(conn != NULL);
@@ -189,7 +188,7 @@ START_MY_TEST(test_get_new_token_empty_db) {
     char *database_file = get_filepath("test_get_new_token_empty_db");
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
     ck_assert_int_eq(-1,
                      db_get_new_router_token(conn, instance_p_key, &result));
@@ -203,7 +202,7 @@ START_MY_TEST(test_get_new_token_instance_not_found) {
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
 
     ck_assert_int_eq(DTC_ERR_NONE, create_tables(conn));
@@ -226,7 +225,7 @@ START_MY_TEST(test_get_new_token_consistency) {
     sqlite3 *ppDb;
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
@@ -264,7 +263,7 @@ START_MY_TEST(test_db_is_an_authorized_key_empty_db) {
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
     ck_assert_int_eq(0, db_is_an_authorized_key(conn, "any_key"));
 
@@ -279,7 +278,7 @@ START_MY_TEST(test_db_is_an_authorized_key) {
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
@@ -299,7 +298,7 @@ START_MY_TEST(test_db_add_new_instance) {
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
 
     ck_assert_int_eq(DTC_ERR_NONE, create_tables(conn));
@@ -321,7 +320,7 @@ START_MY_TEST(test_update_instances_empty_db) {
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
 
     ck_assert_int_eq(DTC_ERR_NONE, db_update_instances(conn));
@@ -336,7 +335,7 @@ START_MY_TEST(test_update_instances_no_old_instances) {
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
 
     ck_assert_int_eq(DTC_ERR_NONE,
@@ -368,7 +367,7 @@ START_MY_TEST(test_update_instances_update_only) {
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
@@ -396,7 +395,7 @@ START_MY_TEST(test_update_instances_replace) {
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
@@ -424,7 +423,7 @@ START_MY_TEST(test_update_instances_nothing_to_update) {
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
@@ -451,7 +450,7 @@ START_MY_TEST(test_update_instances_delete_only) {
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
@@ -476,7 +475,7 @@ START_MY_TEST(test_update_instances_mix_operations) {
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
@@ -536,7 +535,7 @@ START_MY_TEST(test_store_key_simple) {
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
@@ -583,7 +582,7 @@ START_MY_TEST(test_get_key) {
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
@@ -614,7 +613,7 @@ START_TEST(test_delete_key_simple) {
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
-    database_t *conn = db_init_connection(database_file, 1);
+    database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 

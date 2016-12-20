@@ -63,6 +63,8 @@ struct worker_data {
     const char *incoming_inproc_address;
     const char *outgoing_inproc_address;
     const char *database_path;
+    // Behaviour on multiple connections.
+    multiple_connections_t  multiple_connections;
 };
 
 struct communication_objects {
@@ -87,6 +89,9 @@ struct zap_handler_data {
 
     // Path to the database file.
     const char *database;
+
+    // Behaviour on multiple connections.
+    multiple_connections_t  multiple_connections;
 };
 
 // ptr to the ctx to be used by the signal handler.
@@ -114,8 +119,10 @@ void lookup_multiple_connections(const config_setting_t *setting,
     int rc;
     multiple_connections_t ret = SAME_IP; // Default
     rc = lookup_string_conf_element(setting, "multiple_connections", &val);
-    if(rc != DTC_ERR_NONE)
+    if(rc != DTC_ERR_NONE) {
         *out = ret;
+        return;
+    }
 
     if(strcmp("SAME_IP", val) == 0)
         ret = SAME_IP;
@@ -150,7 +157,8 @@ static struct communication_objects *init_node(const struct configuration *conf)
 static struct communication_objects *create_and_bind_sockets(
         const struct configuration *conf);
 static int node_loop(struct communication_objects *communication_objs,
-                     const char * database_path, int close_fds);
+                     const char * database_path, int close_fds,
+                     multiple_connections_t mult_conn);
 static int set_server_socket_security(void *socket,
                                       const char *server_secret_key);
 static void zap_handler (void *handler);
@@ -172,7 +180,8 @@ static void print_usage(int exit_code)
 static void update_database(struct configuration *conf)
 {
     unsigned i;
-    database_t *db_conn = db_init_connection(conf->database, 1);
+    database_t *db_conn = db_init_connection(conf->database, 1,
+                                             conf->multiple_connections);
     EXIT_ON_FALSE(db_conn, "Error trying to connect to the database.");
 
     for(i = 0; i < conf->cant_masters; i++) {
@@ -223,7 +232,8 @@ int main(int argc, char **argv)
 
     LOG(LOG_LVL_NOTI, "Node started: %s", argv[0]);
 
-    ret_val = node_loop(communication_objs, configuration.database, fds[0]);
+    ret_val = node_loop(communication_objs, configuration.database, fds[0],
+                        configuration.multiple_connections);
 
     zmq_ctx_destroy(communication_objs->ctx);
     zmq_threadclose(communication_objs->zap_thread);
@@ -383,7 +393,7 @@ static int read_configuration(int argc, char *argv[],
 
 // Serialize and send an op to router, will write the instance id as first frame
 // of the message, that's used to select the destination in a router socket.
-static int send_op(const char *instance_id, const struct op_req *op, void *socket)
+static int send_op(const char *identity, const struct op_req *op, void *socket)
 {
     size_t msg_size = 0;
     char *msg_data = NULL;
@@ -404,7 +414,7 @@ static int send_op(const char *instance_id, const struct op_req *op, void *socke
         return DTC_ERR_INTERN;
     }
 
-    ret = s_sendmore(socket, instance_id);
+    ret = s_sendmore(socket, identity);
     if(ret == 0) {
         zmq_msg_close(msg);
         return DTC_ERR_COMMUNICATION;
@@ -415,7 +425,7 @@ static int send_op(const char *instance_id, const struct op_req *op, void *socke
         zmq_msg_close(msg);
         return DTC_ERR_COMMUNICATION;
     }
-    LOG(LOG_LVL_DEBG, "Sending %d to %s\n", op->op, instance_id);
+    LOG(LOG_LVL_DEBG, "Sending %d to %s\n", op->op, identity);
     return DTC_ERR_NONE;
 }
 
@@ -554,7 +564,7 @@ const signature_share_t *sign(database_t *db_conn, const char *instance_id,
 void handle_sign_pub(database_t *db_conn, void *router_socket,
                      struct op_req *pub_op, const char *auth_user)
 {
-    const char *signing_id;
+    const char *signing_id, *instance_id;
     const char *key_id;
     const uint8_t *message;
     struct op_req req;
@@ -576,7 +586,7 @@ void handle_sign_pub(database_t *db_conn, void *router_socket,
 
     msg_bytes = tc_init_bytes((void *)message, msg_len);
 
-    signature = sign(db_conn, auth_user, key_id, msg_bytes);
+    signature = sign(db_conn, instance_id, key_id, msg_bytes);
     free(msg_bytes);
 
     //TODO send status code.
@@ -598,7 +608,8 @@ void handle_sign_pub(database_t *db_conn, void *router_socket,
 void handle_store_key_pub(database_t *db_conn, void *outgoing_socket,
                           struct op_req *pub_op, const char *auth_user)
 {
-    const char *instance_id;
+    const char *connection_id, *instance_id;
+    char *identity;
     struct op_req req_op;
     struct store_key_req store_key_req;
     int ret;
@@ -608,14 +619,21 @@ void handle_store_key_pub(database_t *db_conn, void *outgoing_socket,
         return;
     }
 
-    instance_id = pub_op->args->store_key_pub.instance_id;
-    ret = strcmp(auth_user, pub_op->args->store_key_pub.instance_id);
-    printf("%s %s\n", instance_id, auth_user);
-    if(ret) {
-        LOG(LOG_LVL_NOTI, "Unauthorized user (%s) dropped at store_key_pub.",
-            instance_id);
+    connection_id = pub_op->args->store_key_pub.connection_id;
+    ret = db_get_instance_id_from_pub_token(db_conn, auth_user, &instance_id);
+    if(ret != DTC_ERR_NONE) {
+        LOG(LOG_LVL_CRIT,
+            "Error getting instance_id from handle_store_key_pub");
         return;
     }
+
+    identity = create_identity(instance_id, connection_id);
+    if(identity == NULL) {
+        LOG(LOG_LVL_CRIT, "Failed when creating identity");
+        free((void *)instance_id);
+        return;
+    }
+
     store_key_req.key_id = pub_op->args->store_key_pub.key_id;
 
     req_op.version = 1;
@@ -625,12 +643,13 @@ void handle_store_key_pub(database_t *db_conn, void *outgoing_socket,
     store_key_req.key_id_accepted =
             db_is_key_id_available(db_conn, instance_id, store_key_req.key_id);
 
-    ret = send_op(instance_id, &req_op, outgoing_socket);
-    if(ret != DTC_ERR_NONE) {
+    ret = send_op(identity, &req_op, outgoing_socket);
+    if(ret != DTC_ERR_NONE)
         LOG(LOG_LVL_CRIT, "Error replying from handle_store_key_pub: %s",
             dtc_get_error_msg(ret));
-        return;
-    }
+    free((void *)instance_id);
+    free((void *)identity);
+    return;
 }
 
 void classify_and_handle_operation(database_t *db_conn, void *outgoing_socket,
@@ -699,7 +718,8 @@ static void *worker_thr(void *thread_data)
         LOG_EXIT("Unable to connect socket: %s", zmq_strerror(errno));
     }
 
-    db_conn = db_init_connection(thr_data->database_path, 0);
+    db_conn = db_init_connection(thr_data->database_path, 0,
+                                 thr_data->multiple_connections);
     EXIT_ON_FALSE(db_conn, "Unable to init db connection at:%s",
                   thr_data->database_path);
 
@@ -754,6 +774,7 @@ static void *worker_thr(void *thread_data)
 
 static struct worker_data *create_workers(int num_workers,
                                           const char * database_path,
+                                          multiple_connections_t mult_conn,
                                           void *zmq_ctx,
                                           const char *incoming_inproc_address,
                                           const char *outgoing_inproc_address)
@@ -770,6 +791,7 @@ static struct worker_data *create_workers(int num_workers,
     worker_data->outgoing_inproc_address = outgoing_inproc_address;
     worker_data->database_path = database_path;
     worker_data->ctx = zmq_ctx;
+    worker_data->multiple_connections = mult_conn;
     for(i = 0; i < num_workers; i++) {
         ret = pthread_create(&(worker_data->pids[i]), NULL, worker_thr,
                              worker_data);
@@ -827,6 +849,7 @@ static struct communication_objects *init_node(
 
     comm_objs->workers = create_workers(num_workers,
                                         configuration->database,
+                                        configuration->multiple_connections,
                                         comm_objs->ctx,
                                         comm_objs->incoming_inproc_address,
                                         comm_objs->outgoing_inproc_address);
@@ -835,7 +858,8 @@ static struct communication_objects *init_node(
     return comm_objs;
 }
 
-static void *start_zap_security(void *zmq_ctx, const char *database)
+static void *start_zap_security(void *zmq_ctx, const char *database,
+                                multiple_connections_t mult_conn)
 {
     int ret_value;
     struct zap_handler_data *zap_data =
@@ -844,6 +868,7 @@ static void *start_zap_security(void *zmq_ctx, const char *database)
 
     zap_data->database = database;
     zap_data->socket = zmq_socket(zmq_ctx, ZMQ_REP);
+    zap_data->multiple_connections = mult_conn;
     if(zmq_setsockopt(zap_data->socket, ZMQ_LINGER, &LINGER_PERIOD, sizeof(int)))
         LOG_EXIT("LINGER FAILED");
     EXIT_ON_FALSE(zap_data->socket, "ZAP_HANDLER socket error.");
@@ -873,7 +898,8 @@ static struct communication_objects *create_and_bind_sockets(
     ret_val->ctx = zmq_ctx_new();
     EXIT_ON_FALSE(ret_val->ctx, "Context initialization error.");
 
-    ret_val->zap_thread = start_zap_security(ret_val->ctx, conf->database);
+    ret_val->zap_thread = start_zap_security(ret_val->ctx, conf->database,
+                                             conf->multiple_connections);
 
     // Create sockets.
     ret_val->incoming_socket = zmq_socket(ret_val->ctx, ZMQ_PUSH);
@@ -994,18 +1020,36 @@ static int set_server_socket_security(void *socket,
     return 0;
 }
 
+static const char *get_connection_id(const char *identity)
+{
+    static const char separator = '-';
+    const char *last_separator = identity;
+    const char *it;
+    for(it = identity; *it != '\0'; it++)
+        if(*it == separator)
+            last_separator = it;
+    if(last_separator == identity) {
+        LOG(LOG_LVL_CRIT, "Identity (%s) format not recognised", identity);
+        return it - 1; // Returns the last char of the identity
+    }
+    return last_separator;
+}
+
 static int node_loop(struct communication_objects *communication_objs,
-                     const char *database_path, int close_fds)
+                     const char *database_path, int close_fds,
+                     multiple_connections_t mult_conn)
 {
     zmq_msg_t rcvd_msg_, out_msg_;
     zmq_msg_t *rcvd_msg = &rcvd_msg_, *out_msg = &out_msg_;
     const unsigned poll_items = 4;
     const char *auth_user_id;
+    const char *connection_id;
+    const char *outgoing_address;
     char *instance_id, *identity;
     int rc = 0;
     void *out_sock;
 
-    database_t *db_conn = db_init_connection(database_path, 0);
+    database_t *db_conn = db_init_connection(database_path, 0, mult_conn);
     EXIT_ON_FALSE(db_conn, "Error trying to connect to the DB.");
 
     //TODO Check if synchronization is necessary to wait that the
@@ -1066,16 +1110,6 @@ static int node_loop(struct communication_objects *communication_objs,
                 zmq_msg_close(rcvd_msg);
                 continue;
             }
-
-            rc = db_get_instance_id_from_pub_token(db_conn, auth_user_id,
-                                                   &instance_id);
-            if(rc != DTC_ERR_NONE) {
-                LOG(LOG_LVL_ERRO, "Error retrieving instance_id from DB: %d",
-                    rc);
-                zmq_msg_close(rcvd_msg);
-                continue;
-            }
-
         }
 
         else if(items[1].revents) {
@@ -1124,7 +1158,7 @@ static int node_loop(struct communication_objects *communication_objs,
         }
 
         else if(items[2].revents) { // Probably else is enough.
-            instance_id = s_recv(communication_objs->outgoing_socket);
+            identity = s_recv(communication_objs->outgoing_socket);
             if(instance_id == NULL) {
                 LOG(LOG_LVL_ERRO, "Error reading frame 1 of outgoing_socket");
                 zmq_msg_close(rcvd_msg);
@@ -1134,7 +1168,7 @@ static int node_loop(struct communication_objects *communication_objs,
             rc = zmq_msg_recv(rcvd_msg, communication_objs->outgoing_socket, 0);
             if(rc == -1) {
                 zmq_msg_close(rcvd_msg);
-                free(instance_id);
+                free(identity);
                 LOG_EXIT("Error reading second frame of pull socket");
             }
 
@@ -1148,37 +1182,41 @@ static int node_loop(struct communication_objects *communication_objs,
             continue; //TODO or break?
         }
         //
-        if(items[0].revents || items[1].revents)
+        if(items[0].revents || items[1].revents) {
             out_sock = communication_objs->incoming_socket;
-        else if(items[2].revents)
+            outgoing_address = auth_user_id;
+        }
+        else if(items[2].revents) {
             out_sock = communication_objs->router_socket;
+            outgoing_address = identity;
+        }
 
         rc = zmq_msg_copy(out_msg, rcvd_msg);
         zmq_msg_close(rcvd_msg);
         if(rc != 0) {
             LOG(LOG_LVL_ERRO, "Unable to copy the msg:%s",
                 zmq_strerror(errno));
-            free(instance_id);
+            free(outgoing_address);
             continue;
         }
 
-        rc = s_sendmore(out_sock, instance_id);
+        rc = s_sendmore(out_sock, outgoing_address);
         if(rc == -1) {
             LOG(LOG_LVL_ERRO, "Unable to send msg: %s", zmq_strerror(errno));
             zmq_msg_close(out_msg);
-            free(instance_id);
+            free(outgoing_address);
             continue;
         }
 
         rc = zmq_msg_send(out_msg, out_sock, 0);
         if(rc == -1) {
             zmq_msg_close(out_msg);
-            free(instance_id);
+            free(outgoing_address);
             // TODO Not sure how to handle an error sending second part
             // of multipart msg, investigate it and remove the EXIT.
             LOG_EXIT("Unable to send msg: %s", zmq_strerror(errno));
         }
-        free(instance_id);
+        free(outgoing_address);
 
     }
     close(close_fds);
@@ -1192,7 +1230,6 @@ static int node_loop(struct communication_objects *communication_objs,
     return 0;
 }
 
-
 // TODO check if db_is_an_authorized_key is used, remove it if it's not.
 
 static void zap_handler(void *zap_data_)
@@ -1202,7 +1239,8 @@ static void zap_handler(void *zap_data_)
     char *aux_char;
     struct zap_handler_data *zap_data = (struct zap_handler_data *) zap_data_;
     void *sock = zap_data->socket;
-    database_t *db_conn = db_init_connection(zap_data->database, 0);
+    database_t *db_conn = db_init_connection(zap_data->database, 0,
+                                             zap_data->multiple_connections);
     EXIT_ON_FALSE(db_conn, "Error trying to connect to the DB.");
     LOG(LOG_LVL_INFO, "Starting ZAP thread.");
 
@@ -1218,7 +1256,6 @@ static void zap_handler(void *zap_data_)
         char *identity = s_recv(sock);
         char *mechanism = s_recv(sock);
 
-
         zmq_recv(sock, client_key, 32, 0);
 
         char client_key_text [42];
@@ -1227,9 +1264,15 @@ static void zap_handler(void *zap_data_)
 
         s_sendmore(sock, version);
         s_sendmore(sock, sequence);
+        /* fprintf(stderr, "Version : %s\n", version); */
+        /* fprintf(stderr, "Sequence: %s\n", sequence); */
+        /* fprintf(stderr, "Address: %s\n", address); */
+        /* fprintf(stderr, "identity: %s\n", identity); */
+        /* fprintf(stderr, "mechanism: %s\n", mechanism); */
 
         if(strcmp("SUB_SOCKET",  domain) == 0) {
             if(DTC_ERR_NONE == db_get_new_pub_token(db_conn, client_key_text,
+                                                    address,
                                                     &aux_char)) {
                 s_sendmore(sock, "200");
                 s_sendmore(sock, "OK");
@@ -1248,6 +1291,7 @@ static void zap_handler(void *zap_data_)
         }
         else if(strcmp("ROUTER_SOCKET", domain) == 0) {
             if(DTC_ERR_NONE == db_get_new_router_token(db_conn, client_key_text,
+                                                       address,
                                                        &aux_char)) {
                 s_sendmore(sock, "200");
                 s_sendmore(sock, "OK");

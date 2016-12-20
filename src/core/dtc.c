@@ -42,6 +42,7 @@ struct dtc_ctx {
     void *zmq_ctx;
     void *pub_socket;
     void *router_socket;
+    const char *connection_id;
 
     // Thread to protect pub_socket, as zmq sockets are not thread safe.
     pthread_mutex_t pub_socket_mutex;
@@ -131,25 +132,21 @@ static char* configuration_to_string(const struct dtc_configuration *conf)
     return &buff[0];
 }
 
-
-static char *create_socket_identity(const char *instance_id)
+static char *get_connection_id()
 {
+    size_t len = sizeof(pid_t) * 3;
     int ret_val;
-    size_t buf_size = strlen(instance_id) + (sizeof(pid_t) * 3);
-    pid_t pid = getpid();
+    char ret = malloc(sizeof(char) * len);
 
-    char *identity = (char *) malloc(sizeof(char) * buf_size);
-
-    ret_val = snprintf(identity, buf_size, "%s-%ld", instance_id, (long)pid);
-    if(ret_val >= ret_val) {
-        LOG(LOG_LVL_CRIT, "buf size: %zu not enough to tore %d", buf_size,
-            ret_val);
-        free(identity);
-        identity = NULL;
+    ret_val = snprintf(ret, len, "%ld", (long)getpid());
+    if(ret_val >= len) {
+        LOG(LOG_LVL_CRIT, "buf size %zu too small %d", len, ret_val);
+        free(ret);
+        return NULL;
     }
-
-    return identity;
+    return ret;
 }
+
 
 static int get_monitor_event(void *monitor, uint16_t *event,
                              uint32_t *event_value, char **address)
@@ -335,8 +332,17 @@ dtc_ctx_t *dtc_init_from_struct(const struct dtc_configuration *conf, int *err)
         return NULL;
     }
 
+    ret->connection_id = get_connection_id();
+    if(!ret->connection_id) {
+        *err = DTC_ERR_NOMEM;
+        free(ret);
+        return NULL;
+    }
+
     if(pthread_mutex_init(&ret->pub_socket_mutex, NULL) != 0) {
         *err = DTC_ERR_INTERN;
+        free(ret);
+        free((void *) ret->connection_id);
         return NULL;
     }
 
@@ -346,6 +352,8 @@ dtc_ctx_t *dtc_init_from_struct(const struct dtc_configuration *conf, int *err)
     *err = create_connect_sockets(conf, ret);
     if(*err != DTC_ERR_NONE)
         return NULL;
+
+
 
     if(DTC_ERR_NONE != start_router_socket_handler(ret)) {
         *err = DTC_ERR_INTERN;
@@ -746,7 +754,7 @@ static int store_key_shares_nodes(dtc_ctx_t *ctx, const char *key_id,
 
     pub_op.version = 1;
     pub_op.op = OP_STORE_KEY_PUB;
-    store_key_pub.instance_id = ctx->instance_id;
+    store_key_pub.connection_id = ctx->connection_id;
     store_key_pub.key_id = key_id;
     pub_op.args = args;
 
@@ -834,6 +842,7 @@ void dtc_delete_key_shares(dtc_ctx_t *ctx, const char *key_id)
     pub_op.op = OP_DELETE_KEY_SHARE_PUB;
 
     delete_key_share.key_id = key_id;
+    delete_key_share.connection_id = ctx->connection_id;
 
     send_pub_op(ctx, &pub_op);
 }
@@ -861,6 +870,7 @@ int dtc_sign(dtc_ctx_t *ctx, const key_metainfo_t *key_metainfo,
     pub_op.version = 1;
     pub_op.op = OP_SIGN_PUB;
 
+    sign_pub.connection_id = ctx->connection_id;
     sign_pub.signing_id = signing_id;
     sign_pub.key_id = key_id;
     sign_pub.message = (uint8_t *)message->data;
@@ -940,6 +950,7 @@ int dtc_destroy(dtc_ctx_t *ctx)
 
 
     free((void *)ctx->instance_id);
+    free((void *)ctx->connection_id);
     free(ctx);
 
     return DTC_ERR_NONE;
@@ -1058,14 +1069,18 @@ static int create_connect_sockets(const struct dtc_configuration *conf,
     if(ret)
         goto err_exit;
 
-    identity = create_socket_identity(ctx->instance_id);
+    identity = create_identity(ctx->instance_id, ctx->connection_id);
     if(identity == NULL) {
         ret = DTC_ERR_INTERN;
         goto err_exit;
     }
 
-    ret_val = zmq_setsockopt(router_socket, ZMQ_IDENTITY, ctx->instance_id,
-                             strlen(ctx->instance_id));
+    ret_val = zmq_setsockopt(router_socket, ZMQ_IDENTITY, identity,
+                             strlen(identity));
+    /* ret_val = zmq_setsockopt(router_socket, ZMQ_CONNECT_RID, identity, */
+                             /* strlen(identity)); */
+    fprintf(stderr, "Identity:%s\n", identity);
+    fprintf(stderr, "ret_val:%d\n", ret_val);
     free(identity);
     if(ret_val != 0) {
         ret = DTC_ERR_ZMQ_CURVE;

@@ -23,8 +23,8 @@ static struct json_object *serialize_store_key_pub(
 
     ret = json_object_new_object();
 
-    json_object_object_add(ret, "instance_id",
-                            json_object_new_string(store_key_pub->instance_id));
+    json_object_object_add(ret, "connection_id",
+                            json_object_new_string(store_key_pub->connection_id));
     json_object_object_add(ret, "key_id",
                            json_object_new_string(store_key_pub->key_id));
     return ret;
@@ -40,11 +40,11 @@ static union command_args *unserialize_store_key_pub(struct json_object *in,
     if(version != 1)
         goto err_exit;
 
-    if(!json_object_object_get_ex(in, "instance_id", &temp)){
-        LOG(LOG_LVL_CRIT, "Key \"instance_id\" does not exists.");
+    if(!json_object_object_get_ex(in, "connection_id", &temp)){
+        LOG(LOG_LVL_CRIT, "Key \"connection_id\" does not exists.");
         goto err_exit;
     }
-    ret->instance_id = strdup(json_object_get_string(temp));
+    ret->connection_id = strdup(json_object_get_string(temp));
 
     if(!json_object_object_get_ex(in, "key_id", &temp)) {
         LOG(LOG_LVL_CRIT, "Key \"key_id\" does not exists.");
@@ -61,7 +61,7 @@ err_exit:
 
 int delete_store_key_pub(union command_args *data) {
     struct store_key_pub *store_key_pub = &data->store_key_pub;
-    free((void *)store_key_pub->instance_id);
+    free((void *)store_key_pub->connection_id);
     free((void *)store_key_pub->key_id);
     free(data);
     return 0;
@@ -275,7 +275,9 @@ static struct json_object *serialize_delete_key_share_pub(
     ret = json_object_new_object();
 
     json_object_object_add(ret, "key_id",
-                           json_object_new_string(delete_key_share->key_id));
+            json_object_new_string(delete_key_share->key_id));
+    json_object_object_add(ret, "connection_id",
+            json_object_new_string(delete_key_share->connection_id));
     return ret;
 }
 
@@ -296,6 +298,12 @@ static union command_args *unserialize_delete_key_share_pub(
     }
     ret->key_id = strdup(json_object_get_string(temp));
 
+    if(!json_object_object_get_ex(in, "connection_id", &temp)) {
+        LOG(LOG_LVL_CRIT, "Key \"connection\" does not exists.");
+        goto err_exit;
+    }
+    ret->connection_id = strdup(json_object_get_string(temp));
+
     return ret_union;
 
 err_exit:
@@ -306,6 +314,7 @@ err_exit:
 static int delete_delete_key_share_pub(union command_args *data) {
     struct delete_key_share_pub *delete_key_share = &data->delete_key_share_pub;
     free((void *)delete_key_share->key_id);
+    free((void *)delete_key_share->connection_id);
     free(data);
     return 0;
 }
@@ -384,6 +393,8 @@ static struct json_object *serialize_sign_pub(
 
     ret = json_object_new_object();
 
+    json_object_object_add(ret, "connection_id",
+                           json_object_new_string(sign_pub->connection_id));
     json_object_object_add(ret, "signing_id",
                            json_object_new_string(sign_pub->signing_id));
     json_object_object_add(ret, "key_id",
@@ -412,6 +423,12 @@ static union command_args *unserialize_sign_pub(
         goto err_exit;
     }
     ret->key_id = strdup(json_object_get_string(temp));
+
+    if(!json_object_object_get_ex(in, "connection_id", &temp)) {
+        LOG(LOG_LVL_CRIT, "Key \"connection_id\" does not exists.");
+        goto err_exit;
+    }
+    ret->connection_id = strdup(json_object_get_string(temp));
 
     if(!json_object_object_get_ex(in, "signing_id", &temp)) {
         LOG(LOG_LVL_CRIT, "Key \"signing_id\" does not exists.");
@@ -443,6 +460,7 @@ err_exit:
 static int delete_sign_pub(union command_args *data){
     struct sign_pub *sign_pub = &data->sign_pub;
     free((void *)sign_pub->key_id);
+    free((void *)sign_pub->connection_id);
     free((void *)sign_pub->signing_id);
     free((void *)sign_pub->message);
     free(data);

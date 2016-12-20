@@ -51,8 +51,6 @@ int db_is_an_authorized_key(database_t *db, const char *key);
  *  @param db Active database connection.
  *  @param instance_public_key Public key of the instance for the one we will
  *      get a new token.
- *  @param connection_identifier Id of the connection. Introduced to allow
- *      multiple connections by instance.
  *  @param ip endpoint the connection is connected to. Used to restrict
  *      connections on certain multiple connection behaviours.
  *  @param output The token will be pointed by *output if the execution is
@@ -63,8 +61,7 @@ int db_is_an_authorized_key(database_t *db, const char *key);
  *      fails or -1 if the instance is not stored in the database.
  */
 int db_get_new_router_token(database_t *db, const char *instance_public_key,
-                            const char *connection_identifier,
-                            const char *ip char **output);
+                            const char *ip, char **output);
 
 /**
  *  Creates a new temporal token for the pub socket of the instance with the
@@ -73,8 +70,6 @@ int db_get_new_router_token(database_t *db, const char *instance_public_key,
  *  @param db Active database connection.
  *  @param instance_public_key Public key of the instance for the one we will
  *      get a new token.
- *  @param connection_identifier Id of the connection. Introduced to allow
- *      multiple connections by instance.
  *  @param ip endpoint the connection is connected to. Used to restrict
  *      connections on certain multiple connection behaviours.
  *  @param output The token will be pointed by *output if the execution is
@@ -85,38 +80,43 @@ int db_get_new_router_token(database_t *db, const char *instance_public_key,
  *      fails or -1 if the instance is not stored in the database.
  */
 int db_get_new_pub_token(database_t *db, const char *instance_public_key,
-                         const char *connection_identifier,
                          const char *ip, char **output);
 
 /**
  * Retrieve from the database the current token for the router socket of the
- * instance specified by instance_id. This value is undefined before a call to
- * db_get_new_temp_token, since the token is generated there.
+ * connection specified by instance_id and the connection identifier. This value
+ * is undefined before a call to TODO db_get_new_temp_token, since the token is
+ * generated there.
  *
  * @param db Active database connection.
  * @param instance_id Id of the instance.
+ * @param conn_identifier The identifier of the connection.
  * @param output On success, the current token will be pointed by *output.
  *      In this case, the caller has to free the memory.
  *
  * @return DTC_ERR_NONE on successs, a proper positive error code if something
  *      fails or -1 if the instance is not stored in the database.
  **/
-int db_get_router_token(database_t *db, const char *instance_id, char **output);
+int db_get_router_token(database_t *db, const char *instance_id,
+                        const char *conn_identifier, char **output);
 
 /**
  * Retrieve from the database the current token for the pub socket of the
- * instance specified by instance_id. This value is undefined before a call to
- * db_get_new_temp_token, since the token is generated there.
+ * connection specified by instance_id and the connection_identifier. This value
+ * is undefined before a call to TODO db_get_new_temp_token, since the token is
+ * generated there.
  *
  * @param db Active database connection.
  * @param instance_id Id of the instance.
+ * @param conn_identifier The identifier of the connection.
  * @param output On success, the current token will be pointed by *output.
  *      In this case, the caller has to free the memory.
  *
  * @return DTC_ERR_NONE on successs, a proper positive error code if something
  *      fails or -1 if the instance is not stored in the database.
  **/
-int db_get_pub_token(database_t *db, const char *instance_id, char **output);
+int db_get_pub_token(database_t *db, const char *instance_id,
+                     const char *conn_identifier, char **output);
 
 /**
  * Retrieve the instance_id of the instance with public_key.
@@ -138,6 +138,14 @@ int db_get_instance_id_from_pub_token(database_t *db, const char *pub_token,
 
 int db_get_instance_id_from_router_token(database_t *db, const char *router_token,
                                        char **output);
+
+int db_get_identity_and_instance_from_pub_token(
+        database_t *db, const char *pub_token, const char *connection_id,
+        char **identity, char **instance_id);
+
+int db_get_identity_and_instance_from_router_token(
+        database_t *db, const char *router_token, const char *connection_id,
+        char **identity, char **instance_id);
 /**
  * Add a new instance to the DB, this is stored in a temporal table until
  * db_update_instances is called and the old instances are replaced by the new
