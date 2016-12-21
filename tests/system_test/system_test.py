@@ -1062,10 +1062,10 @@ def test_master_double_connection(master_args, master_name):
 
     close_nodes(open_nodes)
     if master_ret != 0:
-        return 0, ""
-
+        return 1, "FAILURE: Two masters should be able to connect at the same time"
+    
     close_master(master)
-    return 1, "FAILURE: The test should fail, one of the master shouln't be able to finish."
+    return 0, ""
 
 # MASTER TESTS
 def test_memcheck(master_args, master_name):
