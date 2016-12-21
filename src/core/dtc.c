@@ -136,7 +136,7 @@ static char *get_connection_id()
 {
     size_t len = sizeof(pid_t) * 3;
     int ret_val;
-    char ret = malloc(sizeof(char) * len);
+    char *ret = (char *)malloc(sizeof(char) * len);
 
     ret_val = snprintf(ret, len, "%ld", (long)getpid());
     if(ret_val >= len) {

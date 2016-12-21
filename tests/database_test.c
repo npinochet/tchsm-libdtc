@@ -81,7 +81,50 @@ static int insert_instance(sqlite3 *db, const char *instance_key,
     free(sql_query);
 
     return DTC_ERR_NONE;
+}
 
+static int new_instance(sqlite3 *db, const char *instance_key,
+                        const char *instance_id)
+{
+    char *err;
+    size_t ret;
+    int rc;
+    char *sql_template  = "INSERT INTO instance (public_key, instance_id)\n"
+                          "VALUES('%s', '%s');";
+    size_t len = strlen(sql_template) +
+                 strlen(instance_key) +
+                 strlen(instance_id);
+    char *sql_query = (char *) malloc(sizeof(char) * len);
+    ret = snprintf(sql_query, len, sql_template, instance_key, instance_id);
+    ck_assert(ret < len);
+
+    rc = sqlite3_exec(db, sql_query, NULL, NULL, &err);
+    if(rc != SQLITE_OK) {
+        LOG(LOG_LVL_ERRO, "Error inserting instance: %s\n%s", err, sql_query);
+        sqlite3_free(err);
+        free(sql_query);
+        return DTC_ERR_DATABASE;
+    }
+    free(sql_query);
+
+    return DTC_ERR_NONE;
+}
+
+static int foreign_key_callback(void * unused, int cols, char **cols_data,
+                                char **cols_name) {
+    ck_assert_int_eq(1, cols);
+    ck_assert_str_eq("1", cols_data[0]);
+
+    return 0;
+}
+
+static int check_table_number_callback(void *expected_result, int argc,
+                                       char **argv, char **azColName)
+{
+   char expected_result_char = *((char *)expected_result);
+   ck_assert_int_eq(1, argc);
+   ck_assert_int_eq(expected_result_char, argv[0][0]);
+   return 0;
 }
 
 START_MY_TEST(test_create_db) {
@@ -99,13 +142,20 @@ START_MY_TEST(test_create_db) {
 }
 END_TEST
 
-static int foreign_key_callback(void * unused, int cols, char **cols_data,
-                                char **cols_name) {
-    ck_assert_int_eq(1, cols);
-    ck_assert_str_eq("1", cols_data[0]);
+START_MY_TEST(test_create_db_same_ip) {
+    char *database_file = get_filepath("test_create_db_same_ip");
 
-    return 0;
+    ck_assert_int_eq(-1, access(database_file, F_OK));
+
+    database_t *conn = db_init_connection(database_file, 1, SAME_IP);
+    ck_assert(conn != NULL);
+
+    ck_assert_int_eq(0, access(database_file, F_OK));
+
+    close_and_remove_db(database_file, conn);
+
 }
+END_TEST
 
 START_MY_TEST(test_foreign_keys_support) {
     char *database_file = get_filepath("test_foreign_keys_support");
@@ -127,13 +177,6 @@ START_MY_TEST(test_foreign_keys_support) {
 }
 END_TEST
 
-static int check_table_number_callback(void *expected_result, int argc, char **argv, char **azColName){
-   char expected_result_char = *((char *)expected_result);
-   ck_assert_int_eq(1, argc);
-   ck_assert_int_eq(expected_result_char, argv[0][0]);
-   return 0;
-}
-
 START_MY_TEST(test_create_tables) {
     char *database_file = get_filepath("test_create_tables");
 
@@ -148,19 +191,21 @@ START_MY_TEST(test_create_tables) {
 
     ck_assert_int_eq(0, access(database_file, F_OK));
 
-    char *query = "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table';";
+    char *query = "SELECT COUNT(*) as count FROM sqlite_master \n"\
+                  "WHERE type='table';";
     char expected_table_number = '3';
-    int rc = sqlite3_exec(ppDb, query, check_table_number_callback, &expected_table_number, NULL);
+    int rc = sqlite3_exec(ppDb, query, check_table_number_callback,
+                          &expected_table_number, NULL);
 
     ck_assert_int_eq(0, rc);
 
     close_and_remove_db(database_file, conn);
-
 }
 END_TEST
 
 START_MY_TEST(test_db_init_connection_without_creating_tables) {
-    char *database_file = get_filepath("test_db_init_connection_without_creating_tables");
+    char *database_file = get_filepath(
+            "test_db_init_connection_without_creating_tables");
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
@@ -171,14 +216,15 @@ START_MY_TEST(test_db_init_connection_without_creating_tables) {
 
     ck_assert_int_eq(0, access(database_file, F_OK));
 
-    char *query = "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table';";
+    char *query = "SELECT COUNT(*) as count FROM sqlite_master\n"\
+                  "WHERE type='table';";
     char expected_table_number = '0';
-    int rc = sqlite3_exec(ppDb, query, check_table_number_callback, &expected_table_number, NULL);
+    int rc = sqlite3_exec(ppDb, query, check_table_number_callback,
+                          &expected_table_number, NULL);
 
     ck_assert_int_eq(0, rc);
 
     close_and_remove_db(database_file, conn);
-
 }
 END_TEST
 
@@ -215,6 +261,7 @@ START_MY_TEST(test_get_new_token_instance_not_found) {
 END_TEST
 
 START_MY_TEST(test_get_new_token_consistency) {
+    //TODO WORKING HERE
 
     char *database_file = get_filepath("test_get_new_token_consistency");
     char *instance_key = "1(*A&S^DYHJA]&TYHJ@aklut*&@2128ha";
@@ -638,6 +685,7 @@ void add_test_cases(Suite *s) {
     tcase_add_test(test_case, test_foreign_keys_support);
 
     tcase_add_test(test_case, test_create_db);
+    tcase_add_test(test_case, test_create_db_same_ip);
     tcase_add_test(test_case, test_create_tables);
     tcase_add_test(test_case, test_db_init_connection_without_creating_tables);
     //printf("%p\n%p\n", test_get_new_token_empty_db, test_get_new_token_instance_not_found);

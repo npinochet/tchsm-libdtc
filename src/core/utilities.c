@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <inttypes.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -16,7 +17,7 @@ char *create_identity(const char *instance_id, const char *connection_id)
 {
     int ret_val;
     size_t buf_size = strlen(instance_id) + strlen(connection_id) + 2;
-    char identity = (char *) malloc(sizeof(char) * buf_size);
+    char *identity = (char *) malloc(sizeof(char) * buf_size);
 
     ret_val = snprintf(identity, buf_size, "%s-%s", instance_id,
                        connection_id);

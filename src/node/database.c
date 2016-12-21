@@ -535,7 +535,7 @@ static int set_conection_id_to_token(database_t *db, const char *token_name,
     size_t buf_len = strlen(sql_update_template) + strlen(token_name) + 1;
     char *sql_update = (char *) malloc(sizeof(char) * buf_len);
     char *sql_remove_token, *sql_token_update;
-    ret_val = snprintf(sql_update, buf_len, sql_update_template);
+    ret_val = snprintf(sql_update, buf_len, sql_update_template, token_name);
     sqlite3_stmt *stmt = NULL, *stmt2 = NULL;
     if(ret_val >= buf_len) {
         LOG(LOG_LVL_ERRO, "Buffer (%zu) not big enough, needed %d", buf_len,
@@ -544,9 +544,9 @@ static int set_conection_id_to_token(database_t *db, const char *token_name,
     }
 
     ret_val = prepare_bind_stmt(db->ppDb, sql_update, &stmt, 2, conn_id, token);
-    if(rc != DTC_ERR_NONE) {
+    if(ret_val != DTC_ERR_NONE) {
         free(sql_update);
-        return rc;
+        return ret_val;
     }
 
     step = sqlite3_blocking_step(stmt);
@@ -595,7 +595,7 @@ static int set_conection_id_to_token(database_t *db, const char *token_name,
         return ret_val;
     }
 
-    rc = sqlite3_exec(db, "BEGIN", 0, 0, 0);
+    rc = sqlite3_exec(db->ppDb, "BEGIN", 0, 0, 0);
     if(rc != SQLITE_OK) {
         LOG(LOG_LVL_ERRO, "Error starting a transaction");
         return DTC_ERR_DATABASE;
@@ -604,7 +604,7 @@ static int set_conection_id_to_token(database_t *db, const char *token_name,
     rc = sqlite3_my_blocking_exec_stmt(db->ppDb, stmt);
     if(rc != DTC_ERR_NONE) {
         LOG(LOG_LVL_ERRO, "Error removing token, doing a rollback...");
-        sqlite3_exec(db, "ROLLBACK", 0, 0, 0);
+        sqlite3_exec(db->ppDb, "ROLLBACK", 0, 0, 0);
         sqlite3_finalize(stmt2);
         free(sql_token_update);
         free(sql_remove_token);
@@ -616,16 +616,18 @@ static int set_conection_id_to_token(database_t *db, const char *token_name,
     free(sql_remove_token);
     if(rc != DTC_ERR_NONE) {
         LOG(LOG_LVL_ERRO, "Error updating token, doing a rollback...");
-        sqlite3_exec(db, "ROLLBACK", 0, 0, 0);
+        sqlite3_exec(db->ppDb, "ROLLBACK", 0, 0, 0);
         return rc;
     }
 
-    rc = sqlite3_exec(db, "BEGIN", 0, 0, 0);
+    rc = sqlite3_exec(db->ppDb, "COMMIT", 0, 0, 0);
     if(rc != SQLITE_OK) {
         LOG(LOG_LVL_ERRO, "Error set_connection_id_to_token transaction");
-        sqlite3_exec(db, "ROLLBACK", 0, 0, 0);
+        sqlite3_exec(db->ppDb, "ROLLBACK", 0, 0, 0);
         return DTC_ERR_DATABASE;
     }
+
+    return DTC_ERR_NONE;
 }
 
 static int get_identity_and_instance_from_token(
@@ -638,8 +640,9 @@ static int get_identity_and_instance_from_token(
                             "WHERE %s = ?;";
     char *sql_query, *db_conn_id;
     sqlite3_stmt *stmt;
-    int ret_val, step;
+    int ret_val, step, rc;
     size_t buf_len = strlen(sql_template) + strlen(token_name) + 1;
+    /* char *identity_ = NULL, *instance_id = NULL; */
 
     sql_query = (char *) malloc(sizeof(char) * buf_len);
     ret_val = snprintf(sql_query, buf_len, sql_template, token_name);
@@ -650,64 +653,87 @@ static int get_identity_and_instance_from_token(
     }
 
     ret_val = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 1, token);
-    if(ret_val != DTC_ERR_NONE)
+    if(ret_val != DTC_ERR_NONE) {
+        free(sql_query);
         return ret_val;
+    }
 
     step = sqlite3_blocking_step(stmt);
     if(step == SQLITE_ROW) {
-        *instance_id = (const char *)sqlite3_column_text(stmt, 0);
-        db_conn_id = (const char *)sqlite3_column_text(stmt, 1);
+        *instance_id = (char *)sqlite3_column_text(stmt, 0);
+        db_conn_id = (char *)sqlite3_column_text(stmt, 1);
     }
     else if(step == SQLITE_DONE) {
+        free(sql_query);
         sqlite3_finalize(stmt);
         return -1;
     }
     else{
         LOG(LOG_LVL_ERRO, "sqlite3_step: %s", sqlite3_errmsg(db->ppDb));
+        free(sql_query);
         sqlite3_finalize(stmt);
         return DTC_ERR_DATABASE;
     }
 
+    ret_val = DTC_ERR_NONE;
+
     if(db_conn_id == NULL && connection_id == NULL) {
         LOG(LOG_LVL_ERRO, "Connection id not available.");
-        return DTC_ERR_INTERN;
+        ret_val = DTC_ERR_INTERN;
     }
-
-    if(connection_id == NULL) {
+    else if(connection_id == NULL) {
         *instance_id = strdup(*instance_id);
         *identity = create_identity(*instance_id, db_conn_id);
-        sqlite3_finalize(stmt);
         if(instance_id == NULL || *identity == NULL) {
             LOG(LOG_LVL_ERRO, "Out of memory");
-            return DTC_ERR_NOMEM;
+            ret_val =  DTC_ERR_NOMEM;
         }
-        return DTC_ERR_NONE;
     }
-    else if(db_conn_id == NULL) {
-        //TODO WORKING HERE
-
+    else if(db_conn_id == NULL || strcmp(db_conn_id, connection_id) != 0) {
+        if(db_conn_id != NULL)
+            LOG(LOG_LVL_WARN, "Connection id changed. %s -> %s", db_conn_id,
+                connection_id);
+        ret_val =  set_conection_id_to_token(db, token_name, token,
+                                             connection_id);
+        if(ret_val != DTC_ERR_NONE)
+            LOG(LOG_LVL_ERRO, "Couldn't set the connection id to the token");
+        *identity = create_identity(*instance_id, connection_id);
+        *instance_id = strdup(*instance_id);
+        if(*identity == NULL || instance_id == NULL)
+            ret_val = DTC_ERR_NOMEM;
+    }
+    else {
+        *instance_id = strdup(*instance_id);
+        *identity = create_identity(*instance_id, connection_id);
+        if(*identity == NULL || instance_id == NULL)
+            ret_val = DTC_ERR_NOMEM;
     }
 
-
-    ret_val = sqlite3_finalize(stmt);
-    if(ret_val != SQLITE_OK)
+    rc = sqlite3_finalize(stmt);
+    if(rc != SQLITE_OK) {
         LOG(LOG_LVL_ERRO, "sqlite3_finalize: %s", sqlite3_errmsg(db->ppDb));
+        return DTC_ERR_DATABASE;
+    }
+    free(sql_query);
+    return ret_val;
 }
 
 int db_get_identity_and_instance_from_router_token(
         database_t *db, const char *router_token, const char *connection_id,
         char **identity, char **instance_id)
 {
-    get_identity_and_instance_from_token(db, "router_token", router_token,
-                                         connection_id, identity, instance_id);
+    return get_identity_and_instance_from_token(db, "router_token",
+                                                router_token, connection_id,
+                                                identity, instance_id);
 }
 
 int db_get_identity_and_instance_from_pub_token(
         database_t *db, const char *pub_token, const char *connection_id,
         char **identity, char **instance_id)
 {
-    get_identity_and_instance_from_token(db, "pub_token", pub_token,
-                                         connection_id, identity, instance_id);
+    return get_identity_and_instance_from_token(db, "pub_token", pub_token,
+                                                connection_id, identity,
+                                                instance_id);
 }
 
 int db_is_key_id_available(database_t *db, const char *instance_id,
@@ -793,10 +819,10 @@ int db_get_pub_token(database_t *db, const char *instance_id,
 }
 
 int db_get_new_temp_token(database_t *db, const char *instance_public_key,
-                          const char *tok, const char *ip, char **output) {
-    int rc, step, affected_rows;
+                          const char *token_name, const char *ip, char **output) {
+    int rc, ret_val, step, affected_rows;
     size_t bufer_len;
-    const char *sql_delete, *sql_clean;
+    char *sql_delete, *sql_clean;
     const char *sql_delete_template;
     char *sql_query;
     char *instance_id;
@@ -825,16 +851,26 @@ int db_get_new_temp_token(database_t *db, const char *instance_public_key,
                     "FROM instance_connection\n"\
                     "WHERE router_token = NULL AND pub_token = NULL;";
 
-        bufer_len = strlen(sql_clean) + strlen(tok) + 1;
+        bufer_len = strlen(sql_delete_template) + strlen(token_name) + 1;
         sql_delete = (char *) malloc(sizeof(char) * bufer_len);
+        ret_val = snprintf(sql_delete, bufer_len, sql_delete_template,
+                           token_name);
+        if(ret_val >= bufer_len) {
+            LOG(LOG_LVL_CRIT, "Buf (%zu) too small (%d)", bufer_len, ret_val);
+            free(instance_id);
+            free(sql_delete);
+            return DTC_ERR_INTERN;
+        }
 
         rc = prepare_bind_stmt(db->ppDb, sql_delete, &stmt, 1, instance_id);
         if(rc != DTC_ERR_NONE) {
             free(instance_id);
+            free(sql_delete);
             return rc;
         }
 
         rc = sqlite3_my_blocking_exec_stmt(db->ppDb, stmt);
+        free(sql_delete);
         if(rc != DTC_ERR_NONE) {
             free(instance_id);
             return rc;
@@ -890,9 +926,9 @@ int db_get_new_temp_token(database_t *db, const char *instance_public_key,
         return DTC_ERR_INVALID_VAL;
     }
 
-    bufer_len = strlen(sql_template) + strlen(tok) + 1;
+    bufer_len = strlen(sql_template) + strlen(token_name) + 1;
     sql_query = (char *) malloc(sizeof(char) * bufer_len);
-    rc = snprintf(sql_query, bufer_len, sql_template, tok);
+    rc = snprintf(sql_query, bufer_len, sql_template, token_name);
     if(rc >= bufer_len) {
         free(instance_id);
         LOG(LOG_LVL_CRIT, "Error writing sql query into buffer.");
