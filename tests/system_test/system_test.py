@@ -356,6 +356,56 @@ def exec_master_dtc(master_args, master_name, cryptoki_conf="cryptoki.conf", run
         debug_output(stdout_data, stderr_data)
         return None, -1, "FAILURE: Master didn't exit on time"
 
+def exec_master_dtc_double(master_args, master_name, cryptoki_conf="cryptoki.conf"):
+    global MASTER_TIMEOUT
+    if isfile(cryptoki_conf):
+        environ["TCHSM_CONFIG"] = abspath(cryptoki_conf)
+    else:
+        return None, 1, "ERROR: TCHSM_CONFIG env. var. could not be set."
+
+    try:
+        if DEBUG:
+            print("    DEBUG::MASTER_CALL: %s" % ' '.join(master_args))
+        master1 = subprocess.Popen(
+            master_args,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE)
+        master2 = subprocess.Popen(
+            master_args,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE)
+    except OSError:
+        print("ERROR: Exec could not be accessed >> " + master_name)
+        return None, 1, "ERROR: Exec could not be accessed >> " + master_name
+
+    timer = Timer(MASTER_TIMEOUT * 3, terminate_subprocesses, [[master1, master2]])
+    
+    if master1 is not None and master2 is not None:
+        timer.start()
+
+    stdout_data1, stderr_data1 = master1.communicate()
+    stdout_data2, stderr_data2 = master2.communicate()
+
+    if master1.returncode >= 0:
+        timer.cancel()
+        debug_output(stdout_data1, stderr_data1)
+
+        if master1.returncode != 0:
+            return master1, master1.returncode, "FAILURE: Master1 return code: " + str(master1.returncode)
+
+    elif master2.returncode >= 0:
+        timer.cancel()
+        debug_output(stdout_data2, stderr_data2)
+
+        if master2.returncode != 0:
+            return master2, master2.returncode, "FAILURE: Master2 return code: " + str(master2.returncode)
+        return None, master1.returncode, ""
+    
+    else:
+        debug_output(stdout_data1, stderr_data1)
+        debug_output(stdout_data2, stderr_data2)
+        return None, -1, "FAILURE: One of the masters didn't exit on time"
+
 
 def close_master(master):
     """
@@ -982,6 +1032,40 @@ def test_two_masters_thres2_nodes3(master_args, master_name):
     else:
         return 1, "FAILURE: The test should fail, as it should not generate keys."
 
+def test_master_double_connection(master_args, master_name):
+    nb_of_nodes = 3
+    config_creation_string = "python3 " + CONFIG_CREATOR_PATH
+    port = 2121
+    for i in range(0, nb_of_nodes):
+        config_creation_string += " 127.0.0.1:" + \
+                                  str(port) + ":" + str(port + 1)
+        port += 2
+
+    config_creation_string += " -t " + str(MASTER_TIMEOUT)
+
+    status, output = getstatusoutput(config_creation_string)
+    if status != 0:
+        return 1, "ERROR: Configuration files could not be created. Because: \n" + str(output)
+
+    open_nodes = []
+    for i in range(0, nb_of_nodes):
+        node_proc, node_ret, node_mess = exec_node("node" + str(i + 1))
+        if node_ret == 1:
+            close_nodes(open_nodes)
+            return 1, node_mess
+
+        open_nodes.append(node_proc)
+
+
+    master_args, master_name = fix_dtc_args(master_args, master_name, nb_of_nodes)
+    master, master_ret, master_mess = exec_master_dtc_double(master_args, master_name)
+
+    close_nodes(open_nodes)
+    if master_ret != 0:
+        return 0, ""
+
+    close_master(master)
+    return 1, "FAILURE: The test should fail, one of the master shouln't be able to finish."
 
 # MASTER TESTS
 def test_memcheck(master_args, master_name):
@@ -1099,6 +1183,10 @@ def terminate_subprocess(subprocess):
 	if subprocess.poll() is None:
 		subprocess.terminate()
 
+def terminate_subprocesses(subprocess_list):
+    for sp in subprocess_list:
+        terminate_subprocess(sp)
+
 
 def main(argv=None):
     global NODE_TIMEOUT
@@ -1211,6 +1299,9 @@ def main(argv=None):
                            test_two_masters_simultaneous, handler=HANDLER_DTC))
     tests.append(TestSuite("DTC MASTERS:2 THRES:2 NODES:3",
                            test_two_masters_thres2_nodes3, handler=HANDLER_DTC))
+
+    tests.append(TestSuite("DTC ONE MASTER DOUBLE CONNECTION",
+                           test_master_double_connection, handler=HANDLER_DTC))
     tests.append(TestSuite("PKCS11 TWO NODES",
                            test_master_two_nodes, handler=HANDLER_PKCS11))
     tests.append(TestSuite("PKCS11 RUN TWICE",
