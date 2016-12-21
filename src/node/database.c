@@ -701,7 +701,6 @@ static int get_identity_and_instance_from_token(
     sqlite3_stmt *stmt;
     int ret_val, step, rc;
     size_t buf_len = strlen(sql_template) + strlen(token_name) + 1;
-    /* char *identity_ = NULL, *instance_id = NULL; */
 
     sql_query = (char *) malloc(sizeof(char) * buf_len);
     ret_val = snprintf(sql_query, buf_len, sql_template, token_name);

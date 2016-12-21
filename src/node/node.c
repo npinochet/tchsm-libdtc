@@ -1241,11 +1241,6 @@ static void zap_handler(void *zap_data_)
 
         s_sendmore(sock, version);
         s_sendmore(sock, sequence);
-        /* fprintf(stderr, "Version : %s\n", version); */
-        /* fprintf(stderr, "Sequence: %s\n", sequence); */
-        /* fprintf(stderr, "Address: %s\n", address); */
-        /* fprintf(stderr, "identity: %s\n", identity); */
-        /* fprintf(stderr, "mechanism: %s\n", mechanism); */
 
         if(strcmp("SUB_SOCKET",  domain) == 0) {
             if(DTC_ERR_NONE == db_get_new_pub_token(db_conn, client_key_text,
