@@ -433,7 +433,7 @@ static int update_ip(database_t *db, const char *instance_id, const char *ip)
                             "SET ip = ?\n"\
                             "WHERE instance_id = ?";
 
-    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 1, ip);
+    rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2, ip, instance_id);
     if(rc != DTC_ERR_NONE)
         return rc;
 
@@ -476,6 +476,41 @@ int db_get_key(database_t *db, const char *instance_id, const char *key_id,
     return DTC_ERR_NONE;
 }
 
+int get_instance_id_from_token(database_t *db, const char *token_name,
+                               const char *token, char **output)
+{
+    static const char *sql_query_template = "SELECT instance_id\n"\
+                                            "FROM instance_connection\n"\
+                                            "WHERE %s = ?;";
+    size_t buf_len = strlen(sql_query_template) + strlen(token_name) + 1;
+    int ret_val;
+    char *sql_query = malloc(sizeof(char) * buf_len);
+    ret_val = snprintf(sql_query, buf_len, sql_query_template, token_name);
+    if(ret_val >= buf_len) {
+        LOG(LOG_LVL_ERRO, "Buffer (%zu) too small, needed (%d)", buf_len,
+            ret_val);
+        free(sql_query);
+        return DTC_ERR_INTERN;
+    }
+
+    ret_val = get_instance_id(db, sql_query, token, output);
+    free(sql_query);
+    return ret_val;
+}
+
+/**
+ * Retrieve the instance_id of the instance with public_key.
+ *
+ * @param db Active database connection.
+ * @param public_key Public key of the instance.
+ * @param ouput On a success call, the instance_id will be pointed by *output.
+ *      The memory is dynamic and the caller take responsibility of freeing it
+ *      on success.
+ *
+ *  @return DTC_ERR_NONE on success, a proper positive error code if something
+ *      fails or -1 if the instance is not stored in the database.
+ */
+
 int db_get_instance_id(database_t *db, const char *public_key, char **output) {
     static const char *sql_query = "SELECT instance_id\n"
                                    "FROM instance\n"
@@ -485,18 +520,12 @@ int db_get_instance_id(database_t *db, const char *public_key, char **output) {
 
 int db_get_instance_id_from_pub_token(database_t *db, const char *pub_token,
                                     char **output) {
-    static const char *sql_query = "SELECT instance_id\n"
-                                   "FROM instance_connection\n"
-                                   "WHERE pub_token = ?;";
-    return get_instance_id(db, sql_query, pub_token, output);
+    return get_instance_id_from_token(db, "pub_token", pub_token, output);
 }
 
 int db_get_instance_id_from_router_token(database_t *db, const char *router_token,
                                        char **output){
-    static const char *sql_query = "SELECT instance_id\n"
-                                   "FROM instance_connection\n"
-                                   "WHERE router_token = ?;";
-    return get_instance_id(db, sql_query, router_token, output);
+    return get_instance_id_from_token(db, "router_token", router_token, output);
 }
 
 int db_get_connection_id_from_router_token(database_t *db, const char *router_token,
@@ -519,6 +548,15 @@ int db_get_connection_id_from_pub_token(database_t *db, const char *pub_token,
     return get_connection_id_from_token(db, sql_query, pub_token, output);
 }
 
+static int clean_empty_instance_conn(database_t *db)
+{
+    const char *sql_clean = "DELETE\n"\
+                            "FROM instance_connection\n"\
+                            "WHERE router_token is NULL AND pub_token is NULL;";
+
+    return sqlite3_my_blocking_exec(db->ppDb, sql_clean);
+}
+
 static int set_conection_id_to_token(database_t *db, const char *token_name,
                                      const char *token, const char *conn_id)
 {
@@ -529,12 +567,13 @@ static int set_conection_id_to_token(database_t *db, const char *token_name,
     char *sql_remove_token_template = "UPDATE instance_connection\n"\
                                       "SET %s = NULL\n"\
                                       "WHERE %s = ?;";
-    char *sql_token_update_template = "UPDATE instance_connection\n"\
-                                      "SET %s = ?\n"
-                                      "WHERE connection_identifier = ?";
+    char *sql_token_update_template =
+            "UPDATE instance_connection\n"\
+            "SET %s = ?\n"
+            "WHERE connection_identifier = ? AND instance_id = ?";
     size_t buf_len = strlen(sql_update_template) + strlen(token_name) + 1;
     char *sql_update = (char *) malloc(sizeof(char) * buf_len);
-    char *sql_remove_token, *sql_token_update;
+    char *sql_remove_token, *sql_token_update, *instance_id;
     ret_val = snprintf(sql_update, buf_len, sql_update_template, token_name);
     sqlite3_stmt *stmt = NULL, *stmt2 = NULL;
     if(ret_val >= buf_len) {
@@ -570,7 +609,8 @@ static int set_conection_id_to_token(database_t *db, const char *token_name,
 
     buf_len = strlen(sql_token_update_template) + strlen(token_name) + 1;
     sql_token_update = (char *) malloc(sizeof(char) * buf_len);
-    ret_val = snprintf(sql_update, buf_len, sql_update_template, token_name);
+    ret_val = snprintf(sql_token_update, buf_len, sql_token_update_template,
+                       token_name);
     if(ret_val >= buf_len) {
         LOG(LOG_LVL_ERRO, "Buff (%zu) too small, needed %d", buf_len, ret_val);
         free(sql_token_update);
@@ -578,18 +618,27 @@ static int set_conection_id_to_token(database_t *db, const char *token_name,
         return DTC_ERR_DATABASE;
     }
 
-    stmt = NULL;
-    ret_val = prepare_bind_stmt(db->ppDb, sql_remove_token, &stmt, 1, token);
+    ret_val = get_instance_id_from_token(db, token_name, token, &instance_id);
     if(ret_val != DTC_ERR_NONE) {
         free(sql_token_update);
         free(sql_remove_token);
         return ret_val;
     }
 
-    ret_val = prepare_bind_stmt(db->ppDb, sql_token_update, &stmt2, 2, token,
-                                conn_id);
+    stmt = NULL;
+    ret_val = prepare_bind_stmt(db->ppDb, sql_remove_token, &stmt, 1, token);
+    if(ret_val != DTC_ERR_NONE) {
+        free(sql_token_update);
+        free(sql_remove_token);
+        free(instance_id);
+        return ret_val;
+    }
+
+    ret_val = prepare_bind_stmt(db->ppDb, sql_token_update, &stmt2, 3, token,
+                                conn_id, instance_id);
     if(ret_val != DTC_ERR_NONE) {
         sqlite3_finalize(stmt);
+        free(instance_id);
         free(sql_token_update);
         free(sql_remove_token);
         return ret_val;
@@ -598,6 +647,11 @@ static int set_conection_id_to_token(database_t *db, const char *token_name,
     rc = sqlite3_exec(db->ppDb, "BEGIN", 0, 0, 0);
     if(rc != SQLITE_OK) {
         LOG(LOG_LVL_ERRO, "Error starting a transaction");
+        sqlite3_finalize(stmt);
+        sqlite3_finalize(stmt2);
+        free(instance_id);
+        free(sql_token_update);
+        free(sql_remove_token);
         return DTC_ERR_DATABASE;
     }
 
@@ -606,14 +660,16 @@ static int set_conection_id_to_token(database_t *db, const char *token_name,
         LOG(LOG_LVL_ERRO, "Error removing token, doing a rollback...");
         sqlite3_exec(db->ppDb, "ROLLBACK", 0, 0, 0);
         sqlite3_finalize(stmt2);
+        free(instance_id);
         free(sql_token_update);
         free(sql_remove_token);
         return rc;
     }
-    free(sql_token_update);
+    free(sql_remove_token);
 
     rc = sqlite3_my_blocking_exec_stmt(db->ppDb, stmt2);
-    free(sql_remove_token);
+    free(instance_id);
+    free(sql_token_update);
     if(rc != DTC_ERR_NONE) {
         LOG(LOG_LVL_ERRO, "Error updating token, doing a rollback...");
         sqlite3_exec(db->ppDb, "ROLLBACK", 0, 0, 0);
@@ -626,6 +682,9 @@ static int set_conection_id_to_token(database_t *db, const char *token_name,
         sqlite3_exec(db->ppDb, "ROLLBACK", 0, 0, 0);
         return DTC_ERR_DATABASE;
     }
+
+    if(DTC_ERR_NONE != clean_empty_instance_conn(db))
+        LOG(LOG_LVL_ERRO, "Unable to clean empty instances.");
 
     return DTC_ERR_NONE;
 }
@@ -820,13 +879,10 @@ int db_get_pub_token(database_t *db, const char *instance_id,
 
 int db_get_new_temp_token(database_t *db, const char *instance_public_key,
                           const char *token_name, const char *ip, char **output) {
+    char *sql_delete, *sql_query, *instance_id, *stored_ip;
     int rc, ret_val, step, affected_rows;
     size_t bufer_len;
-    char *sql_delete, *sql_clean;
     const char *sql_delete_template;
-    char *sql_query;
-    char *instance_id;
-    char *stored_ip;
     char token[37];
     sqlite3_stmt *stmt = NULL;
 
@@ -847,9 +903,6 @@ int db_get_new_temp_token(database_t *db, const char *instance_public_key,
         sql_delete_template = "UPDATE instance_connection\n"\
                               "SET %s = NULL\n"
                               "WHERE instance_id = ?";
-        sql_clean = "DELETE\n"\
-                    "FROM instance_connection\n"\
-                    "WHERE router_token = NULL AND pub_token = NULL;";
 
         bufer_len = strlen(sql_delete_template) + strlen(token_name) + 1;
         sql_delete = (char *) malloc(sizeof(char) * bufer_len);
@@ -875,10 +928,6 @@ int db_get_new_temp_token(database_t *db, const char *instance_public_key,
             free(instance_id);
             return rc;
         }
-
-        rc = sqlite3_my_blocking_exec(db->ppDb, sql_clean);
-        if(rc != DTC_ERR_NONE)
-            LOG(LOG_LVL_WARN, "Couldn't clean empty rows");
     }
 
     else if(db->mult_conn_behaviour == SAME_IP) {
@@ -889,26 +938,29 @@ int db_get_new_temp_token(database_t *db, const char *instance_public_key,
         }
 
         // If different IP
-        if(stored_ip != NULL && strcmp(stored_ip, ip) != 0) {
-            if(stored_ip != NULL)
+        if(stored_ip == NULL || strcmp(stored_ip, ip) != 0) {
+            // If different ip, remove previous tokens
+            if(stored_ip != NULL) {
                 LOG(LOG_LVL_INFO, "Connection from different IP: %s", ip);
-            sql_delete = "DELETE\n"
-                         "FROM instance_connection\n"
-                         "WHERE instance_id = ?;";
 
-            rc = prepare_bind_stmt(db->ppDb, sql_delete, &stmt, 1,
-                                   instance_id);
-            if(rc != DTC_ERR_NONE) {
-                free(stored_ip);
-                free(instance_id);
-                return rc;
-            }
+                sql_delete = "DELETE\n"
+                            "FROM instance_connection\n"
+                            "WHERE instance_id = ?;";
 
-            rc = sqlite3_my_blocking_exec_stmt(db->ppDb, stmt);
-            if(rc != DTC_ERR_NONE) {
-                free(stored_ip);
-                free(instance_id);
-                return rc;
+                rc = prepare_bind_stmt(db->ppDb, sql_delete, &stmt, 1,
+                                    instance_id);
+                if(rc != DTC_ERR_NONE) {
+                    free(stored_ip);
+                    free(instance_id);
+                    return rc;
+                }
+
+                rc = sqlite3_my_blocking_exec_stmt(db->ppDb, stmt);
+                if(rc != DTC_ERR_NONE) {
+                    free(stored_ip);
+                    free(instance_id);
+                    return rc;
+                }
             }
 
             rc = update_ip(db, instance_id, ip);
@@ -973,6 +1025,8 @@ int db_get_new_temp_token(database_t *db, const char *instance_public_key,
     free(instance_id);
     *output = strdup(&token[0]);
 
+    if(DTC_ERR_NONE != clean_empty_instance_conn(db))
+        LOG(LOG_LVL_WARN, "Couldn't clean empty rows");
     return DTC_ERR_NONE;
 
 err_exit:
@@ -984,9 +1038,6 @@ int db_get_new_router_token(database_t *db, const char *instance_public_key,
                             const char *ip, char **output) {
     return db_get_new_temp_token(db, instance_public_key,
                                  "router_token", ip, output);
-            /* "UPDATE instance\n" */
-                                   /* "SET router_token = ?\n" */
-                                   /* "WHERE public_key = ?;", output); */
 }
 
 int db_get_new_pub_token(database_t *db, const char *instance_public_key,

@@ -119,30 +119,79 @@ int db_get_pub_token(database_t *db, const char *instance_id,
                      const char *conn_identifier, char **output);
 
 /**
- * Retrieve the instance_id of the instance with public_key.
+ * Retrieves the instance id from the token provided.
  *
  * @param db Active database connection.
- * @param public_key Public key of the instance.
- * @param ouput On a success call, the instance_id will be pointed by *output.
- *      The memory is dynamic and the caller take responsibility of freeing it
- *      on success.
+ * @param pub_token Token to be asked for its instance_id.
+ * @param output On success, the current instance_id will be pointed by *output.
+ *      In this case the caller has to free the memory.
  *
- *  @return DTC_ERR_NONE on success, a proper positive error code if something
- *      fails or -1 if the instance is not stored in the database.
+ * @return DTC_ERR_NONE on success, a proper positive error if something
+ *      fails or -1 if the token is not found in the database.
  */
-//TODO Delete this? Seems like it will not be used.
-int db_get_instance_id(database_t *db, const char *public_key, char **output);
-
 int db_get_instance_id_from_pub_token(database_t *db, const char *pub_token,
                                     char **output);
 
+/**
+ * Retrieves the instance id from the token provided.
+ *
+ * @param db Active database connection.
+ * @param router_token Token to be asked for its instance_id.
+ * @param output On success, the current instance_id will be pointed by *output.
+ *      In this case the caller has to free the memory.
+ *
+ * @return DTC_ERR_NONE on success, a proper positive error if something
+ *      fails or -1 if the token is not found in the database.
+ */
 int db_get_instance_id_from_router_token(database_t *db, const char *router_token,
                                        char **output);
 
+/** Retrieves the instance_id and the identity of the connection specified
+ * by the token, if the token does not have a connection_id specified, if
+ * the provided is not NULL, it will be set as the token's connection id.
+ *
+ * @param db Active database connection.
+ * @param pub_token The token of the pub socket that we need the identity
+ *      and instance_id for.
+ * @param connection_id If not NULL the token will take this id as its own,
+ *      if it is NULL, the connection_id of the token must be previously been
+ *      set or it will be an error, as the identity can not be determined
+ *      without the connection_id.
+ * @param identity Will be set the identity of the token, this is the address
+ *      of the router socket in order to send messages to the connection
+ *      defined by the token. This memory should be freed by the caller.
+ * @param instance_id Will be set to the instance_id of the token. This
+ *      memory should be freed by the caller.
+ *
+ * @return DTC_ERR_NONE on success, a proper positive error if something
+ *      fails or -1 if the token is not present in the database. The memory
+ *      at identity and instance_id must be freed only on DTC_ERR_NONE.
+ */
 int db_get_identity_and_instance_from_pub_token(
         database_t *db, const char *pub_token, const char *connection_id,
         char **identity, char **instance_id);
 
+/** Retrieves the instance_id and the identity of the connection specified
+ * by the token, if the token does not have a connection_id specified, if
+ * the provided is not NULL, it will be set as the token's connection id.
+ *
+ * @param db Active database connection.
+ * @param router_token The token of the router socket that we need the identity
+ *      and instance_id for.
+ * @param connection_id If not NULL the token will take this id as its own,
+ *      if it is NULL, the connection_id of the token must be previously been
+ *      set or it will be an error, as the identity can not be determined
+ *      without the connection_id.
+ * @param identity Will be set the identity of the token, this is the address
+ *      of the router socket in order to send messages to the connection
+ *      defined by the token. This memory should be freed by the caller.
+ * @param instance_id Will be set to the instance_id of the token. This
+ *      memory should be freed by the caller.
+ *
+ * @return DTC_ERR_NONE on success, a proper positive error if something
+ *      fails or -1 if the token is not present in the database. The memory
+ *      at identity and instance_id must be freed only on DTC_ERR_NONE.
+ */
 int db_get_identity_and_instance_from_router_token(
         database_t *db, const char *router_token, const char *connection_id,
         char **identity, char **instance_id);
@@ -237,5 +286,6 @@ void db_close_and_free_connection(database_t *db);
 
 // For testing purpose only, DO NOT USE IT.
 void *get_sqlite3_conn(database_t *database_conn);
+int db_get_instance_id(database_t *db, const char *public_key, char **output);
 int create_tables(database_t *db);
 #endif // DT_TCLIB_DATABASE_H_

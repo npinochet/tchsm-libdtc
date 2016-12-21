@@ -127,6 +127,23 @@ static int check_table_number_callback(void *expected_result, int argc,
    return 0;
 }
 
+static int get_keys_callback(void *expected_keys, int cols, char **cols_data,
+                             char **cols_name) {
+    char **keys = (char **)expected_keys;
+    char *expected_metainfo = keys[0];
+    char *expected_key_share = keys[1];
+    ck_assert_ptr_ne(NULL, *keys);
+
+    ck_assert_int_eq(2, cols);
+    ck_assert_str_eq(expected_metainfo, cols_data[0]);
+    ck_assert_str_eq(expected_key_share, cols_data[1]);
+
+    // This limit the times the callback can be called to 1.
+    *keys = NULL;
+
+    return 0;
+}
+
 START_MY_TEST(test_create_db) {
     char *database_file = get_filepath("test_create_db");
 
@@ -193,7 +210,7 @@ START_MY_TEST(test_create_tables) {
 
     char *query = "SELECT COUNT(*) as count FROM sqlite_master \n"\
                   "WHERE type='table';";
-    char expected_table_number = '3';
+    char expected_table_number = '4';
     int rc = sqlite3_exec(ppDb, query, check_table_number_callback,
                           &expected_table_number, NULL);
 
@@ -232,12 +249,14 @@ START_MY_TEST(test_get_new_token_empty_db) {
     char *result;
     const char *instance_p_key = "a98478teqgdkg129*&&%^$%#$";
     char *database_file = get_filepath("test_get_new_token_empty_db");
+    const char *ip = "23.21.1.6";
     ck_assert_int_eq(-1, access(database_file, F_OK));
 
     database_t *conn = db_init_connection(database_file, 1, ONE_CONNECTION);
     ck_assert(conn != NULL);
     ck_assert_int_eq(-1,
-                     db_get_new_router_token(conn, instance_p_key, &result));
+                     db_get_new_router_token(conn, instance_p_key, ip,
+                                             &result));
 
     close_and_remove_db(database_file, conn);
 }
@@ -253,22 +272,22 @@ START_MY_TEST(test_get_new_token_instance_not_found) {
 
     ck_assert_int_eq(DTC_ERR_NONE, create_tables(conn));
 
-    ck_assert_int_eq(-1, db_get_new_pub_token(conn, "any_key", NULL));
+    ck_assert_int_eq(-1, db_get_new_pub_token(conn, "any_key", "3.1.2.2",
+                                              NULL));
 
     close_and_remove_db(database_file, conn);
 
 }
 END_TEST
 
-START_MY_TEST(test_get_new_token_consistency) {
-    //TODO WORKING HERE
+START_MY_TEST(test_get_new_token_one_connection) {
 
-    char *database_file = get_filepath("test_get_new_token_consistency");
+    char *database_file = get_filepath("test_get_new_token_one_connection");
     char *instance_key = "1(*A&S^DYHJA]&TYHJ@aklut*&@2128ha";
-    char *old_token = "no_token";
     char *instance_id = "instance_id";
     char *current_token = NULL;
-    char *result;
+    char *ip = "123.2.1.4";
+    char *result, *result2, *out;
     sqlite3 *ppDb;
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
@@ -279,26 +298,218 @@ START_MY_TEST(test_get_new_token_consistency) {
     ck_assert_int_eq(DTC_ERR_NONE, create_tables(conn));
 
     ck_assert_int_eq(DTC_ERR_NONE,
-                     insert_instance(ppDb, instance_key, instance_id, old_token));
+                     new_instance(ppDb, instance_key, instance_id));
     ck_assert_int_eq(DTC_ERR_NONE,
-                     insert_instance(ppDb, "other_key", "rand_id", "token"));
+                     new_instance(ppDb, "other_key", "rand_id"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
-                    db_get_new_router_token(conn, instance_key, &result));
+                     db_get_new_router_token(conn, instance_key, ip, &result));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_get_new_router_token(conn, instance_key, ip, &result2));
+    ck_assert_int_ne(0, strcmp(result, result2));
+    ck_assert_int_ne(DTC_ERR_NONE,
+                     db_get_instance_id_from_router_token(conn, result, &out));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_get_instance_id_from_router_token(conn, result2, &out));
+    free(out);
+    ck_assert_int_ne(DTC_ERR_NONE,
+                     db_get_instance_id_from_pub_token(conn, result, &out));
+
     free((void *)result);
+    free((void *)result2);
 
-    // Check changed token.
-    ck_assert_int_eq(DTC_ERR_NONE,
-                     db_get_router_token(conn, instance_id, &current_token));
-    ck_assert_str_ne(old_token, current_token);
-    ck_assert_str_ne("token", current_token);
     free(current_token);
 
-    //Check not changed token
+    close_and_remove_db(database_file, conn);
+}
+END_TEST
+
+START_MY_TEST(test_get_new_token_same_ip) {
+
+    char *database_file = get_filepath("test_get_new_token_same_ip");
+    char *instance_key = "1(*A&S^DYHJA]&TYHJ@aklut*&@2128ha";
+    char *instance_id = "instance_id";
+    char *ip = "192.5.8.1";
+    char *ip2 = "193.2.4.3";
+    char *result, *result2, *result3, *out;
+    sqlite3 *ppDb;
+
+    ck_assert_int_eq(-1, access(database_file, F_OK));
+    database_t *conn = db_init_connection(database_file, 1, SAME_IP);
+    ck_assert(conn != NULL);
+    ppDb = get_sqlite3_connection(conn);
+
+    ck_assert_int_eq(DTC_ERR_NONE, create_tables(conn));
+
     ck_assert_int_eq(DTC_ERR_NONE,
-                     db_get_router_token(conn, "rand_id", &current_token));
-    ck_assert_str_eq("token", current_token);
-    free(current_token);
+                     new_instance(ppDb, instance_key, instance_id));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     new_instance(ppDb, "other_key", "rand_id"));
+
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_get_new_router_token(conn, instance_key, ip, &result));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_get_new_router_token(conn, instance_key, ip, &result2));
+    ck_assert_int_ne(0, strcmp(result, result2));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_get_instance_id_from_router_token(conn, result2, &out));
+    free(out);
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_get_instance_id_from_router_token(conn, result, &out));
+    free(out);
+    ck_assert_int_ne(DTC_ERR_NONE,
+                     db_get_instance_id_from_pub_token(conn, result, &out));
+
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_get_new_router_token(conn, instance_key, ip2, &result3));
+    // After inserting a new token with different IP, previous tokens should be
+    // discarded.
+    ck_assert_int_ne(DTC_ERR_NONE,
+                     db_get_instance_id_from_router_token(conn, result, &out));
+    ck_assert_int_ne(DTC_ERR_NONE,
+                     db_get_instance_id_from_router_token(conn, result2, &out));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_get_instance_id_from_router_token(conn, result3, &out));
+    free(out);
+    free((void *)result);
+    free((void *)result2);
+    free((void *)result3);
+
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_get_new_pub_token(conn, instance_key, ip2, &result));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_get_instance_id_from_pub_token(conn, result, &out));
+
+    free(out);
+    free(result);
+
+    close_and_remove_db(database_file, conn);
+}
+END_TEST
+
+START_MY_TEST(test_db_get_identity_and_instance) {
+
+    char *database_file = get_filepath("test_db_get_identity_and_instance");
+    char *instance_key = "1(*A&S^DYHJA]&TYHJ@aklut*&@2128ha";
+    char *instance_id = "instance_id1";
+    char *conn_id = "1312", *conn_id2 = "312";
+    char *ip = "192.5.8.1", *ip2 = "193.2.4.3";
+    char *r_token, *r_token2, *p_token, *p_token2, *identity, *instance_id_got;
+    char expected_number;
+    int rc;
+    char *sql_count_instances = "SELECT COUNT(*) as count \n"\
+                                "FROM instance_connection\n"\
+                                "WHERE instance_id = 'instance_id1';";
+    sqlite3 *ppDb;
+
+    ck_assert_int_eq(-1, access(database_file, F_OK));
+    database_t *conn = db_init_connection(database_file, 1, SAME_IP);
+    ck_assert(conn != NULL);
+    ppDb = get_sqlite3_connection(conn);
+
+    ck_assert_int_eq(DTC_ERR_NONE, create_tables(conn));
+
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     new_instance(ppDb, instance_key, instance_id));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     new_instance(ppDb, "other_key", "rand_id"));
+
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_get_new_router_token(conn, instance_key, ip, &r_token));
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_get_new_pub_token(conn, instance_key, ip, &p_token2));
+
+    expected_number = '2';
+    rc = sqlite3_exec(ppDb, sql_count_instances, check_table_number_callback,
+                      &expected_number, NULL);
+    ck_assert_int_eq(0, rc);
+
+    ck_assert_int_eq(
+            DTC_ERR_NONE,
+            db_get_identity_and_instance_from_router_token(conn, r_token,
+                                                           conn_id, &identity,
+                                                           &instance_id_got));
+    expected_number = '2';
+    rc = sqlite3_exec(ppDb, sql_count_instances, check_table_number_callback,
+                      &expected_number, NULL);
+    ck_assert_int_eq(0, rc);
+    ck_assert_str_eq(instance_id, instance_id_got);
+    ck_assert_int_eq(0, strncmp(instance_id, identity, strlen(instance_id)));
+    free(instance_id_got);
+    free(identity);
+
+    ck_assert_int_eq(
+            DTC_ERR_NONE,
+            db_get_identity_and_instance_from_pub_token(conn, p_token2,
+                                                        conn_id2, &identity,
+                                                        &instance_id_got));
+    expected_number = '2';
+    rc = sqlite3_exec(ppDb, sql_count_instances, check_table_number_callback,
+                      &expected_number, NULL);
+    ck_assert_int_eq(0, rc);
+    ck_assert_str_eq(instance_id, instance_id_got);
+    ck_assert_int_eq(0, strncmp(instance_id, identity, strlen(instance_id)));
+    free(instance_id_got);
+    free(identity);
+
+
+
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_get_new_pub_token(conn, instance_key, ip, &p_token));
+    expected_number = '3';
+    rc = sqlite3_exec(ppDb, sql_count_instances, check_table_number_callback,
+                      &expected_number, NULL);
+    ck_assert_int_eq(0, rc);
+
+    ck_assert_int_eq(
+            DTC_ERR_NONE,
+            db_get_identity_and_instance_from_pub_token(conn, p_token,
+                                                        conn_id, &identity,
+                                                        &instance_id_got));
+    expected_number = '2';
+    rc = sqlite3_exec(ppDb, sql_count_instances, check_table_number_callback,
+                      &expected_number, NULL);
+    ck_assert_int_eq(0, rc);
+    ck_assert_str_eq(instance_id, instance_id_got);
+    ck_assert_int_eq(0, strncmp(instance_id, identity, strlen(instance_id)));
+    free(instance_id_got);
+    free(identity);
+
+    ck_assert_int_eq(DTC_ERR_NONE,
+                     db_get_new_router_token(conn, instance_key, ip2,
+                                             &r_token2));
+    expected_number = '1';
+    rc = sqlite3_exec(ppDb, sql_count_instances, check_table_number_callback,
+                      &expected_number, NULL);
+    ck_assert_int_eq(0, rc);
+    ck_assert_int_ne(
+            DTC_ERR_NONE,
+            db_get_identity_and_instance_from_pub_token(conn, p_token,
+                                                        conn_id, &identity,
+                                                        &instance_id_got));
+    ck_assert_int_ne(
+            DTC_ERR_NONE,
+            db_get_identity_and_instance_from_pub_token(conn, p_token2,
+                                                        conn_id, &identity,
+                                                        &instance_id_got));
+
+    ck_assert_int_ne(
+            DTC_ERR_NONE,
+            db_get_identity_and_instance_from_router_token(conn, r_token,
+                                                           conn_id, &identity,
+                                                           &instance_id_got));
+    ck_assert_int_eq(
+            DTC_ERR_NONE,
+            db_get_identity_and_instance_from_router_token(conn, r_token2,
+                                                           conn_id, &identity,
+                                                           &instance_id_got));
+    free(instance_id_got);
+    free(identity);
+
+    free(p_token);
+    free(p_token2);
+    free(r_token);
+    free(r_token2);
 
     close_and_remove_db(database_file, conn);
 }
@@ -331,7 +542,7 @@ START_MY_TEST(test_db_is_an_authorized_key) {
 
     ck_assert_int_eq(DTC_ERR_NONE, create_tables(conn));
     ck_assert_int_eq(DTC_ERR_NONE,
-                     insert_instance(ppDb, "valid_key", "id", "token"));
+                     insert_instance(ppDb, "valid_key", "id", "123.2.3.1"));
 
     ck_assert_int_eq(1, db_is_an_authorized_key(conn, "valid_key"));
     ck_assert_int_eq(0, db_is_an_authorized_key(conn, "not_valid_key"));
@@ -418,7 +629,7 @@ START_MY_TEST(test_update_instances_update_only) {
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
-    ck_assert_int_eq(0, insert_instance(ppDb, "key", "id", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key", "id", "123.2.1.2"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
                      db_add_new_instance(conn, "id", "key2"));
@@ -446,7 +657,7 @@ START_MY_TEST(test_update_instances_replace) {
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
-    ck_assert_int_eq(0, insert_instance(ppDb, "key", "id", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key", "id", "192.3.1.20"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
                      db_add_new_instance(conn, "id2", "key"));
@@ -474,7 +685,7 @@ START_MY_TEST(test_update_instances_nothing_to_update) {
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
-    ck_assert_int_eq(0, insert_instance(ppDb, "key", "id", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key", "id", "123.2.1.4"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
                      db_add_new_instance(conn, "id", "key"));
@@ -493,6 +704,7 @@ END_TEST
 START_MY_TEST(test_update_instances_delete_only) {
     char *aux;
     char *database_file = get_filepath("test_update_instances_delete_only");
+    char *ip = "32.1.32.1";
     sqlite3 *ppDb;
 
     ck_assert_int_eq(-1, access(database_file, F_OK));
@@ -501,8 +713,8 @@ START_MY_TEST(test_update_instances_delete_only) {
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
-    ck_assert_int_eq(0, insert_instance(ppDb, "key", "id", "token"));
-    ck_assert_int_eq(0, insert_instance(ppDb, "key2", "id2", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key", "id", ip));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key2", "id2", ip));
 
     ck_assert_int_eq(DTC_ERR_NONE,
                      db_update_instances(conn));
@@ -517,6 +729,7 @@ END_TEST
 
 START_MY_TEST(test_update_instances_mix_operations) {
     char *aux;
+    char *ip = "12.213.4.2";
     char *database_file = get_filepath("test_update_instances_just_update");
     sqlite3 *ppDb;
 
@@ -526,8 +739,8 @@ START_MY_TEST(test_update_instances_mix_operations) {
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
-    ck_assert_int_eq(0, insert_instance(ppDb, "key", "id", "token"));
-    ck_assert_int_eq(0, insert_instance(ppDb, "key2", "id2", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key", "id", ip));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key2", "id2", ip));
 
     ck_assert_int_eq(DTC_ERR_NONE,
                      db_add_new_instance(conn, "id2", "updatedkey2"));
@@ -554,23 +767,6 @@ START_MY_TEST(test_update_instances_mix_operations) {
 }
 END_TEST
 
-static int get_keys_callback(void *expected_keys, int cols, char **cols_data,
-                             char **cols_name) {
-    char **keys = (char **)expected_keys;
-    char *expected_metainfo = keys[0];
-    char *expected_key_share = keys[1];
-    ck_assert_ptr_ne(NULL, *keys);
-
-    ck_assert_int_eq(2, cols);
-    ck_assert_str_eq(expected_metainfo, cols_data[0]);
-    ck_assert_str_eq(expected_key_share, cols_data[1]);
-
-    // This limit the times the callback can be called to 1.
-    *keys = NULL;
-
-    return 0;
-}
-
 START_MY_TEST(test_store_key_simple) {
     char *database_file = get_filepath("test_store_key_simple");
     char *keys[2];
@@ -586,7 +782,7 @@ START_MY_TEST(test_store_key_simple) {
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
-    ck_assert_int_eq(0, insert_instance(ppDb, "key", "s_id", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key", "s_id", "14.23.1.3"));
     //ck_assert_int_eq(0, insert_instance(conn->ppDb, "key2", "s_id2", "token"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
@@ -603,7 +799,7 @@ START_MY_TEST(test_store_key_simple) {
 
     keys[0] = "key_metainfo_";
     keys[1] = "k_share_";
-    ck_assert_int_eq(0, insert_instance(ppDb, "key2", "s2_id", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key2", "s2_id", "42.102.3.1"));
     ck_assert_int_eq(DTC_ERR_NONE,
                      db_store_key(conn, "s2_id", "k_id", keys[0], keys[1]));
     ck_assert_int_ne(DTC_ERR_NONE,
@@ -633,7 +829,7 @@ START_MY_TEST(test_get_key) {
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
-    ck_assert_int_eq(0, insert_instance(ppDb, "key" ,"s_id", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key" ,"s_id", "12.3.1.2"));
 
     ck_assert_int_eq(DTC_ERR_NONE,
                      db_store_key(conn, "s_id", "k_1", keys[0][0], keys[0][1]));
@@ -664,7 +860,7 @@ START_TEST(test_delete_key_simple) {
     ck_assert(conn != NULL);
     ppDb = get_sqlite3_connection(conn);
 
-    ck_assert_int_eq(0, insert_instance(ppDb, "key", "s_id", "token"));
+    ck_assert_int_eq(0, insert_instance(ppDb, "key", "s_id", "92.3.1.2"));
 
     ck_assert_int_eq(-1,
                      db_delete_key(conn, "s_id", "k_id"));
@@ -688,11 +884,13 @@ void add_test_cases(Suite *s) {
     tcase_add_test(test_case, test_create_db_same_ip);
     tcase_add_test(test_case, test_create_tables);
     tcase_add_test(test_case, test_db_init_connection_without_creating_tables);
+    tcase_add_test(test_case, test_db_get_identity_and_instance);
     //printf("%p\n%p\n", test_get_new_token_empty_db, test_get_new_token_instance_not_found);
 
     tcase_add_test(test_case, test_get_new_token_empty_db);
     tcase_add_test(test_case, test_get_new_token_instance_not_found);
-    tcase_add_test(test_case, test_get_new_token_consistency);
+    tcase_add_test(test_case, test_get_new_token_one_connection);
+    tcase_add_test(test_case, test_get_new_token_same_ip);
 
     tcase_add_test(test_case, test_db_is_an_authorized_key_empty_db);
     tcase_add_test(test_case, test_db_is_an_authorized_key);

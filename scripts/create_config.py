@@ -377,7 +377,7 @@ def main(argv=None):
         "--multiple_connections",
         help="""Behaviour when the node receives multiple connections from an
                 instance""",
-        dafault=DEFAULT_MULTIPLE_CONNECTIONS)
+        default=DEFAULT_MULTIPLE_CONNECTIONS)
     args = parser.parse_args()
 
     if args.output_dir is not None:
@@ -414,7 +414,7 @@ def main(argv=None):
             masters,
             index,
             args.interface,
-            args.multiple_connections
+            args.multiple_connections,
             args.database)
         count += 1
 

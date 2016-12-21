@@ -6,6 +6,7 @@
 
 char *TEST_INSTANCE_ID = "instance_01";
 char *TEST_KEY_ID = "key_id_01";
+char *TEST_CONNECTION_ID = "213";
 
 START_TEST(serialize_op_req_store_key_pub_simple) {
     char *output;
@@ -13,7 +14,7 @@ START_TEST(serialize_op_req_store_key_pub_simple) {
     struct op_req operation_request;
 
     union command_args com_args;
-    com_args.store_key_pub.instance_id = TEST_INSTANCE_ID;
+    com_args.store_key_pub.connection_id = TEST_CONNECTION_ID;
     com_args.store_key_pub.key_id = TEST_KEY_ID;
     operation_request.version = 1;
     operation_request.op = OP_STORE_KEY_PUB;
@@ -45,7 +46,7 @@ START_TEST(serialize_unserialize_op_req_corrupted) {
     struct op_req *unserialized_op_req;
     union command_args com_args;
 
-    com_args.store_key_pub.instance_id = TEST_INSTANCE_ID;
+    com_args.store_key_pub.connection_id = TEST_CONNECTION_ID;
     com_args.store_key_pub.key_id = TEST_KEY_ID;
     operation_request.version = 1;
     operation_request.op = OP_STORE_KEY_PUB;
@@ -69,7 +70,7 @@ START_TEST(serialize_unserialize_op_req) {
     struct op_req *unserialized_op_req;
     union command_args com_args;
 
-    com_args.store_key_pub.instance_id = TEST_INSTANCE_ID;
+    com_args.store_key_pub.connection_id = TEST_CONNECTION_ID;
     com_args.store_key_pub.key_id = TEST_KEY_ID;
     operation_request.version = 1;
     operation_request.op = OP_STORE_KEY_PUB;
@@ -82,8 +83,8 @@ START_TEST(serialize_unserialize_op_req) {
 
     ck_assert(unserialized_op_req->version == operation_request.version);
     ck_assert(unserialized_op_req->op == operation_request.op);
-    ck_assert_str_eq(unserialized_op_req->args->store_key_pub.instance_id,
-                     com_args.store_key_pub.instance_id);
+    ck_assert_str_eq(unserialized_op_req->args->store_key_pub.connection_id,
+                     com_args.store_key_pub.connection_id);
 
     ck_assert_str_eq(unserialized_op_req->args->store_key_pub.key_id,
                      com_args.store_key_pub.key_id);
@@ -102,6 +103,7 @@ START_TEST(serialize_unserialize_delete_key_share_pub_corrupted) {
     union command_args com_args;
 
     com_args.delete_key_share_pub.key_id = TEST_KEY_ID;
+    com_args.delete_key_share_pub.connection_id = TEST_CONNECTION_ID;
     operation_request.version = 1;
     operation_request.op = OP_DELETE_KEY_SHARE_PUB;
     operation_request.args = &com_args;
@@ -128,6 +130,7 @@ START_TEST(serialize_unserialize_delete_key_share_pub) {
     union command_args com_args;
 
     com_args.delete_key_share_pub.key_id = TEST_KEY_ID;
+    com_args.delete_key_share_pub.connection_id = TEST_CONNECTION_ID;
     operation_request.version = 1;
     operation_request.op = OP_DELETE_KEY_SHARE_PUB;
     operation_request.args = &com_args;
@@ -274,6 +277,7 @@ START_TEST(serialize_unserialize_sign_pub_corrupted) {
     com_args.sign_pub.key_id = "key_id";
     com_args.sign_pub.message = (uint8_t *) "me\0ssage";
     com_args.sign_pub.msg_len = 8;
+    com_args.sign_pub.connection_id = TEST_CONNECTION_ID;
 
     operation_request.version = 1;
     operation_request.op = OP_SIGN_PUB;
@@ -303,6 +307,7 @@ START_TEST(serialize_unserialize_sign_pub) {
     com_args.sign_pub.key_id = "key_id";
     com_args.sign_pub.message = (uint8_t *) "me\0ssage";
     com_args.sign_pub.msg_len = 8;
+    com_args.sign_pub.connection_id = TEST_CONNECTION_ID;
 
     operation_request.version = 1;
     operation_request.op = OP_SIGN_PUB;
@@ -320,6 +325,8 @@ START_TEST(serialize_unserialize_sign_pub) {
                      com_args.sign_pub.msg_len);
     ck_assert_str_eq(unserialized_op_req->args->sign_pub.signing_id,
                      com_args.sign_pub.signing_id);
+    ck_assert_str_eq(unserialized_op_req->args->sign_pub.connection_id,
+                     com_args.sign_pub.connection_id);
     ck_assert_int_eq(0,
                      memcmp(unserialized_op_req->args->sign_pub.message,
                             com_args.sign_pub.message,
@@ -491,6 +498,7 @@ START_TEST(serialize_unserialized_sign) {
     sign_pub.key_id = key_id;
     sign_pub.message = (uint8_t *)prep_doc->data;
     sign_pub.msg_len = prep_doc->data_len;
+    sign_pub.connection_id = TEST_CONNECTION_ID;
     pub_msg_size = serialize_op_req(&op_sign_pub, (void *)&pub_msg);
     ck_assert_int_ne(0, pub_msg_size);
 
@@ -554,6 +562,7 @@ END_TEST
 
 TCase* get_test_case(){
     TCase *test_case = tcase_create("messages");
+    tcase_set_timeout(test_case, 10);
 
     tcase_add_test(test_case, serialize_op_req_store_key_pub_simple);
     tcase_add_test(test_case, serialize_op_req_store_key_pub_wrong_version);
