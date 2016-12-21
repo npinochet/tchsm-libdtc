@@ -11,8 +11,8 @@ if(ENABLE_NODE)
     add_subdirectory(node)
 endif()
 
-set(TCHSMLibDTC_VERSION_MAJOR 0)
-set(TCHSMLibDTC_VERSION_MINOR 1)
+set(TCHSMLibDTC_VERSION_MAJOR 1)
+set(TCHSMLibDTC_VERSION_MINOR 0)
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/src/include/dtc.h.in"
