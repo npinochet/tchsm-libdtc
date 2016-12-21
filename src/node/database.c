@@ -28,6 +28,34 @@ void *get_sqlite3_conn(database_t *database_conn)
     return database_conn->ppDb;
 }
 
+static int format_string(char **output, const char *format, int args, ...)
+{
+    int ret_val, i;
+    size_t buf_len = strlen(format) + 1;
+
+    va_list valist;
+    va_start(valist, args);
+
+    for(i = 0; i < args; i++)
+        buf_len += strlen(va_arg(valist, const char *));
+    va_end(valist);
+
+    *output = (char *) malloc(sizeof(char) * buf_len);
+    if(*output == NULL)
+        return DTC_ERR_NOMEM;
+
+    va_start(valist, args);
+    ret_val = vsnprintf(*output, buf_len, format, valist);
+    va_end(valist);
+    if(ret_val < 0 || ret_val >= buf_len) {
+        LOG(LOG_LVL_ERRO,
+            "Buf size (%zu) too small, needed %d", buf_len, ret_val);
+        free(*output);
+        return DTC_ERR_INTERN;
+    }
+    return DTC_ERR_NONE;
+}
+
 // Just works with const char *;
 static int prepare_bind_stmt(sqlite3 *db, const char *query, sqlite3_stmt **out,
                              int args, ...) {
@@ -53,7 +81,6 @@ static int prepare_bind_stmt(sqlite3 *db, const char *query, sqlite3_stmt **out,
             break;
         }
     }
-
     va_end(valist);
 
     if(i != args) {
@@ -315,7 +342,7 @@ int db_update_instances(database_t *db) {
 static int get_connection_id_from_token(database_t *db, const char *sql_query,
                                         const char *token, char **output)
 {
-    int rc, step, buf_len;
+    int rc, step;
     sqlite3_stmt *stmt = NULL;
     const char *instance_id, *conn_id;
 
@@ -338,16 +365,10 @@ static int get_connection_id_from_token(database_t *db, const char *sql_query,
         return DTC_ERR_DATABASE;
     }
 
-    // 2 = 1 NULL BYTE + separator (-)
-    buf_len = strlen(instance_id) + strlen(conn_id) + 2;
-    *output = (char *) malloc(sizeof(char) * buf_len);
-
-    rc = snprintf(*output, buf_len, "%s-%s", instance_id, conn_id);
-    if(rc >= buf_len || rc < 0) {
-        LOG(LOG_LVL_ERRO, "snprintf failed: %d", rc);
-        free(output);
+    rc = format_string(output, "%s-%s", 2, instance_id, conn_id);
+    if(rc != DTC_ERR_NONE) {
         sqlite3_finalize(stmt);
-        return DTC_ERR_INTERN;
+        return rc;
     }
 
     rc = sqlite3_finalize(stmt);
@@ -482,16 +503,12 @@ int get_instance_id_from_token(database_t *db, const char *token_name,
     static const char *sql_query_template = "SELECT instance_id\n"\
                                             "FROM instance_connection\n"\
                                             "WHERE %s = ?;";
-    size_t buf_len = strlen(sql_query_template) + strlen(token_name) + 1;
     int ret_val;
-    char *sql_query = malloc(sizeof(char) * buf_len);
-    ret_val = snprintf(sql_query, buf_len, sql_query_template, token_name);
-    if(ret_val >= buf_len) {
-        LOG(LOG_LVL_ERRO, "Buffer (%zu) too small, needed (%d)", buf_len,
-            ret_val);
-        free(sql_query);
-        return DTC_ERR_INTERN;
-    }
+    char *sql_query;
+
+    ret_val = format_string(&sql_query, sql_query_template, 1, token_name);
+    if(ret_val != DTC_ERR_NONE)
+        return ret_val;
 
     ret_val = get_instance_id(db, sql_query, token, output);
     free(sql_query);
@@ -571,16 +588,14 @@ static int set_conection_id_to_token(database_t *db, const char *token_name,
             "UPDATE instance_connection\n"\
             "SET %s = ?\n"
             "WHERE connection_identifier = ? AND instance_id = ?";
-    size_t buf_len = strlen(sql_update_template) + strlen(token_name) + 1;
-    char *sql_update = (char *) malloc(sizeof(char) * buf_len);
     char *sql_remove_token, *sql_token_update, *instance_id;
-    ret_val = snprintf(sql_update, buf_len, sql_update_template, token_name);
+    char *sql_update;
+
+    ret_val = format_string(&sql_update, sql_update_template, 1, token_name);
+    if(ret_val != DTC_ERR_NONE)
+        return ret_val;
+
     sqlite3_stmt *stmt = NULL, *stmt2 = NULL;
-    if(ret_val >= buf_len) {
-        LOG(LOG_LVL_ERRO, "Buffer (%zu) not big enough, needed %d", buf_len,
-            ret_val);
-        return DTC_ERR_DATABASE;
-    }
 
     ret_val = prepare_bind_stmt(db->ppDb, sql_update, &stmt, 2, conn_id, token);
     if(ret_val != DTC_ERR_NONE) {
@@ -596,26 +611,16 @@ static int set_conection_id_to_token(database_t *db, const char *token_name,
 
     // If the previous failed, the connection identifier already existed,
     // do the update in that row.
-    buf_len = strlen(sql_remove_token_template) + 2 * strlen(token_name) + 1;
-    sql_remove_token = (char *) malloc(sizeof(char) * buf_len);
-    ret_val = snprintf(sql_remove_token, buf_len, sql_remove_token_template,
-                       token_name, token_name);
-    if(ret_val >= buf_len) {
-        LOG(LOG_LVL_ERRO, "Buffer (%zu) not big enough, needed %d", buf_len,
-            ret_val);
-        free(sql_remove_token);
-        return DTC_ERR_DATABASE;
-    }
+    ret_val = format_string(&sql_remove_token, sql_remove_token_template,
+                            2, token_name, token_name);
+    if(ret_val != DTC_ERR_NONE)
+        return ret_val;
 
-    buf_len = strlen(sql_token_update_template) + strlen(token_name) + 1;
-    sql_token_update = (char *) malloc(sizeof(char) * buf_len);
-    ret_val = snprintf(sql_token_update, buf_len, sql_token_update_template,
-                       token_name);
-    if(ret_val >= buf_len) {
-        LOG(LOG_LVL_ERRO, "Buff (%zu) too small, needed %d", buf_len, ret_val);
-        free(sql_token_update);
+    ret_val = format_string(&sql_token_update, sql_token_update_template, 1,
+                            token_name);
+    if(ret_val != DTC_ERR_NONE) {
         free(sql_remove_token);
-        return DTC_ERR_DATABASE;
+        return ret_val;
     }
 
     ret_val = get_instance_id_from_token(db, token_name, token, &instance_id);
@@ -700,15 +705,10 @@ static int get_identity_and_instance_from_token(
     char *sql_query, *db_conn_id;
     sqlite3_stmt *stmt;
     int ret_val, step, rc;
-    size_t buf_len = strlen(sql_template) + strlen(token_name) + 1;
 
-    sql_query = (char *) malloc(sizeof(char) * buf_len);
-    ret_val = snprintf(sql_query, buf_len, sql_template, token_name);
-    if(ret_val >= buf_len) {
-        LOG(LOG_LVL_ERRO, "Buffer (%zu) not big enough, needed %d", buf_len,
-            ret_val);
-        return DTC_ERR_DATABASE;
-    }
+    ret_val = format_string(&sql_query, sql_template, 1, token_name);
+    if(ret_val != DTC_ERR_NONE)
+        return ret_val;
 
     ret_val = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 1, token);
     if(ret_val != DTC_ERR_NONE) {
@@ -880,7 +880,6 @@ int db_get_new_temp_token(database_t *db, const char *instance_public_key,
                           const char *token_name, const char *ip, char **output) {
     char *sql_delete, *sql_query, *instance_id, *stored_ip;
     int rc, ret_val, step, affected_rows;
-    size_t bufer_len;
     const char *sql_delete_template;
     char token[37];
     sqlite3_stmt *stmt = NULL;
@@ -903,15 +902,11 @@ int db_get_new_temp_token(database_t *db, const char *instance_public_key,
                               "SET %s = NULL\n"
                               "WHERE instance_id = ?";
 
-        bufer_len = strlen(sql_delete_template) + strlen(token_name) + 1;
-        sql_delete = (char *) malloc(sizeof(char) * bufer_len);
-        ret_val = snprintf(sql_delete, bufer_len, sql_delete_template,
-                           token_name);
-        if(ret_val >= bufer_len) {
-            LOG(LOG_LVL_CRIT, "Buf (%zu) too small (%d)", bufer_len, ret_val);
+        ret_val = format_string(&sql_delete, sql_delete_template, 1,
+                                token_name);
+        if(ret_val != DTC_ERR_NONE) {
             free(instance_id);
-            free(sql_delete);
-            return DTC_ERR_INTERN;
+            return ret_val;
         }
 
         rc = prepare_bind_stmt(db->ppDb, sql_delete, &stmt, 1, instance_id);
@@ -977,13 +972,10 @@ int db_get_new_temp_token(database_t *db, const char *instance_public_key,
         return DTC_ERR_INVALID_VAL;
     }
 
-    bufer_len = strlen(sql_template) + strlen(token_name) + 1;
-    sql_query = (char *) malloc(sizeof(char) * bufer_len);
-    rc = snprintf(sql_query, bufer_len, sql_template, token_name);
-    if(rc >= bufer_len) {
+    ret_val = format_string(&sql_query, sql_template, 1, token_name);
+    if(ret_val != DTC_ERR_NONE) {
         free(instance_id);
-        LOG(LOG_LVL_CRIT, "Error writing sql query into buffer.");
-        return DTC_ERR_INTERN;
+        return ret_val;
     }
 
     rc = prepare_bind_stmt(db->ppDb, sql_query, &stmt, 2,
