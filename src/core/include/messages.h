@@ -21,7 +21,7 @@ enum OP {
 };
 
 struct store_key_pub{
-    const char *instance_id;
+    const char *connection_id;
     const char *key_id;
 };
 
@@ -47,6 +47,7 @@ struct store_key_ack {
 };
 
 struct delete_key_share_pub {
+    const char *connection_id;
     const char *key_id;
 };
 
@@ -56,6 +57,7 @@ struct delete_key_share_req {
 };
 
 struct sign_pub {
+    const char *connection_id;
     const char *signing_id;
     const char *key_id;
     uint8_t *message;

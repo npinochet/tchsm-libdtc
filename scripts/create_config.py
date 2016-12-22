@@ -27,6 +27,8 @@ DEFAULT_NODE_DATABASE = abspath("node")
 
 DEFAULT_CRYPTOKI_DATABASE = abspath("cryptoki")
 
+DEFAULT_MULTIPLE_CONNECTIONS = "SAME_IP"
+
 
 def correct_input(nodes_info):
     """
@@ -153,6 +155,7 @@ def create_node_config(
      masters,
      index,
      interface,
+     multiple_connections,
      database):
     """Creates one node configuration into the specified file.
 
@@ -161,6 +164,8 @@ def create_node_config(
     masters -- a dictionary in which the keys are the mastrs ids and the value the masters public keys
     index -- node id
     interface -- interface in the node config
+    multiple_connections -- Behaviour when receiving multiple connections from
+     the same instance.
     database -- prefix in the database path in the nodes config
     """
     config_file.write("node:\n{\n")
@@ -173,7 +178,7 @@ def create_node_config(
         config_file.write("\t\tpublic_key=\"" + master_key[0] + "\",\n")
         config_file.write("\t\tid=\"" + master_id + "\"\n")
         config_file.write("\t\t}")
-        
+
         if loop_index < len(masters) - 1:
             config_file.write(",\n")
 
@@ -190,6 +195,7 @@ def create_node_config(
     config_file.write("\tprivate_key=\"" + node_info[3] + "\",\n")
     config_file.write("\tpublic_key=\"" + node_info[2] + "\",\n")
     config_file.write("\tinterface=\"" + interface + "\"\n")
+    config_file.write("\tmultiple_connections=\"" + multiple_connections + "\",\n")
     config_file.write("}")
 
 
@@ -366,6 +372,12 @@ def main(argv=None):
         "--threshold",
         help="custom threshold for the cryptoki config",
         default=-1)
+    parser.add_argument(
+        "-mc",
+        "--multiple_connections",
+        help="""Behaviour when the node receives multiple connections from an
+                instance""",
+        default=DEFAULT_MULTIPLE_CONNECTIONS)
     args = parser.parse_args()
 
     if args.output_dir is not None:
@@ -402,6 +414,7 @@ def main(argv=None):
             masters,
             index,
             args.interface,
+            args.multiple_connections,
             args.database)
         count += 1
 

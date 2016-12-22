@@ -3,6 +3,8 @@
 
 #include <libconfig.h>
 
+// TODO document
+char *create_identity(const char *instance_id, const char *connection_id);
 
 /**
  * Auxiliary function to read an uint16_t from a config_setting_t, it's read

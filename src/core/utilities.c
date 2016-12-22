@@ -1,7 +1,10 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <inttypes.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <uuid/uuid.h>
 
 #include <zmq.h>
@@ -9,6 +12,24 @@
 #include <dtc.h>
 #include "include/logger.h"
 #include "include/utilities.h"
+
+char *create_identity(const char *instance_id, const char *connection_id)
+{
+    int ret_val;
+    size_t buf_size = strlen(instance_id) + strlen(connection_id) + 2;
+    char *identity = (char *) malloc(sizeof(char) * buf_size);
+
+    ret_val = snprintf(identity, buf_size, "%s-%s", instance_id,
+                       connection_id);
+    if(ret_val >= buf_size) {
+        LOG(LOG_LVL_CRIT, "Buf size:%zu not enough to store %d", buf_size,
+            ret_val);
+        free(identity);
+        return NULL;
+    }
+
+    return identity;
+}
 
 int lookup_uint16_conf_element(const config_setting_t *setting,
                                       const char *name, uint16_t *out)
@@ -21,7 +42,7 @@ int lookup_uint16_conf_element(const config_setting_t *setting,
         LOG(LOG_LVL_CRIT, "%s not found in the configuration.", name);
         return DTC_ERR_CONFIG_FILE;
     }
-    if(aux > UINT16_MAX){
+    if(aux > UINT16_MAX) {
         LOG(LOG_LVL_CRIT,
                   "Error getting %s. %lld is too big, should fit in uint16_t.",
                   name, aux);
