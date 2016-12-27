@@ -10,6 +10,7 @@ from os.path import join, exists, split, abspath, isdir, isfile, dirname
 from tempfile import mkdtemp
 from threading import Timer, Thread
 from time import time
+import random
 
 is_py2 = sys.version[0] == '2'
 if is_py2:
@@ -361,8 +362,9 @@ def exec_master_dtc_double(master_args, master_name, cryptoki_conf="cryptoki.con
     if isfile(cryptoki_conf):
         environ["TCHSM_CONFIG"] = abspath(cryptoki_conf)
     else:
-        return None, 1, "ERROR: TCHSM_CONFIG env. var. could not be set."
+        return (None, 1, "ERROR: TCHSM_CONFIG env. var. could not be set.")
 
+    master_args += ["2"]
     try:
         if DEBUG:
             print("    DEBUG::MASTER_CALL: %s" % ' '.join(master_args))
@@ -370,13 +372,14 @@ def exec_master_dtc_double(master_args, master_name, cryptoki_conf="cryptoki.con
             master_args,
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE)
+        master_args += ["key_handler2"]
         master2 = subprocess.Popen(
             master_args,
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE)
     except OSError:
         print("ERROR: Exec could not be accessed >> " + master_name)
-        return None, 1, "ERROR: Exec could not be accessed >> " + master_name
+        return (None, 1, "ERROR: Exec could not be accessed >> " + master_name)
 
     timer = Timer(MASTER_TIMEOUT * 3, terminate_subprocesses, [[master1, master2]])
     
@@ -391,20 +394,20 @@ def exec_master_dtc_double(master_args, master_name, cryptoki_conf="cryptoki.con
         debug_output(stdout_data1, stderr_data1)
 
         if master1.returncode != 0:
-            return master1, master1.returncode, "FAILURE: Master1 return code: " + str(master1.returncode)
-
-    elif master2.returncode >= 0:
+            print ("return code1 : " + str(master1.returncode))
+            return (master1, master1.returncode, "FAILURE: Master1 return code: " + str(master1.returncode))
+    if master2.returncode >= 0:
         timer.cancel()
         debug_output(stdout_data2, stderr_data2)
 
         if master2.returncode != 0:
+            print ("return code2 : " + str(master2.returncode))
             return master2, master2.returncode, "FAILURE: Master2 return code: " + str(master2.returncode)
-        return None, master1.returncode, ""
+        return (None, master1.returncode, "")
     
-    else:
-        debug_output(stdout_data1, stderr_data1)
-        debug_output(stdout_data2, stderr_data2)
-        return None, -1, "FAILURE: One of the masters didn't exit on time"
+    debug_output(stdout_data1, stderr_data1)
+    debug_output(stdout_data2, stderr_data2)
+    return (None, -1, "FAILURE: One of the masters didn't exit on time")
 
 
 def close_master(master):
@@ -426,7 +429,9 @@ def create_dummy_file():
 
     :return: The filename of the created file
     """
-    fd = open("to_sign.txt", "w")
+    filename="to_sign"+str(random.randint(0,100))+".txt"
+    print(filename)
+    fd = open(filename, "w")
     fd.write(":)\n")
     filename = fd.name
     fd.close()
@@ -922,6 +927,7 @@ def test_two_masters_two_nodes(master_args, master_name):
         master_args, master_name, 2, index=1)
     master, master_ret, master_mess = exec_master(
         fixed_args, master_name, "cryptoki1.conf")
+
     close_master(master)
     if master_ret != 0:
         close_nodes([node_proc1, node_proc2])

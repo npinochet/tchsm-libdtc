@@ -187,7 +187,6 @@ class PKCS11Test:
                     private_key,
                     public_exponent,
                     modulus)
-
         self.finalize()
         return 0
 
