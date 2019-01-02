@@ -18,6 +18,7 @@
 */
 
 #include <algorithm>
+#include <functional>
 
 #include <botan/emsa.h>
 #include <botan/md5.h>
