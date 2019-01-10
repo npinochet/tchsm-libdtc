@@ -263,6 +263,8 @@ void Session::findObjectsInit(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount) {
 
     Token &token = getCurrentSlot().getToken();
 
+    printf("SEARCHING... \n");
+
     if (ulCount == 0) {
         // Busco todos los objetos...
         for (auto &handleObjectPair: token.getObjects()) {
@@ -271,6 +273,7 @@ void Session::findObjectsInit(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount) {
     } else {
         for (auto &handleObjectPair: token.getObjects()) {
             if (handleObjectPair.second->match(pTemplate, ulCount)) {
+                printf("FOUND KEY");
                 foundObjects_.push_back(handleObjectPair.first);
             }
         }
@@ -426,6 +429,9 @@ namespace {
                 case CKA_ID:
                     aId = pkTemplate[i];
                     break;
+                case CKA_KEY_TYPE:
+                    aKeyType = pkTemplate[i];
+                    break;
                 case CKA_SUBJECT:
                     aSubject = pkTemplate[i];
                     break;
@@ -464,6 +470,9 @@ namespace {
                     break;
                 case CKA_MODULUS_BITS:
                     aModulusBits = pkTemplate[i];
+                    break;
+                case CKA_PUBLIC_EXPONENT:
+                    aExponent = pkTemplate[i];
                     break;
                 default:
                     break;
@@ -574,14 +583,23 @@ namespace {
                 case CKA_ID:
                     aId = skTemplate[i];
                     break;
+                case CKA_KEY_TYPE:
+                    aKeyType = skTemplate[i];
+                    break;
                 case CKA_SUBJECT:
                     aSubject = skTemplate[i];
                     break;
                 case CKA_TOKEN:
                     aToken = skTemplate[i];
                     break;
+                case CKA_SENSITIVE:
+                    aSensitive = skTemplate[i];
+                    break;
                 case CKA_PRIVATE:
                     aPrivate = skTemplate[i];
+                    break;
+                case CKA_EXTRACTABLE:
+                    aExtractable = skTemplate[i];
                     break;
                 case CKA_DERIVE:
                     aDerive = skTemplate[i];
