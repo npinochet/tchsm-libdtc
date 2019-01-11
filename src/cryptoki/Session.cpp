@@ -231,12 +231,18 @@ void Session::destroyObject(CK_OBJECT_HANDLE hObject) {
 
     auto it = objectContainer.find(hObject);
     if (it != objectContainer.end()) {
-        // Verifico que el objeto no sea una llave, y si lo es, la elimino de los nodos.
+        // Verifico que el objeto no sea una llave, si lo es y es privada, la elimino de los nodos.
+        // TODO: Un mejor mecanismo para eliminar la llave de los nodos seria verificar que no tenga ningun objeto llave privada o publica asociada a el.
         CK_ATTRIBUTE tmpl = {.type=CKA_VENDOR_DEFINED};
+        CK_ATTRIBUTE tmplPrivate = {.type=CKA_PRIVATE};
         const CK_ATTRIBUTE *handlerAttribute = it->second->findAttribute(&tmpl);
         if (handlerAttribute != nullptr) {
-            string handler(static_cast<char *> ( handlerAttribute->pValue ), handlerAttribute->ulValueLen);
-            dtc_delete_key_shares(getCurrentSlot().getApplication().getDtcContext(), handler.c_str());
+            const CK_ATTRIBUTE *handlerPrivate = it->second->findAttribute(&tmplPrivate);
+            CK_BBOOL isPrivate = *(CK_BBOOL *) handlerPrivate->pValue;
+            if (isPrivate == CK_TRUE) {
+                string handler(static_cast<char *> ( handlerAttribute->pValue ), handlerAttribute->ulValueLen);
+                dtc_delete_key_shares(getCurrentSlot().getApplication().getDtcContext(), handler.c_str());
+            }
         }
 
         objectContainer.erase(it);
@@ -368,7 +374,7 @@ namespace {
         CK_ATTRIBUTE aLabel = {CKA_LABEL, NULL_PTR, 0};
         CK_ATTRIBUTE aId = {CKA_ID, NULL_PTR, 0};
         CK_ATTRIBUTE aSubject = {CKA_SUBJECT, NULL_PTR, 0};
-        CK_ATTRIBUTE aPrivate = {CKA_PRIVATE, &ckTrue, sizeof(ckTrue)};
+        CK_ATTRIBUTE aPrivate = {CKA_PRIVATE, &ckFalse, sizeof(ckFalse)};
         CK_ATTRIBUTE aModifiable = {CKA_MODIFIABLE, &ckTrue, sizeof(ckTrue)};
         CK_ATTRIBUTE aToken = {CKA_TOKEN, &ckFalse, sizeof(ckFalse)};
         CK_ATTRIBUTE aDerive = {CKA_DERIVE, &ckFalse, sizeof(ckFalse)};
