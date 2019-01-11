@@ -263,8 +263,6 @@ void Session::findObjectsInit(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount) {
 
     Token &token = getCurrentSlot().getToken();
 
-    printf("SEARCHING... \n");
-
     if (ulCount == 0) {
         // Busco todos los objetos...
         for (auto &handleObjectPair: token.getObjects()) {
@@ -273,10 +271,23 @@ void Session::findObjectsInit(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount) {
     } else {
         for (auto &handleObjectPair: token.getObjects()) {
             if (handleObjectPair.second->match(pTemplate, ulCount)) {
-                printf("FOUND KEY");
                 foundObjects_.push_back(handleObjectPair.first);
             }
         }
+    }
+
+    // Si no se encontro el objecto, recargar la base de datos y buscar de
+    // nuevo, puede que el objeto haya sido creado por otra instancia.
+    if (ulCount != 0 && foundObjects_.size() == 0 && !refreshedToken_) {
+        refreshedToken_ = true;
+        Slot &slot = getCurrentSlot();
+        Token &token = slot.getToken();
+        Database &database = slot.getApplication().getDatabase();
+        Token *newToken = database.getToken(token.getLabel());
+
+        token.copyState(newToken);
+        slot.insertToken(newToken);
+        return findObjectsInit(pTemplate, ulCount);
     }
 
     //TODO: verificar permisos de acceso.
@@ -308,6 +319,7 @@ void Session::findObjectsFinal() {
                        CKR_OPERATION_NOT_INITIALIZED);
     } else {
         findInitialized_ = false;
+        refreshedToken_ = false;
     }
 }
 

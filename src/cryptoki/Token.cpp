@@ -205,3 +205,10 @@ map<CK_OBJECT_HANDLE, CryptoObjectPtr> & Token::getObjects()
 {
     return objects_;
 }
+
+void Token::copyState(Token *token) {
+    token->userPin_ = userPin_;
+    token->securityLevel_ = securityLevel_;
+    token->loggedIn_ = loggedIn_;
+    token->soPin_ = soPin_;
+}

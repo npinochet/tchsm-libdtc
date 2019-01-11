@@ -45,7 +45,7 @@ public:
         SECURITY_OFFICER, USER, PUBLIC
     };
 
-    Token ( std::string label, std::string userPin, std::string soPin);
+    Token ( std::string label, std::string userPin, std::string soPin );
     ~Token();
 
     // Basic operations      
@@ -54,6 +54,7 @@ public:
     bool isInited() const;
     void login ( CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinLen );
     void logout();
+    void copyState( Token *token );
     SecurityLevel getSecurityLevel() const;
     std::string getLabel() const;
 

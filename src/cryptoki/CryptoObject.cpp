@@ -68,10 +68,10 @@ CryptoObject::~CryptoObject()
 }
 
 bool CryptoObject::match ( CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount ) const
-{       
+{
   for (CK_ULONG i = 0; i<ulCount; i++) {
     CK_ATTRIBUTE templateAttr = pTemplate[i];
-    auto attrIt = attributes_.find(templateAttr.type);	
+    auto attrIt = attributes_.find(templateAttr.type);
 
     if(attrIt == attributes_.end()) {
       return false;
