@@ -276,6 +276,20 @@ void Session::findObjectsInit(CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount) {
         }
     }
 
+    // Si no se encontro el objecto, recargar la base de datos y buscar de
+    // nuevo, puede que el objeto haya sido creado por otra instancia.
+    if (ulCount != 0 && foundObjects_.size() == 0 && !refreshedToken_) {
+        refreshedToken_ = true;
+        Slot &slot = getCurrentSlot();
+        Token &token = slot.getToken();
+        Database &database = slot.getApplication().getDatabase();
+        Token *newToken = database.getToken(token.getLabel());
+
+        token.copyState(newToken);
+        slot.insertToken(newToken);
+        return findObjectsInit(pTemplate, ulCount);
+    }
+
     //TODO: verificar permisos de acceso.
     foundObjectsIterator_ = foundObjects_.begin();
     foundObjectsEnd_ = foundObjects_.end();
@@ -305,6 +319,7 @@ void Session::findObjectsFinal() {
                        CKR_OPERATION_NOT_INITIALIZED);
     } else {
         findInitialized_ = false;
+        refreshedToken_ = false;
     }
 }
 
@@ -426,6 +441,9 @@ namespace {
                 case CKA_ID:
                     aId = pkTemplate[i];
                     break;
+                case CKA_KEY_TYPE:
+                    aKeyType = pkTemplate[i];
+                    break;
                 case CKA_SUBJECT:
                     aSubject = pkTemplate[i];
                     break;
@@ -464,6 +482,9 @@ namespace {
                     break;
                 case CKA_MODULUS_BITS:
                     aModulusBits = pkTemplate[i];
+                    break;
+                case CKA_PUBLIC_EXPONENT:
+                    aExponent = pkTemplate[i];
                     break;
                 default:
                     break;
@@ -574,14 +595,23 @@ namespace {
                 case CKA_ID:
                     aId = skTemplate[i];
                     break;
+                case CKA_KEY_TYPE:
+                    aKeyType = skTemplate[i];
+                    break;
                 case CKA_SUBJECT:
                     aSubject = skTemplate[i];
                     break;
                 case CKA_TOKEN:
                     aToken = skTemplate[i];
                     break;
+                case CKA_SENSITIVE:
+                    aSensitive = skTemplate[i];
+                    break;
                 case CKA_PRIVATE:
                     aPrivate = skTemplate[i];
+                    break;
+                case CKA_EXTRACTABLE:
+                    aExtractable = skTemplate[i];
                     break;
                 case CKA_DERIVE:
                     aDerive = skTemplate[i];

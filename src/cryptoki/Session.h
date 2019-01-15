@@ -61,6 +61,7 @@ namespace hsm {
         // Object Search
 
         bool findInitialized_ = false;
+        bool refreshedToken_ = false;
         std::vector<CK_OBJECT_HANDLE> foundObjects_;
         std::vector<CK_OBJECT_HANDLE>::iterator foundObjectsIterator_;
         std::vector<CK_OBJECT_HANDLE>::iterator foundObjectsEnd_;
