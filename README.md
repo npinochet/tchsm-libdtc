@@ -2,7 +2,7 @@
 
 The Distributed Threshold Cryptography library is mainly a PKCS#11 distributed implementation using the [threshold library](https://github.com/niclabs/tchsm-libtc), both libraries conform the Threshold Cryptography HSM project.
 
-It contains two APIs, the PKCS#11 standard and our own API described at [dtc.h](https://github.com/niclabs/tchsm-libdtc/blob/master/src/include/dtc.h). It also includes a node implementation, which is a daemon the library connects to in order to perform the cryptographic operations.
+It contains two APIs, the PKCS#11 standard and our own API described at [dtc.h](https://github.com/niclabs/tchsm-libdtc/blob/master/src/include/dtc.h.in). It also includes a node implementation, which is a daemon the library connects to in order to perform the cryptographic operations.
 
 The project intends to be an alternative to a HSM and to other availables software options like SofthHSM. The main idea behind is to provide security by using Threshold Cryptography. This allows to store the private key as many different key shares, distributed among nodes (possibly) at different locations, reducing the risk of key compromise, both physically and digitally.
 
@@ -51,7 +51,7 @@ $ tchsm_node -c <path_to_the_nodei.conf>
 
 The library however is not being run directly, so in order to make its configuration file reachable to it you need to set the TCHSM_CONFIG environment variable to the path of the cryptoki.conf file just generated.
 
-We also provide an easy to deploy [demo](https://github.com/niclabs/docker/tree/master/tchsm/demo/ubuntulatest-knot) using docker containers, you can use it as template.
+We also provide an easy to deploy [demo](https://github.com/niclabs/docker/tree/master/tchsm/) using docker containers, you can choose a demo implemented with KNOT or BIND and OpenDNSSEC.
 
 ## Supported mechanisms
 
